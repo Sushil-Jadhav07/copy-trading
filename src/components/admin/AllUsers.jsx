@@ -1,231 +1,435 @@
-import React, { useState } from 'react';
-import { Search, Filter, Eye, UserX, Trash2, UserPlus, Link } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Eye, LoaderCircle, Search, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SlideOver from '@/components/shared/SlideOver';
-import { children, masters, formatCurrency } from '@/data/mockData';
 import { useToast } from '@/components/shared/Toast';
-
-const BROKERS = ['zerodha', 'groww', 'angelone', 'upstox', 'dhan'];
+import { adminService } from '@/lib/admin';
 
 const RoleBadge = ({ role }) => (
-  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-    role === 'Master' ? 'bg-brand-purple/20 text-brand-purple border border-brand-purple/30'
-    : role === 'Admin' ? 'bg-warning/20 text-warning border border-warning/30'
-    : 'bg-brand-blue/20 text-brand-blue border border-brand-blue/30'
-  }`}>{role}</span>
+  <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+    role === 'Master'
+      ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400'
+      : role === 'Admin'
+      ? 'border-amber-500/30 bg-amber-500/15 text-amber-400'
+      : 'border-cyan-500/30 bg-cyan-500/15 text-cyan-400'
+  }`}>
+    {role}
+  </span>
 );
 
-const StatusBadge = ({ status }) => (
-  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-    status === 'Active' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'
-  }`}>{status}</span>
-);
+const StatusBadge = ({ status }) => {
+  const normalized = String(status || '').toUpperCase();
+  const isActive = normalized === 'ACTIVE';
 
-const AllUsers = () => {
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+      isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+    }`}>
+      {isActive ? 'Active' : normalized || 'Unknown'}
+    </span>
+  );
+};
+
+const initialCreateForm = {
+  name: '',
+  email: '',
+  password: '',
+  phone: '',
+  role: 'Master',
+  assignedMasterId: '',
+};
+
+const formatBrokerCount = (user) => (Array.isArray(user?.brokerAccounts) ? user.brokerAccounts.length : 0);
+
+const routeConfig = {
+  all: {
+    title: 'User Management',
+    subtitle: 'Live admin controls for Master and Child accounts',
+    defaultRoleFilter: 'All',
+  },
+  masters: {
+    title: 'Master Accounts',
+    subtitle: 'Live admin controls for master accounts only',
+    defaultRoleFilter: 'Master',
+  },
+  children: {
+    title: 'Child Accounts',
+    subtitle: 'Live admin controls for child accounts only',
+    defaultRoleFilter: 'Child',
+  },
+};
+
+const AllUsers = ({ scope = 'all' }) => {
   const { addToast } = useToast();
-  const [users, setUsers] = useState([
-    ...masters.map((m) => ({ ...m, id: `m-${m.id}`, role: 'Master', broker: 'zerodha' })),
-    ...children.map((c) => ({ ...c, id: `c-${c.id}`, role: 'Child', broker: 'angelone' })),
-  ]);
+  const viewConfig = routeConfig[scope] || routeConfig.all;
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('All');
+  const [roleFilter, setRoleFilter] = useState(viewConfig.defaultRoleFilter);
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedUser, setSelectedUser] = useState(null);
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [suspendModal, setSuspendModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [createModal, setCreateModal] = useState(false);
-  const [brokerModal, setBrokerModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: '', email: '', phone: '', role: 'Master', broker: '', password: '' });
+  const [submittingCreate, setSubmittingCreate] = useState(false);
+  const [createForm, setCreateForm] = useState(initialCreateForm);
   const [createErrors, setCreateErrors] = useState({});
-  const [assignBroker, setAssignBroker] = useState('');
 
-  const filtered = users.filter((u) => {
-    if (searchQuery && !u.name.toLowerCase().includes(searchQuery.toLowerCase()) && !u.email.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (roleFilter !== 'All' && u.role !== roleFilter) return false;
-    if (statusFilter !== 'All' && u.status !== statusFilter) return false;
-    return true;
-  });
+  useEffect(() => {
+    setRoleFilter(viewConfig.defaultRoleFilter);
+  }, [viewConfig.defaultRoleFilter]);
 
-  const handleSuspendToggle = () => {
-    setUsers((p) => p.map((u) => u.id === selectedUser.id ? { ...u, status: u.status === 'Active' ? 'Suspended' : 'Active' } : u));
-    setSuspendModal(false);
-    addToast(`${selectedUser.name} ${selectedUser.status === 'Active' ? 'suspended' : 'activated'}`, 'success');
+  const loadUsers = async (showLoader = true) => {
+    if (showLoader) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
+    try {
+      const params = {};
+
+      if (roleFilter !== 'All') {
+        params.role = roleFilter.toUpperCase();
+      }
+
+      if (statusFilter !== 'All') {
+        params.status = statusFilter.toUpperCase();
+      }
+
+      const response = await adminService.getUsers(params);
+      setUsers(response.users);
+    } catch (error) {
+      addToast(error.message || 'Unable to load users', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const handleDelete = () => {
-    setUsers((p) => p.filter((u) => u.id !== selectedUser.id));
-    setDeleteModal(false);
-    addToast('User deleted', 'success');
-  };
+  useEffect(() => {
+    loadUsers(true);
+  }, [roleFilter, statusFilter]);
+
+  const filteredUsers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return users;
+    }
+
+    return users.filter(
+      (user) =>
+        user.name.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query) ||
+        user.phone.toLowerCase().includes(query),
+    );
+  }, [searchQuery, users]);
+
+  const masterOptions = useMemo(
+    () => users.filter((user) => user.role === 'Master' && user.status === 'ACTIVE'),
+    [users],
+  );
+
+  const stats = useMemo(
+    () => [
+      { label: 'Total Users', value: users.length, color: 'text-foreground' },
+      { label: 'Masters', value: users.filter((user) => user.role === 'Master').length, color: 'text-emerald-400' },
+      { label: 'Children', value: users.filter((user) => user.role === 'Child').length, color: 'text-cyan-400' },
+      { label: 'Active', value: users.filter((user) => user.status === 'ACTIVE').length, color: 'text-green-400' },
+    ],
+    [users],
+  );
 
   const validateCreate = () => {
-    const e = {};
-    if (!createForm.name.trim()) e.name = 'Required';
-    if (!createForm.email.includes('@')) e.email = 'Invalid email';
-    if (!createForm.phone.match(/^[6-9]\d{9}$/)) e.phone = 'Invalid mobile';
-    if (!createForm.broker) e.broker = 'Required';
-    if (createForm.password.length < 6) e.password = 'Min 6 characters';
-    setCreateErrors(e);
-    return Object.keys(e).length === 0;
+    const nextErrors = {};
+
+    if (!createForm.name.trim()) nextErrors.name = 'Required';
+    if (!createForm.email.includes('@')) nextErrors.email = 'Invalid email';
+    if (createForm.password.length < 6) nextErrors.password = 'Min 6 characters';
+    if (createForm.phone && !/^[6-9]\d{9}$/.test(createForm.phone)) nextErrors.phone = 'Invalid mobile';
+    if (createForm.role === 'Child' && !createForm.assignedMasterId) nextErrors.assignedMasterId = 'Select a master';
+
+    setCreateErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const handleCreate = () => {
-    if (!validateCreate()) return;
-    const newUser = {
-      id: Date.now(),
-      name: createForm.name,
-      email: createForm.email,
-      phone: createForm.phone,
-      role: createForm.role,
-      broker: createForm.broker,
-      status: 'Active',
-      joinedDate: new Date().toLocaleDateString('en-IN'),
-      portfolioValue: 0,
-      totalPnL: 0,
-    };
-    setUsers((p) => [...p, newUser]);
-    setCreateModal(false);
-    setCreateForm({ name: '', email: '', phone: '', role: 'Master', broker: '', password: '' });
-    setCreateErrors({});
-    addToast(`${createForm.role} account created for ${createForm.name}`, 'success');
+  const handleOpenUser = async (user) => {
+    setSelectedUser(user);
+    setSlideOverOpen(true);
+
+    try {
+      const latestUser = await adminService.getUser(user.userId);
+      setSelectedUser(latestUser);
+    } catch (error) {
+      addToast(error.message || 'Unable to load user details', 'error');
+    }
   };
 
-  const handleAssignBroker = () => {
-    if (!assignBroker) { addToast('Select a broker first', 'error'); return; }
-    setUsers((p) => p.map((u) => u.id === selectedUser.id ? { ...u, broker: assignBroker } : u));
-    setBrokerModal(false);
-    addToast(`${assignBroker} assigned to ${selectedUser.name}`, 'success');
+  const handleSuspendToggle = async () => {
+    if (!selectedUser) {
+      return;
+    }
+
+    try {
+      if (selectedUser.status === 'ACTIVE') {
+        await adminService.deactivateUser(selectedUser.userId);
+        addToast(`${selectedUser.name} deactivated`, 'success');
+      } else {
+        await adminService.activateUser(selectedUser.userId);
+        addToast(`${selectedUser.name} activated`, 'success');
+      }
+
+      await loadUsers(false);
+      const latestUser = await adminService.getUser(selectedUser.userId);
+      setSelectedUser(latestUser);
+      setSuspendModal(false);
+    } catch (error) {
+      addToast(error.message || 'Unable to update user status', 'error');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedUser) {
+      return;
+    }
+
+    try {
+      await adminService.deleteUser(selectedUser.userId);
+      addToast('User deleted', 'success');
+      setDeleteModal(false);
+      setSlideOverOpen(false);
+      setSelectedUser(null);
+      await loadUsers(false);
+    } catch (error) {
+      addToast(error.message || 'Unable to delete user', 'error');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!validateCreate()) {
+      return;
+    }
+
+    setSubmittingCreate(true);
+
+    try {
+      if (createForm.role === 'Master') {
+        await adminService.createMaster({
+          name: createForm.name,
+          email: createForm.email,
+          password: createForm.password,
+          phone: createForm.phone,
+        });
+      } else {
+        await adminService.createChild({
+          name: createForm.name,
+          email: createForm.email,
+          password: createForm.password,
+          phone: createForm.phone,
+          assignedMasterId: createForm.assignedMasterId,
+        });
+      }
+
+      addToast(`${createForm.role} account created successfully`, 'success');
+      setCreateModal(false);
+      setCreateForm(initialCreateForm);
+      setCreateErrors({});
+      await loadUsers(false);
+    } catch (error) {
+      addToast(error.message || 'Unable to create account', 'error');
+    } finally {
+      setSubmittingCreate(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Create and manage Master & Child accounts</p>
+          <h1 className="text-2xl font-bold">{viewConfig.title}</h1>
+          <p className="text-muted-foreground">{viewConfig.subtitle}</p>
         </div>
-        <button onClick={() => setCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors">
-          <UserPlus className="w-4 h-4" />
-          Create Account
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => loadUsers(false)}
+            className="rounded-lg border border-white/10 bg-black/5 px-4 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button
+            onClick={() => setCreateModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95"
+          >
+            <UserPlus className="h-4 w-4" />
+            Create Account
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Users', value: users.length },
-          { label: 'Masters', value: users.filter((u) => u.role === 'Master').length, color: 'text-brand-purple' },
-          { label: 'Children', value: users.filter((u) => u.role === 'Child').length, color: 'text-brand-blue' },
-          { label: 'Active', value: users.filter((u) => u.status === 'Active').length, color: 'text-success' },
-        ].map((s) => (
-          <GlassCard key={s.label}>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color || ''}`}>{s.value}</p>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {stats.map((stat) => (
+          <GlassCard key={stat.label}>
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <p className={`mt-1 text-2xl font-bold ${stat.color}`}>{stat.value}</p>
           </GlassCard>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name or email..."
-            className="w-full pl-9 pr-4 py-2 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search by name, email, phone..."
+            className="w-full rounded-lg border border-border bg-black/5 py-2 pl-9 pr-4 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500 dark:bg-white/5"
+          />
         </div>
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3 py-2 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm focus:outline-none focus:border-brand-purple">
-          <option value="All">All Roles</option>
-          <option value="Master">Master</option>
-          <option value="Child">Child</option>
-        </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm focus:outline-none focus:border-brand-purple">
+        {scope === 'all' ? (
+          <select
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value)}
+            className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
+          >
+            <option value="All">All Roles</option>
+            <option value="Master">Master</option>
+            <option value="Child">Child</option>
+            <option value="Admin">Admin</option>
+          </select>
+        ) : (
+          <div className="flex items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-400">
+            Showing: {viewConfig.defaultRoleFilter}
+          </div>
+        )}
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
+        >
           <option value="All">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Suspended">Suspended</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+          <option value="SUSPENDED">Suspended</option>
         </select>
       </div>
 
-      {/* Table */}
       <GlassCard noPadding>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border/50">
-                {['#', 'User', 'Role', 'Broker', 'Status', 'Joined', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
+                {['#', 'User', 'Role', 'Status', 'Phone', 'Broker Accounts', 'Joined', 'Actions'].map((header) => (
+                  <th key={header} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {header}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user, idx) => (
-                <motion.tr key={user.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.03 }}
-                  className="border-b border-border/30 hover:bg-white/3 transition-colors">
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-foreground">{user.name.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                      </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-16">
+                    <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Loading users...
                     </div>
                   </td>
-                  <td className="px-4 py-3"><RoleBadge role={user.role} /></td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs capitalize text-muted-foreground">{user.broker || '—'}</span>
+                </tr>
+              ) : filteredUsers.length ? (
+                filteredUsers.map((user, index) => (
+                  <motion.tr
+                    key={user.userId}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.03 }}
+                    className="border-b border-border/30 transition-colors hover:bg-white/3"
+                  >
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{index + 1}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500">
+                          <span className="text-xs font-bold text-white">{user.name.charAt(0)}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{user.name}</p>
+                          <p className="text-xs text-muted-foreground">{user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><RoleBadge role={user.role} /></td>
+                    <td className="px-4 py-3"><StatusBadge status={user.status} /></td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{user.phone || 'N/A'}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{formatBrokerCount(user)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{user.joinedDate}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleOpenUser(user)}
+                          title="View"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/5 transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setSuspendModal(true);
+                          }}
+                          title={user.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                            user.status === 'ACTIVE'
+                              ? 'bg-amber-500/15 hover:bg-amber-500/25'
+                              : 'bg-emerald-500/15 hover:bg-emerald-500/25'
+                          }`}
+                        >
+                          {user.status === 'ACTIVE' ? (
+                            <UserX className="h-3.5 w-3.5 text-amber-400" />
+                          ) : (
+                            <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setDeleteModal(true);
+                          }}
+                          title="Delete"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/15 transition-colors hover:bg-red-500/25"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    No users found
                   </td>
-                  <td className="px-4 py-3"><StatusBadge status={user.status} /></td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{user.joinedDate}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => { setSelectedUser(user); setSlideOverOpen(true); }} title="View"
-                        className="w-7 h-7 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg flex items-center justify-center transition-colors">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => { setSelectedUser(user); setAssignBroker(user.broker || ''); setBrokerModal(true); }} title="Assign Broker"
-                        className="w-7 h-7 bg-brand-blue/20 hover:bg-brand-blue/30 rounded-lg flex items-center justify-center transition-colors">
-                        <Link className="w-3.5 h-3.5 text-brand-blue" />
-                      </button>
-                      <button onClick={() => { setSelectedUser(user); setSuspendModal(true); }} title={user.status === 'Active' ? 'Suspend' : 'Activate'}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${user.status === 'Active' ? 'bg-warning/20 hover:bg-warning/30' : 'bg-success/20 hover:bg-success/30'}`}>
-                        <UserX className={`w-3.5 h-3.5 ${user.status === 'Active' ? 'text-warning' : 'text-success'}`} />
-                      </button>
-                      <button onClick={() => { setSelectedUser(user); setDeleteModal(true); }} title="Delete"
-                        className="w-7 h-7 bg-danger/20 hover:bg-danger/30 rounded-lg flex items-center justify-center transition-colors">
-                        <Trash2 className="w-3.5 h-3.5 text-danger" />
-                      </button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">No users found</td></tr>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
       </GlassCard>
 
-      {/* User Detail SlideOver */}
       <SlideOver isOpen={slideOverOpen} onClose={() => setSlideOverOpen(false)} title="User Details" size="md">
         {selectedUser && (
           <div className="space-y-5">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center">
-                <span className="text-2xl font-bold text-foreground">{selectedUser.name.charAt(0)}</span>
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500">
+                <span className="text-2xl font-bold text-white">{selectedUser.name.charAt(0)}</span>
               </div>
               <div>
                 <h2 className="text-xl font-bold">{selectedUser.name}</h2>
-                <p className="text-muted-foreground text-sm">{selectedUser.email}</p>
-                <div className="flex gap-2 mt-1">
+                <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                <div className="mt-1 flex gap-2">
                   <RoleBadge role={selectedUser.role} />
                   <StatusBadge status={selectedUser.status} />
                 </div>
@@ -233,16 +437,18 @@ const AllUsers = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
+                ['User ID', selectedUser.userId],
                 ['Role', selectedUser.role],
                 ['Status', selectedUser.status],
+                ['Phone', selectedUser.phone || 'N/A'],
                 ['Joined', selectedUser.joinedDate],
-                ['Broker', selectedUser.broker || 'Not assigned'],
-                ['Portfolio Value', formatCurrency(selectedUser.portfolioValue || 0)],
-                ['Total P&L', formatCurrency(selectedUser.totalPnL || 0)],
-              ].map(([k, v]) => (
-                <div key={k} className="p-3 bg-black/5 dark:bg-white/5 rounded-lg">
-                  <p className="text-xs text-muted-foreground">{k}</p>
-                  <p className="font-semibold text-sm mt-0.5">{v}</p>
+                ['Broker Accounts', formatBrokerCount(selectedUser)],
+                ['Two-Factor', selectedUser.twoFactorEnabled ? 'Enabled' : 'Disabled'],
+                ['Email', selectedUser.email],
+              ].map(([key, value]) => (
+                <div key={key} className="rounded-lg bg-black/5 p-3 dark:bg-white/5">
+                  <p className="text-xs text-muted-foreground">{key}</p>
+                  <p className="mt-0.5 break-all text-sm font-semibold">{value}</p>
                 </div>
               ))}
             </div>
@@ -250,14 +456,29 @@ const AllUsers = () => {
         )}
       </SlideOver>
 
-      {/* Create Account Modal */}
-      <Modal isOpen={createModal} onClose={() => { setCreateModal(false); setCreateErrors({}); }} title="Create Account" size="md">
+      <Modal
+        isOpen={createModal}
+        onClose={() => {
+          setCreateModal(false);
+          setCreateErrors({});
+          setCreateForm(initialCreateForm);
+        }}
+        title="Create Account"
+        size="md"
+      >
         <div className="space-y-4">
-          <div className="flex gap-2 mb-2">
-            {['Master', 'Child'].map((r) => (
-              <button key={r} onClick={() => setCreateForm((f) => ({ ...f, role: r }))}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${createForm.role === r ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'}`}>
-                {r}
+          <div className="mb-2 flex gap-2">
+            {['Master', 'Child'].map((role) => (
+              <button
+                key={role}
+                onClick={() => setCreateForm((current) => ({ ...current, role, assignedMasterId: '' }))}
+                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                  createForm.role === role
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+                }`}
+              >
+                {role}
               </button>
             ))}
           </div>
@@ -269,77 +490,104 @@ const AllUsers = () => {
             { key: 'password', label: 'Password', placeholder: 'Min 6 characters', type: 'password' },
           ].map(({ key, label, placeholder, type }) => (
             <div key={key}>
-              <label className="block text-xs text-muted-foreground mb-1.5">{label} *</label>
-              <input type={type} value={createForm[key]}
-                onChange={(e) => setCreateForm((f) => ({ ...f, [key]: e.target.value }))}
+              <label className="mb-1.5 block text-xs text-muted-foreground">{label}{key !== 'phone' ? ' *' : ''}</label>
+              <input
+                type={type}
+                value={createForm[key]}
+                onChange={(event) => setCreateForm((current) => ({ ...current, [key]: event.target.value }))}
                 placeholder={placeholder}
-                className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
-              {createErrors[key] && <p className="text-danger text-xs mt-1">{createErrors[key]}</p>}
+                className="w-full rounded-lg border border-border bg-black/5 px-3 py-2.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500 dark:bg-white/5"
+              />
+              {createErrors[key] && <p className="mt-1 text-xs text-red-400">{createErrors[key]}</p>}
             </div>
           ))}
 
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1.5">Assign Broker *</label>
-            <select value={createForm.broker} onChange={(e) => setCreateForm((f) => ({ ...f, broker: e.target.value }))}
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
-              <option value="" className="bg-background">Select broker</option>
-              {BROKERS.map((b) => <option key={b} value={b} className="bg-background capitalize">{b}</option>)}
-            </select>
-            {createErrors.broker && <p className="text-danger text-xs mt-1">{createErrors.broker}</p>}
-          </div>
+          {createForm.role === 'Child' && (
+            <div>
+              <label className="mb-1.5 block text-xs text-muted-foreground">Assign Master *</label>
+              <select
+                value={createForm.assignedMasterId}
+                onChange={(event) => setCreateForm((current) => ({ ...current, assignedMasterId: event.target.value }))}
+                className="w-full rounded-lg border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
+              >
+                <option value="">Select master</option>
+                {masterOptions.map((master) => (
+                  <option key={master.userId} value={master.userId}>
+                    {master.name} ({master.email})
+                  </option>
+                ))}
+              </select>
+              {createErrors.assignedMasterId && <p className="mt-1 text-xs text-red-400">{createErrors.assignedMasterId}</p>}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
-            <button onClick={() => { setCreateModal(false); setCreateErrors({}); }}
-              className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={handleCreate}
-              className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors">
-              Create {createForm.role}
+            <button
+              onClick={() => {
+                setCreateModal(false);
+                setCreateErrors({});
+                setCreateForm(initialCreateForm);
+              }}
+              className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={submittingCreate}
+              className="flex-1 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 py-2 text-sm font-medium text-white transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submittingCreate ? 'Creating...' : `Create ${createForm.role}`}
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* Assign Broker Modal */}
-      <Modal isOpen={brokerModal} onClose={() => setBrokerModal(false)} title={`Assign Broker — ${selectedUser?.name}`} size="sm">
+      <Modal
+        isOpen={suspendModal}
+        onClose={() => setSuspendModal(false)}
+        title={selectedUser?.status === 'ACTIVE' ? 'Deactivate User' : 'Activate User'}
+        size="sm"
+      >
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1.5">Select Broker</label>
-            <select value={assignBroker} onChange={(e) => setAssignBroker(e.target.value)}
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
-              <option value="" className="bg-background">Select broker</option>
-              {BROKERS.map((b) => <option key={b} value={b} className="bg-background capitalize">{b}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => setBrokerModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={handleAssignBroker} className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors">Assign</button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Suspend Modal */}
-      <Modal isOpen={suspendModal} onClose={() => setSuspendModal(false)} title={selectedUser?.status === 'Active' ? 'Suspend User' : 'Activate User'} size="sm">
-        <div className="space-y-4">
-          <p className="text-muted-foreground text-sm">
-            {selectedUser?.status === 'Active' ? 'Suspend' : 'Activate'} <span className="font-semibold text-foreground">{selectedUser?.name}</span>?
+          <p className="text-sm text-muted-foreground">
+            {selectedUser?.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}{' '}
+            <span className="font-semibold text-foreground">{selectedUser?.name}</span>?
           </p>
           <div className="flex gap-3">
-            <button onClick={() => setSuspendModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={handleSuspendToggle}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors text-foreground ${selectedUser?.status === 'Active' ? 'bg-warning hover:bg-warning/90' : 'bg-success hover:bg-success/90'}`}>
-              {selectedUser?.status === 'Active' ? 'Suspend' : 'Activate'}
+            <button
+              onClick={() => setSuspendModal(false)}
+              className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSuspendToggle}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium text-white ${
+                selectedUser?.status === 'ACTIVE' ? 'bg-amber-500 hover:bg-amber-500/90' : 'bg-emerald-500 hover:bg-emerald-500/90'
+              }`}
+            >
+              {selectedUser?.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* Delete Modal */}
       <Modal isOpen={deleteModal} onClose={() => setDeleteModal(false)} title="Delete User" size="sm">
         <div className="space-y-4">
-          <p className="text-muted-foreground text-sm">Permanently delete <span className="font-semibold text-foreground">{selectedUser?.name}</span>? This cannot be undone.</p>
+          <p className="text-sm text-muted-foreground">
+            Permanently delete <span className="font-semibold text-foreground">{selectedUser?.name}</span>? This cannot be undone.
+          </p>
           <div className="flex gap-3">
-            <button onClick={() => setDeleteModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={handleDelete} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Delete</button>
+            <button
+              onClick={() => setDeleteModal(false)}
+              className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-500 py-2 text-sm font-medium text-white hover:bg-red-500/90">
+              Delete
+            </button>
           </div>
         </div>
       </Modal>

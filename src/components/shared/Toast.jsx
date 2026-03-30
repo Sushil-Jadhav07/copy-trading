@@ -76,7 +76,7 @@ const Toast = ({ toast, onClose }) => {
       <p className="flex-1 text-sm">{toast.message}</p>
       <button
         onClick={onClose}
-        className="p-1 rounded hover:bg-black/10 dark:bg-white/10 transition-colors"
+        className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
       >
         <X className="w-4 h-4" />
       </button>

@@ -1,181 +1,222 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Download, RefreshCw, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, AlertTriangle, RefreshCw, Download, Filter } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
+import { useToast } from '@/components/shared/Toast';
+import { adminService } from '@/lib/admin';
 
 const LOG_TYPES = ['All', 'EXECUTED', 'REPLICATED', 'CANCELLED', 'ERROR'];
 
-const INITIAL_LOGS = [
-  { id: 1, type: 'EXECUTED', master: 'Rahul Mehta', symbol: 'RELIANCE', action: 'BUY', qty: 100, price: 2456.75, broker: 'Zerodha', timestamp: '09:30:12', children: 4, status: 'success' },
-  { id: 2, type: 'REPLICATED', master: 'Rahul Mehta', symbol: 'RELIANCE', action: 'BUY', qty: 50, price: 2456.80, broker: 'Angel One', childName: 'Amit Kumar', timestamp: '09:30:13', status: 'success' },
-  { id: 3, type: 'REPLICATED', master: 'Rahul Mehta', symbol: 'RELIANCE', action: 'BUY', qty: 100, price: 2456.82, broker: 'Upstox', childName: 'Deepika Singh', timestamp: '09:30:13', status: 'success' },
-  { id: 4, type: 'REPLICATED', master: 'Rahul Mehta', symbol: 'RELIANCE', action: 'BUY', qty: 200, price: 2456.85, broker: 'Zerodha', childName: 'Rajesh Verma', timestamp: '09:30:14', status: 'success' },
-  { id: 5, type: 'ERROR', master: 'Rahul Mehta', symbol: 'RELIANCE', action: 'BUY', qty: 50, broker: 'Groww', childName: 'Neha Sharma', timestamp: '09:30:14', error: 'Insufficient margin', status: 'error' },
-  { id: 6, type: 'EXECUTED', master: 'Arjun Patel', symbol: 'NIFTY50 FUT', action: 'BUY', qty: 50, price: 22456.00, broker: 'Zerodha', timestamp: '10:15:22', children: 3, status: 'success' },
-  { id: 7, type: 'REPLICATED', master: 'Arjun Patel', symbol: 'NIFTY50 FUT', action: 'BUY', qty: 50, price: 22456.10, broker: 'Angel One', childName: 'Amit Kumar', timestamp: '10:15:23', status: 'success' },
-  { id: 8, type: 'CANCELLED', master: 'Priya Sharma', symbol: 'TCS', action: 'SELL', qty: 25, price: 3892.50, broker: 'Dhan', timestamp: '11:30:05', status: 'warning' },
-  { id: 9, type: 'ERROR', master: 'Arjun Patel', symbol: 'BANKNIFTY CE', action: 'BUY', qty: 1000, broker: 'Upstox', childName: 'Sanjay Gupta', timestamp: '12:00:45', error: 'Broker API timeout', status: 'error' },
-  { id: 10, type: 'EXECUTED', master: 'Vikram Das', symbol: 'INFY', action: 'BUY', qty: 200, price: 1678.25, broker: 'Zerodha', timestamp: '13:15:30', children: 2, status: 'success' },
-  { id: 11, type: 'REPLICATED', master: 'Vikram Das', symbol: 'INFY', action: 'BUY', qty: 300, price: 1678.30, broker: 'Groww', childName: 'Rajesh Verma', timestamp: '13:15:31', status: 'success' },
-  { id: 12, type: 'CANCELLED', master: 'Rahul Mehta', symbol: 'HDFCBANK', action: 'BUY', qty: 100, price: 1523.80, broker: 'Zerodha', timestamp: '14:00:10', status: 'warning' },
-];
-
-const TypeBadge = ({ type, status }) => {
-  const cfg = {
-    EXECUTED: 'bg-success/20 text-success border-success/30',
-    REPLICATED: 'bg-brand-blue/20 text-brand-blue border-brand-blue/30',
-    CANCELLED: 'bg-warning/20 text-warning border-warning/30',
-    ERROR: 'bg-danger/20 text-danger border-danger/30',
+const TypeBadge = ({ type }) => {
+  const styles = {
+    EXECUTED: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400',
+    REPLICATED: 'border-cyan-500/30 bg-cyan-500/15 text-cyan-400',
+    CANCELLED: 'border-amber-500/30 bg-amber-500/15 text-amber-400',
+    ERROR: 'border-red-500/30 bg-red-500/15 text-red-400',
   };
+
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-bold border ${cfg[type] || 'bg-black/10 dark:bg-white/10 text-foreground border-black/10 dark:border-white/10'}`}>
+    <span className={`rounded border px-2 py-0.5 text-xs font-bold ${styles[type] || 'border-white/10 bg-white/5 text-foreground'}`}>
       {type}
     </span>
   );
 };
 
 const StatusIcon = ({ status }) => {
-  if (status === 'success') return <CheckCircle2 className="w-4 h-4 text-success" />;
-  if (status === 'error') return <XCircle className="w-4 h-4 text-danger" />;
-  return <AlertTriangle className="w-4 h-4 text-warning" />;
+  if (status === 'success') return <CheckCircle2 className="h-4 w-4 text-emerald-400" />;
+  if (status === 'error') return <XCircle className="h-4 w-4 text-red-400" />;
+  return <AlertTriangle className="h-4 w-4 text-amber-400" />;
+};
+
+const formatTime = (value) => {
+  if (!value) {
+    return 'N/A';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString('en-IN');
 };
 
 const SystemLogs = () => {
-  const [logs, setLogs] = useState(INITIAL_LOGS);
+  const { addToast } = useToast();
+  const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(new Date().toLocaleTimeString('en-IN'));
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState('');
 
-  // Simulate new log entries coming in
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => {
-      const newLog = {
-        id: Date.now(),
-        type: ['EXECUTED', 'REPLICATED', 'REPLICATED', 'ERROR'][Math.floor(Math.random() * 4)],
-        master: ['Rahul Mehta', 'Arjun Patel', 'Priya Sharma'][Math.floor(Math.random() * 3)],
-        symbol: ['RELIANCE', 'TCS', 'NIFTY50 FUT', 'INFY'][Math.floor(Math.random() * 4)],
-        action: Math.random() > 0.5 ? 'BUY' : 'SELL',
-        qty: Math.floor(Math.random() * 200) + 50,
-        price: +(2000 + Math.random() * 1000).toFixed(2),
-        broker: ['Zerodha', 'Angel One', 'Upstox', 'Groww', 'Dhan'][Math.floor(Math.random() * 5)],
-        timestamp: new Date().toLocaleTimeString('en-IN'),
-        status: Math.random() > 0.15 ? 'success' : 'error',
-        error: Math.random() > 0.85 ? 'Broker API timeout' : undefined,
-      };
-      setLogs((prev) => [newLog, ...prev.slice(0, 49)]);
+  const loadLogs = async () => {
+    setLoading(true);
+
+    try {
+      const params = {};
+
+      if (statusFilter !== 'All') {
+        params.status = statusFilter;
+      }
+
+      const response = await adminService.getTradeLogs(params);
+      setLogs(response);
       setLastUpdate(new Date().toLocaleTimeString('en-IN'));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
-
-  const filtered = logs.filter((l) => {
-    if (filter !== 'All' && l.type !== filter) return false;
-    if (search && !`${l.master} ${l.symbol} ${l.broker}`.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
-  const stats = {
-    total: logs.length,
-    executed: logs.filter((l) => l.type === 'EXECUTED').length,
-    replicated: logs.filter((l) => l.type === 'REPLICATED').length,
-    errors: logs.filter((l) => l.status === 'error').length,
-    cancelled: logs.filter((l) => l.type === 'CANCELLED').length,
+    } catch (error) {
+      addToast(error.message || 'Unable to load trade logs', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadLogs();
+  }, [statusFilter]);
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return logs.filter((log) => {
+      if (filter !== 'All' && log.type !== filter) return false;
+      if (query && !`${log.master} ${log.symbol} ${log.broker} ${log.childName}`.toLowerCase().includes(query)) {
+        return false;
+      }
+      return true;
+    });
+  }, [filter, logs, search]);
+
+  const stats = useMemo(
+    () => ({
+      total: logs.length,
+      executed: logs.filter((log) => log.type === 'EXECUTED').length,
+      replicated: logs.filter((log) => log.type === 'REPLICATED').length,
+      errors: logs.filter((log) => log.status === 'error').length,
+      cancelled: logs.filter((log) => log.type === 'CANCELLED').length,
+    }),
+    [logs],
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">System Logs</h1>
-          <p className="text-muted-foreground">Real-time trade execution and replication logs</p>
+          <p className="text-muted-foreground">Trade and replication logs from the live admin API</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Updated: {lastUpdate}</span>
-          <button onClick={() => setAutoRefresh((p) => !p)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${autoRefresh ? 'bg-success/20 text-success border border-success/30' : 'bg-black/5 dark:bg-white/5 text-muted-foreground'}`}>
-            <RefreshCw className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-spin' : ''}`} />
-            {autoRefresh ? 'Live' : 'Paused'}
+          <span className="text-xs text-muted-foreground">Updated: {lastUpdate || 'Not yet'}</span>
+          <button
+            onClick={loadLogs}
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors ${
+              loading ? 'bg-emerald-500/15 text-emerald-400' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+            }`}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
-          <button className="flex items-center gap-2 px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-xs transition-colors">
-            <Download className="w-3.5 h-3.5" />
+          <button
+            onClick={() => {
+              const file = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(file);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'trade-logs.json';
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="flex items-center gap-2 rounded-lg bg-black/5 px-3 py-1.5 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+          >
+            <Download className="h-3.5 w-3.5" />
             Export
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {[
           { label: 'Total', value: stats.total, color: '' },
-          { label: 'Executed', value: stats.executed, color: 'text-success' },
-          { label: 'Replicated', value: stats.replicated, color: 'text-brand-blue' },
-          { label: 'Cancelled', value: stats.cancelled, color: 'text-warning' },
-          { label: 'Errors', value: stats.errors, color: 'text-danger' },
-        ].map((s) => (
-          <GlassCard key={s.label}>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+          { label: 'Executed', value: stats.executed, color: 'text-emerald-400' },
+          { label: 'Replicated', value: stats.replicated, color: 'text-cyan-400' },
+          { label: 'Cancelled', value: stats.cancelled, color: 'text-amber-400' },
+          { label: 'Errors', value: stats.errors, color: 'text-red-400' },
+        ].map((stat) => (
+          <GlassCard key={stat.label}>
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <p className={`mt-1 text-2xl font-bold ${stat.color}`}>{stat.value}</p>
           </GlassCard>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex gap-2 flex-wrap">
-          {LOG_TYPES.map((t) => (
-            <button key={t} onClick={() => setFilter(t)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === t ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'}`}>
-              {t}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-wrap gap-2">
+          {LOG_TYPES.map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === type ? 'bg-emerald-500 text-white' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+              }`}
+            >
+              {type}
             </button>
           ))}
         </div>
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
           placeholder="Search master, symbol, broker..."
-          className="flex-1 px-3 py-1.5 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
+          className="flex-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500 dark:bg-white/5"
+        />
       </div>
 
-      {/* Logs Table */}
       <GlassCard noPadding>
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+        <div className="max-h-[600px] overflow-auto">
           <table className="w-full">
-            <thead className="sticky top-0 bg-background/80 backdrop-blur-sm z-10">
+            <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
               <tr className="border-b border-border/50">
-                {['Status', 'Time', 'Type', 'Master', 'Symbol', 'Action', 'Qty', 'Price', 'Broker', 'Child / Error'].map((h) => (
-                  <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
+                {['Status', 'Time', 'Type', 'Master', 'Symbol', 'Action', 'Qty', 'Price', 'Broker', 'Child / Error'].map((header) => (
+                  <th key={header} className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {header}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((log, idx) => (
-                <motion.tr key={log.id}
-                  initial={{ opacity: 0, backgroundColor: 'rgba(0, 200, 150, 0.1)' }}
-                  animate={{ opacity: 1, backgroundColor: 'transparent' }}
-                  transition={{ duration: 0.5 }}
-                  className="border-b border-border/20 hover:bg-white/3 transition-colors">
+              {filtered.map((log) => (
+                <motion.tr
+                  key={log.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="border-b border-border/20 transition-colors hover:bg-white/3"
+                >
                   <td className="px-3 py-2.5"><StatusIcon status={log.status} /></td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">{log.timestamp}</td>
-                  <td className="px-3 py-2.5"><TypeBadge type={log.type} status={log.status} /></td>
-                  <td className="px-3 py-2.5 text-sm font-medium whitespace-nowrap">{log.master}</td>
-                  <td className="px-3 py-2.5 text-sm font-bold whitespace-nowrap">{log.symbol}</td>
-                  <td className="px-3 py-2.5">
-                    <span className={`text-xs font-bold ${log.action === 'BUY' ? 'text-success' : 'text-danger'}`}>{log.action}</span>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-xs font-mono text-muted-foreground">{formatTime(log.timestamp)}</td>
+                  <td className="px-3 py-2.5"><TypeBadge type={log.type} /></td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-sm font-medium">{log.master}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-sm font-bold">{log.symbol}</td>
+                  <td className="px-3 py-2.5 text-xs font-bold">
+                    <span className={log.action === 'BUY' ? 'text-emerald-400' : 'text-red-400'}>{log.action}</span>
                   </td>
                   <td className="px-3 py-2.5 text-sm">{log.qty}</td>
-                  <td className="px-3 py-2.5 text-sm">{log.price ? `₹${log.price.toLocaleString('en-IN')}` : '—'}</td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground capitalize">{log.broker}</td>
+                  <td className="px-3 py-2.5 text-sm">{log.price || 0}</td>
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{log.broker}</td>
                   <td className="px-3 py-2.5 text-xs">
-                    {log.childName && <span className="text-muted-foreground">{log.childName}</span>}
-                    {log.error && <span className="text-danger">{log.error}</span>}
-                    {log.children && <span className="text-brand-blue">{log.children} children</span>}
+                    {log.childName ? <span className="text-muted-foreground">{log.childName}</span> : null}
+                    {log.error ? <span className="text-red-400">{log.error}</span> : null}
+                    {!log.childName && !log.error && log.children ? (
+                      <span className="text-cyan-400">{log.children} children</span>
+                    ) : null}
                   </td>
                 </motion.tr>
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground text-sm">No logs match the filter</div>
+
+          {!filtered.length && (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {loading ? 'Loading trade logs...' : 'No logs match the current filter'}
+            </div>
           )}
         </div>
       </GlassCard>

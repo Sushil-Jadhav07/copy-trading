@@ -1,12 +1,24 @@
 import axios from 'axios';
 
+const configuredBaseURL = import.meta.env.VITE_API_BASE_URL || '';
+
 const baseURL = (
-  import.meta.env.VITE_API_BASE_URL || 'https://copy-trading-production-3981.up.railway.app'
+  import.meta.env.DEV
+    ? ''
+    : (configuredBaseURL || 'https://copy-trading-production-3981.up.railway.app')
 ).replace(/\/$/, '');
 
 let accessToken = null;
 let refreshRequest = null;
 const REFRESH_TOKEN_KEY = 'tradepilot_refresh_token';
+
+const getStorageTargets = () => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  return [window.localStorage, window.sessionStorage];
+};
 
 export const setAccessToken = (token) => {
   accessToken = token || null;
@@ -19,15 +31,13 @@ export const clearAccessToken = () => {
 };
 
 export const setRefreshToken = (token) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  if (token) {
-    sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
-  } else {
-    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-  }
+  getStorageTargets().forEach((storage) => {
+    if (token) {
+      storage.setItem(REFRESH_TOKEN_KEY, token);
+    } else {
+      storage.removeItem(REFRESH_TOKEN_KEY);
+    }
+  });
 };
 
 export const getRefreshToken = () => {
@@ -35,15 +45,16 @@ export const getRefreshToken = () => {
     return null;
   }
 
-  return sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  return (
+    localStorage.getItem(REFRESH_TOKEN_KEY) ||
+    sessionStorage.getItem(REFRESH_TOKEN_KEY)
+  );
 };
 
 export const clearRefreshToken = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  getStorageTargets().forEach((storage) => {
+    storage.removeItem(REFRESH_TOKEN_KEY);
+  });
 };
 
 const redirectToLogin = () => {

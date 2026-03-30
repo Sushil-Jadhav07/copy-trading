@@ -153,9 +153,9 @@ const AppRouter = () => {
 
                 {/* Admin Routes */}
                 <Route path="admin/overview" element={<AdminOverview />} />
-                <Route path="admin/users" element={<AllUsers />} />
-                <Route path="admin/masters" element={<AllUsers />} />
-                <Route path="admin/children" element={<AllUsers />} />
+                <Route path="admin/users" element={<AllUsers scope="all" />} />
+                <Route path="admin/masters" element={<AllUsers scope="masters" />} />
+                <Route path="admin/children" element={<AllUsers scope="children" />} />
                 <Route path="admin/verification" element={<PendingVerification />} />
                 <Route path="admin/profile" element={<Profile />} />
                 <Route path="admin/live-trades" element={<LiveTrades />} />

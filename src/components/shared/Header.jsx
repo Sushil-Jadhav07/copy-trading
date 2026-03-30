@@ -10,10 +10,6 @@ import {
   LogOut,
   ChevronDown,
   User,
-  Check,
-  X,
-  Shield,
-  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -21,11 +17,10 @@ import { notifications, masters } from '@/data/mockData';
 
 const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
   const navigate = useNavigate();
-  const { user, logout, switchRole, getEffectiveRole } = useAuth();
+  const { user, logout, getEffectiveRole } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [unreadCount, setUnreadCount] = useState(
@@ -35,7 +30,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
 
   const notificationRef = useRef(null);
   const userMenuRef = useRef(null);
-  const roleSwitcherRef = useRef(null);
   const searchRef = useRef(null);
 
   useEffect(() => {
@@ -45,9 +39,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
       }
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setShowUserMenu(false);
-      }
-      if (roleSwitcherRef.current && !roleSwitcherRef.current.contains(e.target)) {
-        setShowRoleSwitcher(false);
       }
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setShowSearchResults(false);
@@ -190,56 +181,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-          {/* Role Switcher (Admin only) */}
-          {user?.role === 'Admin' && (
-            <div className="relative" ref={roleSwitcherRef}>
-              <button
-                onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg text-sm text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-              >
-                <Shield className="w-4 h-4" />
-                <span>View as: {effectiveRole}</span>
-                <ChevronDown className="w-4 h-4" />
-              </button>
-
-              <AnimatePresence>
-                {showRoleSwitcher && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full right-0 mt-2 w-48 max-w-[calc(100vw-1rem)] bg-popover border border-border rounded-lg shadow-lg overflow-hidden z-50"
-                  >
-                    {['Master', 'Child', 'Admin'].map((role) => (
-                      <button
-                        key={role}
-                        onClick={() => {
-                          switchRole(role);
-                          setShowRoleSwitcher(false);
-                          navigate(
-                            role === 'Master'
-                              ? '/master/overview'
-                              : role === 'Child'
-                              ? '/child/overview'
-                              : '/admin/overview'
-                          );
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center justify-between text-foreground ${
-                          effectiveRole === role ? 'bg-black/10 dark:bg-white/10' : ''
-                        }`}
-                      >
-                        {role}
-                        {effectiveRole === role && (
-                          <Check className="w-4 h-4 text-brand-purple" />
-                        )}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
@@ -373,7 +314,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                   <div className="border-t border-border" />
                   <button
                     onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-white/5 transition-colors flex items-center gap-2 text-danger"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 text-danger"
                   >
                     <LogOut className="w-4 h-4" />
                     Logout

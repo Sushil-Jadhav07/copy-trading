@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
+import { createPortal } from 'react-dom';
 
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   const { isDark } = useTheme();
@@ -22,7 +23,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     xl: 'max-w-2xl',
   };
 
-  return (
+  const content = (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
@@ -81,6 +82,12 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') {
+    return content;
+  }
+
+  return createPortal(content, document.body);
 };
 
 export default Modal;

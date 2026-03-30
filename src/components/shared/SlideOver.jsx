@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 const SlideOver = ({ isOpen, onClose, title, children, size = 'md' }) => {
   const sizeClasses = {
@@ -10,7 +11,7 @@ const SlideOver = ({ isOpen, onClose, title, children, size = 'md' }) => {
     xl: 'w-full sm:w-[800px]',
   };
 
-  return (
+  const content = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -33,7 +34,7 @@ const SlideOver = ({ isOpen, onClose, title, children, size = 'md' }) => {
                 <h3 className="text-lg font-semibold">{title}</h3>
                 <button
                   onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-black/10 dark:bg-white/10 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -45,6 +46,12 @@ const SlideOver = ({ isOpen, onClose, title, children, size = 'md' }) => {
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') {
+    return content;
+  }
+
+  return createPortal(content, document.body);
 };
 
 export default SlideOver;
