@@ -1,0 +1,313 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+    --primary: 160 100% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 10%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 160 60% 90%;
+    --accent-foreground: 160 100% 25%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 160 100% 39%;
+    --radius: 0.75rem;
+    --sidebar-background: 220 20% 99%;
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 160 100% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 94%;
+    --sidebar-accent-foreground: 220 20% 15%;
+    --sidebar-border: 220 13% 88%;
+    --sidebar-ring: 160 100% 39%;
+  }
+
+  .dark {
+    --background: 158 20% 4%;
+    --foreground: 0 0% 95%;
+    --card: 158 18% 7%;
+    --card-foreground: 0 0% 95%;
+    --popover: 158 18% 7%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 160 100% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 158 14% 11%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 158 14% 11%;
+    --muted-foreground: 158 9% 55%;
+    --accent: 158 14% 11%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 158 14% 14%;
+    --input: 158 14% 14%;
+    --ring: 160 100% 39%;
+    --sidebar-background: 158 22% 5%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 160 100% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 158 14% 11%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 158 14% 12%;
+    --sidebar-ring: 160 100% 39%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground font-inter antialiased;
+  }
+}
+
+@layer components {
+
+  /* ── Glass Card ── */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.80);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    box-shadow:
+      0 2px 12px rgba(0, 0, 0, 0.06),
+      0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 200, 150, 0.2), rgba(255,255,255,0.6), transparent);
+    pointer-events: none;
+  }
+
+  /* ── Dark Glass Card ── */
+  .dark .glass-card {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(0, 200, 150, 0.03) 50%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid rgba(0, 200, 150, 0.15);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.4),
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 -1px 0 rgba(0, 0, 0, 0.2) inset;
+  }
+
+  .dark .glass-card::before {
+    background: linear-gradient(90deg, transparent, rgba(0, 200, 150, 0.3), rgba(255,255,255,0.15), transparent);
+  }
+
+  /* ── Glass (generic) ── */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .dark .glass {
+    background: rgba(0, 200, 150, 0.04);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(0, 200, 150, 0.12);
+  }
+
+  /* ── Sidebar ── */
+  .glass-sidebar {
+    background: linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0.98) 0%,
+      rgba(241, 245, 249, 0.99) 100%
+    );
+    backdrop-filter: blur(32px) saturate(150%);
+    -webkit-backdrop-filter: blur(32px) saturate(150%);
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.05);
+  }
+
+  .dark .glass-sidebar {
+    background: linear-gradient(
+      180deg,
+      rgba(5, 18, 12, 0.95) 0%,
+      rgba(3, 12, 8, 0.98) 100%
+    );
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-right: 1px solid rgba(0, 200, 150, 0.1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ── Header ── */
+  .glass-header {
+    background: rgba(248, 250, 252, 0.92);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .dark .glass-header {
+    background: rgba(3, 10, 6, 0.85);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid rgba(0, 200, 150, 0.1);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ── Gradient text ── */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #00C896 0%, #00A878 50%, #34d399 100%);
+  }
+
+  /* ── Hover lift ── */
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+  .dark .hover-lift:hover {
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(0, 200, 150, 0.2),
+      0 0 24px rgba(0, 200, 150, 0.1);
+  }
+  .hover-lift:hover {
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(0, 200, 150, 0.15);
+  }
+
+  /* ── Primary gradient button ── */
+  .btn-primary-gradient {
+    background: linear-gradient(135deg, #00C896 0%, #00A878 100%);
+    @apply text-white font-medium px-4 py-2 rounded-lg transition-all;
+    box-shadow: 0 4px 15px rgba(0, 200, 150, 0.3);
+  }
+  .btn-primary-gradient:hover {
+    box-shadow: 0 6px 20px rgba(0, 200, 150, 0.45);
+    transform: translateY(-1px);
+  }
+
+  /* ── Shimmer ── */
+  .shimmer-bg {
+    background: linear-gradient(90deg, transparent 0%, rgba(0,200,150,0.08) 50%, transparent 100%);
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  /* ── Stat card glow ── */
+  .stat-card-glow {
+    box-shadow:
+      0 2px 12px rgba(0, 0, 0, 0.08),
+      0 0 0 1px rgba(0, 200, 150, 0.1);
+  }
+  .dark .stat-card-glow {
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(0, 200, 150, 0.15),
+      0 0 40px rgba(0, 200, 150, 0.06) inset;
+  }
+
+  /* ── Ticker ── */
+  .ticker-container {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-content {
+    display: inline-flex;
+    animation: ticker-scroll 30s linear infinite;
+  }
+  .ticker-content:hover {
+    animation-play-state: paused;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ── Body background ── */
+body {
+  background: #f0f4f8;
+  min-height: 100vh;
+}
+
+body.dark,
+.dark body {
+  background: #030a06;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(0, 200, 150, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(0, 168, 120, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(5, 150, 105, 0.03) 0%, transparent 50%);
+  min-height: 100vh;
+}
+
+/* ── Cursor glow ── */
+.cursor-glow {
+  pointer-events: none;
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 200, 150, 0.08) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  transition: opacity 0.3s ease;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 200, 150, 0.2);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 200, 150, 0.35);
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(0, 200, 150, 0.25);
+}
