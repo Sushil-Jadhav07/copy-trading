@@ -60,6 +60,12 @@ const DematDetailWrapper = () => {
   const navigate = React.useCallback(() => window.history.back(), []);
   return <DematDetail accountId={accountId} onBack={navigate} />;
 };
+
+const ChildDematDetailWrapper = () => {
+  const { accountId } = useParams();
+  const navigate = React.useCallback(() => window.history.back(), []);
+  return <DematDetail accountId={accountId} onBack={navigate} />;
+};
 // ──────────────────────────────────────────────────────────
 
 // Protected Route Component
@@ -144,6 +150,11 @@ const AppRouter = () => {
 
                 {/* Child Routes */}
                 <Route path="child/overview" element={<ChildOverview />} />
+                <Route
+                  path="child/user-management"
+                  element={<UserManagement title="Demat Accounts" connectTitle="Connect Child Broker" detailBasePath="/child/demat" />}
+                />
+                <Route path="child/demat/:accountId" element={<ChildDematDetailWrapper />} />
                 <Route path="child/find-masters" element={<FindMasters />} />
                 <Route path="child/holdings" element={<Holdings />} />
                 <Route path="child/unrealized-pnl" element={<OpenPositions />} />

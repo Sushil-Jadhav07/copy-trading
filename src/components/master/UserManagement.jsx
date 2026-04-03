@@ -17,7 +17,11 @@ const baseBrokerFields = [
   { key: 'apiSecret', label: 'API Secret', placeholder: 'Enter API Secret' },
 ];
 
-const UserManagement = () => {
+const UserManagement = ({
+  title = 'User Management',
+  connectTitle = "Connect User's Broker",
+  detailBasePath = '/master/demat',
+}) => {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const { accounts, loading, error, refetch } = useBrokerAccounts();
@@ -172,10 +176,10 @@ const UserManagement = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">User Management</h1>
+        <h1 className="text-2xl font-bold">{title}</h1>
       </div>
 
-      <GlassCard title="Connect User's Broker">
+      <GlassCard title={connectTitle}>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Select Broker</label>
@@ -280,7 +284,7 @@ const UserManagement = () => {
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => navigate(`/master/demat/${id}`)}
+                          onClick={() => navigate(`${detailBasePath}/${id}`)}
                           title="View Demat"
                           className="w-8 h-8 bg-brand-blue/80 hover:bg-brand-blue rounded-lg flex items-center justify-center transition-colors"
                         >

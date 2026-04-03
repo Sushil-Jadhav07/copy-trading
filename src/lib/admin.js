@@ -207,12 +207,42 @@ const normalizeSystemHealthEntries = (payload = {}) => {
 
 const normalizeAnalytics = (payload = {}) => {
   const source = payload?.data && !Array.isArray(payload.data) ? payload.data : payload;
+  const resolvedTotalUsers =
+    source.totalUsers ??
+    source.users ??
+    source.userCount ??
+    source.totalUser ??
+    source.total ??
+    source.total_count ??
+    source.totalUsersCount ??
+    0;
+  const resolvedActiveMasters =
+    source.activeMasters ??
+    source.masters ??
+    source.masterCount ??
+    source.activeMasterCount ??
+    source.totalMasters ??
+    0;
+  const resolvedVolumeToday =
+    source.volumeToday ??
+    source.todayVolume ??
+    source.tradeVolume ??
+    source.totalVolume ??
+    source.volume ??
+    0;
+  const resolvedRevenueMtd =
+    source.revenueMtd ??
+    source.monthlyRevenue ??
+    source.revenue ??
+    source.revenueMTD ??
+    source.totalRevenue ??
+    0;
 
   return {
-    totalUsers: Number(source.totalUsers || source.users || source.userCount || 0),
-    activeMasters: Number(source.activeMasters || source.masters || source.masterCount || 0),
-    volumeToday: Number(source.volumeToday || source.todayVolume || source.tradeVolume || 0),
-    revenueMtd: Number(source.revenueMtd || source.monthlyRevenue || source.revenue || 0),
+    totalUsers: Number(resolvedTotalUsers || 0),
+    activeMasters: Number(resolvedActiveMasters || 0),
+    volumeToday: Number(resolvedVolumeToday || 0),
+    revenueMtd: Number(resolvedRevenueMtd || 0),
     userGrowth: asArray(source.userGrowth || source.userGrowthData || source.growth),
     topMasters: asArray(source.topMasters || source.topPerformers || source.mastersByVolume),
     raw: source,

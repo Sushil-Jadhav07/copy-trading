@@ -170,6 +170,12 @@ const childSidebarItems = [
       items: [{ to: '/child/overview', icon: Home, label: 'Overview' }],
     },
     {
+      section: 'Account Management',
+      items: [
+        { to: '/child/user-management', icon: LayoutGrid, label: 'Demat Accounts' },
+      ],
+    },
+    {
       section: 'Copy Trading',
       items: [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },

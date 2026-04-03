@@ -7,7 +7,7 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
-import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
+import { useMasterChildren } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 
@@ -32,11 +32,6 @@ const CopyTrading = () => {
   const navigate = useNavigate();
   const { accounts, loading: accountsLoading } = useBrokerAccounts();
   const { children, loading, refetch, setChildren } = useMasterChildren();
-  const {
-    subscriptions,
-    loading: subscriptionsLoading,
-    refetch: refetchSubscriptions,
-  } = useMasterSubscriptions();
   const [masterAccountId, setMasterAccountId] = useState('');
   const [masterConnected, setMasterConnected] = useState(false);
   const [masterInfo, setMasterInfo] = useState(null);
@@ -54,13 +49,9 @@ const CopyTrading = () => {
   useEffect(() => {
     const onFocus = () => refetch();
     window.addEventListener('focus', onFocus);
-    const intervalId = window.setInterval(() => {
-      refetch();
-    }, 15000);
 
     return () => {
       window.removeEventListener('focus', onFocus);
-      window.clearInterval(intervalId);
     };
   }, [refetch]);
 
@@ -70,8 +61,7 @@ const CopyTrading = () => {
   }));
 
   const connectedRows = useMemo(() => children.map(normalizeChildRow), [children]);
-  const subscribedRows = useMemo(() => subscriptions.map(normalizeChildRow), [subscriptions]);
-  const childRows = subscribedRows;
+  const childRows = connectedRows;
 
   useEffect(() => {
     let isMounted = true;
@@ -88,7 +78,6 @@ const CopyTrading = () => {
   const childOptions = childRows.filter(
     (child) =>
       child.id !== masterAccountId &&
-      !connectedRows.some((row) => String(row.id) === String(child.id)) &&
       !manuallyConnectedIds.includes(child.id)
   );
 
@@ -143,7 +132,6 @@ const CopyTrading = () => {
       setChildMultiplier('1');
       addToast('Child linked successfully', 'success');
       await refetch();
-      await refetchSubscriptions();
     } catch (error) {
       addToast(error.message, 'error');
     }
@@ -252,7 +240,7 @@ const CopyTrading = () => {
         <div className="p-4 border-b border-border/50 flex justify-end">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="w-56 bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
         </div>
-        {loading || accountsLoading || subscriptionsLoading ? (
+        {loading || accountsLoading ? (
           <div className="p-4"><SkeletonLoader type="table" rows={5} columns={11} /></div>
         ) : (
           <div className="overflow-x-auto">
