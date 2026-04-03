@@ -1,16 +1,45 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle, FileText, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
-import { verificationRequests } from '@/data/mockData';
 import { useToast } from '@/components/shared/Toast';
+import { adminService } from '@/lib/admin';
 
 const PendingVerification = () => {
   const { addToast } = useToast();
-  const [requests, setRequests] = useState(verificationRequests);
+  const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionType, setActionType] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    adminService
+      .getUsers({ status: 'PENDING' })
+      .then(({ users }) => {
+        if (isMounted) {
+          setRequests(
+            users.map((user) => ({
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              submittedDate: user.joinedDate || 'N/A',
+              documents: user.raw?.documents || ['KYC'],
+            }))
+          );
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          addToast(error.message || 'Unable to load pending users', 'error');
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [addToast]);
 
   const openActionModal = (request, type) => {
     setSelectedRequest(request);

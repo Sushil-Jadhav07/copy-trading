@@ -162,6 +162,13 @@ const normalizeSystemHealthEntries = (payload = {}) => {
       uptime: entry.uptime || entry.availability || 'N/A',
       activeUsers: Number(entry.activeUsers || entry.connectedUsers || 0),
       ordersToday: Number(entry.ordersToday || entry.requestsToday || 0),
+      metric:
+        entry.metric ||
+        entry.value ||
+        entry.currentValue ||
+        (entry.latency || entry.responseTime
+          ? `${Number(entry.latency || entry.responseTime)}ms`
+          : entry.uptime || entry.availability || 'N/A'),
       raw: entry,
     }));
   }
@@ -172,11 +179,28 @@ const normalizeSystemHealthEntries = (payload = {}) => {
     status:
       value?.status ||
       value?.health ||
-      (typeof value === 'string' ? value : 'UNKNOWN'),
+      (typeof value === 'string'
+        ? value
+        : typeof value === 'number' || typeof value === 'boolean'
+        ? 'HEALTHY'
+        : 'UNKNOWN'),
     latency: Number(value?.latency || value?.responseTime || 0),
     uptime: value?.uptime || value?.availability || 'N/A',
     activeUsers: Number(value?.activeUsers || value?.connectedUsers || 0),
     ordersToday: Number(value?.ordersToday || value?.requestsToday || 0),
+    metric:
+      typeof value === 'number'
+        ? String(value)
+        : typeof value === 'boolean'
+        ? (value ? 'Online' : 'Offline')
+        : typeof value === 'string'
+        ? value
+        : value?.metric ||
+          value?.value ||
+          value?.currentValue ||
+          (value?.latency || value?.responseTime
+            ? `${Number(value?.latency || value?.responseTime)}ms`
+            : value?.uptime || value?.availability || 'N/A'),
     raw: value,
   }));
 };
@@ -302,4 +326,3 @@ export const adminService = {
     }
   },
 };
-

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CreditCard, TrendingUp, Users, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
-import { formatCurrency } from '@/data/mockData';
+import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -25,11 +25,13 @@ const Subscriptions = () => {
       setLoading(true);
 
       try {
-        const params = statusFilter !== 'All' ? { status: statusFilter.toUpperCase() } : {};
-        const response = await adminService.getSubscriptions(params);
+        const response = await adminService.getSubscriptions();
+        const status = statusFilter !== 'All' ? statusFilter.toUpperCase() : '';
 
         if (isMounted) {
-          setSubscriptions(response);
+          setSubscriptions(
+            status ? response.filter((item) => String(item.status || '').toUpperCase() === status) : response
+          );
         }
       } catch (error) {
         if (isMounted) {
@@ -73,9 +75,9 @@ const Subscriptions = () => {
           className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
         >
           <option value="All">All Status</option>
-          <option value="ACTIVE">Active</option>
-          <option value="CANCELLED">Cancelled</option>
-          <option value="EXPIRED">Expired</option>
+          <option value="Active">Active</option>
+          <option value="Cancelled">Cancelled</option>
+          <option value="Expired">Expired</option>
         </select>
       </div>
 

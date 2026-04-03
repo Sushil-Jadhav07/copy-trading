@@ -1,6 +1,7 @@
 import api, {
   clearAccessToken,
   clearRefreshToken,
+  getAccessToken,
   getRefreshToken,
   setAccessToken,
   setRefreshToken,
@@ -270,17 +271,23 @@ export const authService = {
   },
 
   async restoreSession() {
-    try {
-      return await this.getMe();
-    } catch (error) {
-      if (error.response?.status !== 401) {
-        throw error;
+    const hasAccessToken = Boolean(getAccessToken());
+    const hasRefreshToken = Boolean(getRefreshToken());
+    const refreshToken = getRefreshToken();
+
+    if (!hasAccessToken && !hasRefreshToken) {
+      return null;
+    }
+
+    const refreshSession = async () => {
+      if (!refreshToken) {
+        return null;
       }
 
       const refreshResponse = await api.post(
         '/api/v1/auth/refresh-token',
         {
-          refreshToken: getRefreshToken(),
+          refreshToken,
         },
         {
           skipAuthRefresh: true,
@@ -288,18 +295,46 @@ export const authService = {
       );
 
       const token = extractAccessToken(refreshResponse.data);
-      const refreshToken =
+      const nextRefreshToken =
         refreshResponse.data?.refreshToken ||
         refreshResponse.data?.data?.refreshToken ||
         refreshResponse.data?.tokens?.refreshToken ||
         null;
-      if (token) {
-        setAccessToken(token);
+
+      if (!token) {
+        throw new Error('Missing access token');
       }
-      if (refreshToken) {
-        setRefreshToken(refreshToken);
+
+      setAccessToken(token);
+      if (nextRefreshToken) {
+        setRefreshToken(nextRefreshToken);
       }
+
       return this.getMe();
+    };
+
+    try {
+      if (!hasAccessToken && hasRefreshToken) {
+        return await refreshSession();
+      }
+
+      return await this.getMe();
+    } catch (error) {
+      if (error.response?.status === 401 && hasRefreshToken) {
+        try {
+          return await refreshSession();
+        } catch {
+          clearAccessToken();
+          clearRefreshToken();
+          authStorage.clearImpersonatedRole();
+          return null;
+        }
+      }
+
+      clearAccessToken();
+      clearRefreshToken();
+      authStorage.clearImpersonatedRole();
+      return null;
     }
   },
 

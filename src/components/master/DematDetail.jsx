@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
-import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
-import { brokerAccounts, dematPositions, dematOrders, dematTrades, formatCurrency } from '@/data/mockData';
+import { brokerService } from '@/lib/broker';
+import { formatCurrency } from '@/lib/utils';
 
 const TABS = ['Positions', 'Orders', 'Trades'];
 
@@ -32,22 +32,57 @@ const DematDetail = ({ accountId, onBack }) => {
   const [account, setAccount] = useState(null);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
   const resolvedBack = onBack || (() => navigate('/master/user-management'));
 
   useEffect(() => {
-    const id = Number(accountId);
-    setAccount(brokerAccounts.find((a) => a.id === id) || brokerAccounts[0]);
-    setPositions(dematPositions[id] || []);
-    setOrders(dematOrders[id] || []);
-    setTrades(dematTrades[id] || []);
-  }, [accountId]);
+    if (!accountId) return;
+    let isMounted = true;
+    setLoadingData(true);
+
+    Promise.all([
+      brokerService.getAccount(accountId),
+      brokerService.getPositions(accountId),
+      brokerService.getMargin(accountId),
+    ])
+      .then(([acct, pos, marginData]) => {
+        if (!isMounted) return;
+        setAccount({
+          broker: acct.brokerName || acct.brokerId || '',
+          userId: acct.clientId || '',
+          nickname: acct.nickname || '',
+          margin: marginData.availableMargin || marginData.available || marginData.net || 0,
+          sessionActive: acct.sessionActive,
+        });
+        setPositions(pos);
+        setOrders([]);
+        setTrades([]);
+      })
+      .catch((e) => addToast(e.message, 'error'))
+      .finally(() => { if (isMounted) setLoadingData(false); });
+
+    return () => { isMounted = false; };
+  }, [accountId, addToast]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setRefreshing(false);
-    addToast('Refreshed', 'success');
+    try {
+      const [pos, marginData] = await Promise.all([
+        brokerService.getPositions(accountId),
+        brokerService.getMargin(accountId),
+      ]);
+      setPositions(pos);
+      setAccount((prev) => ({
+        ...prev,
+        margin: marginData.availableMargin || marginData.available || marginData.net || prev.margin,
+      }));
+      addToast('Refreshed', 'success');
+    } catch (e) {
+      addToast(e.message, 'error');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const confirmSquareOff = () => {
@@ -56,8 +91,8 @@ const DematDetail = ({ accountId, onBack }) => {
     addToast(`${selectedPos.symbol} squared off`, 'success');
   };
 
-  if (!account) return null;
-  const totalPnL = positions.reduce((s, p) => s + p.pnl, 0);
+  if (!account && !loadingData) return null;
+  const totalPnL = positions.reduce((s, p) => s + (p.pnl || 0), 0);
 
   const filteredPositions = positions.filter((p) => !search || p.symbol.toLowerCase().includes(search.toLowerCase()));
   const filteredOrders = orders.filter((o) => !search || o.symbol.toLowerCase().includes(search.toLowerCase()));
@@ -65,19 +100,18 @@ const DematDetail = ({ accountId, onBack }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header — matches Algo Delta style: BROKER - USERID - NICKNAME | Margin | PnL */}
       <div className="glass-card p-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={resolvedBack} className="p-2 hover:bg-black/10 dark:bg-white/10 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-bold uppercase tracking-wide">
-            {account.broker.toUpperCase()} - {account.userId} - {account.nickname.toUpperCase()}
+            {account?.broker?.toUpperCase()} - {account?.userId} - {account?.nickname?.toUpperCase()}
           </h1>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <span className="text-xl font-bold">{formatCurrency(account.margin)}</span>
+            <span className="text-xl font-bold">{formatCurrency(account?.margin)}</span>
             <span className="text-sm text-muted-foreground ml-2">Margin</span>
           </div>
           <div className="text-right">
@@ -93,7 +127,6 @@ const DematDetail = ({ accountId, onBack }) => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="glass-card overflow-hidden">
         <div className="flex border-b border-border/50">
           {TABS.map((tab) => (
@@ -104,14 +137,12 @@ const DematDetail = ({ accountId, onBack }) => {
           ))}
         </div>
 
-        {/* Search */}
         <div className="p-4 border-b border-border/30 flex justify-end">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search"
             className="w-56 bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
         </div>
 
         <div className="overflow-x-auto">
-          {/* POSITIONS TAB */}
           {activeTab === 'Positions' && (
             <table className="w-full">
               <thead>
@@ -150,13 +181,12 @@ const DematDetail = ({ accountId, onBack }) => {
                   </motion.tr>
                 ))}
                 {filteredPositions.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">No positions found</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">{loadingData ? 'Loading positions...' : 'No positions found'}</td></tr>
                 )}
               </tbody>
             </table>
           )}
 
-          {/* ORDERS TAB */}
           {activeTab === 'Orders' && (
             <table className="w-full">
               <thead>
@@ -176,9 +206,9 @@ const DematDetail = ({ accountId, onBack }) => {
                     <td className="px-4 py-3 text-xs text-muted-foreground">CARRYFORW...</td>
                     <td className="px-4 py-3 text-sm">{ord.orderType}</td>
                     <td className="px-4 py-3 text-sm">{ord.qty}</td>
-                    <td className="px-4 py-3 text-sm">{ord.price.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm">{Number(ord.price || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{ord.time}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground font-mono">2307120{ord.id.toString().padStart(8, '0')}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground font-mono">2307120{String(ord.id).padStart(8, '0')}</td>
                     <td className="px-4 py-3"><StatusBadge status={ord.status} /></td>
                   </motion.tr>
                 ))}
@@ -189,7 +219,6 @@ const DematDetail = ({ accountId, onBack }) => {
             </table>
           )}
 
-          {/* TRADES TAB */}
           {activeTab === 'Trades' && (
             <table className="w-full">
               <thead>
@@ -205,10 +234,10 @@ const DematDetail = ({ accountId, onBack }) => {
                     className="border-b border-border/30 hover:bg-white/3 transition-colors">
                     <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
                     <td className="px-4 py-3 font-semibold text-sm">{tr.symbol}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">2307120{tr.id.toString().padStart(8, '0')}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">2307120{String(tr.id).padStart(8, '0')}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">CARRYFORWARD</td>
                     <td className="px-4 py-3"><TransBadge type={tr.action} /></td>
-                    <td className="px-4 py-3 text-sm">{tr.price.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm">{Number(tr.price || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{tr.time}</td>
                   </motion.tr>
                 ))}
@@ -220,7 +249,6 @@ const DematDetail = ({ accountId, onBack }) => {
           )}
         </div>
 
-        {/* Pagination hint */}
         <div className="px-4 py-3 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground">
           <span>
             Rows per page: 10 &nbsp;|&nbsp;
@@ -231,7 +259,6 @@ const DematDetail = ({ accountId, onBack }) => {
         </div>
       </div>
 
-      {/* Square Off Modal */}
       <Modal isOpen={squareOffModal} onClose={() => setSquareOffModal(false)} title="Square Off Position" size="sm">
         {selectedPos && (
           <div className="space-y-4">

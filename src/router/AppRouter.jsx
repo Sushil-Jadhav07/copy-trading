@@ -10,6 +10,7 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import Dashboard from '@/pages/Dashboard';
+import DematConnected from '@/pages/DematConnected';
 
 // Master Components
 import MasterOverview from '@/components/master/Overview';
@@ -108,6 +109,7 @@ const AppRouter = () => {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/platform/dematconnected" element={<DematConnected />} />
 
               {/* Protected Dashboard Routes */}
               <Route

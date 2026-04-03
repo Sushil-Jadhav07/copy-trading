@@ -3,13 +3,17 @@ import { DollarSign, Download } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
-import { earningsData, payoutHistory, formatCurrency } from '@/data/mockData';
+import { useMasterAnalytics } from '@/hooks/useMaster';
+import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const Earnings = () => {
   const { addToast } = useToast();
+  const { analytics } = useMasterAnalytics();
+  const earningsData = analytics.earnings || analytics.subscriptionRevenue || [];
+  const payoutHistory = analytics.payoutHistory || [];
   const totalEarnings = earningsData.reduce((sum, e) => sum + e.total, 0);
-  const currentMonth = earningsData[earningsData.length - 1];
+  const currentMonth = earningsData[earningsData.length - 1] || { total: 0, subscribers: 0 };
 
   const columns = [
     { header: 'Month', accessor: 'month' },

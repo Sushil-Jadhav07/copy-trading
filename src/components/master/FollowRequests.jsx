@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Check, X, UserPlus } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
-import { followRequests, formatCurrency } from '@/data/mockData';
+import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const FollowRequests = () => {
   const { addToast } = useToast();
-  const [requests, setRequests] = useState(followRequests);
+  const [requests, setRequests] = useState([]);
 
   const handleAccept = (id) => {
     setRequests((prev) => prev.filter((r) => r.id !== id));

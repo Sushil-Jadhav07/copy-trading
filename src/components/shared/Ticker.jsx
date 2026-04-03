@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { tickerData } from '@/data/mockData';
 
 const Ticker = () => {
-  const doubledData = [...tickerData, ...tickerData];
+  const [instruments] = useState([]);
+  const doubledData = [...instruments, ...instruments];
 
   return (
     <div className="h-10 bg-gradient-to-r from-brand-purple/20 via-brand-blue/20 to-brand-teal/20 border-b border-black/10 dark:border-white/10 flex items-center overflow-hidden">

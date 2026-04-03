@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, Phone, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import loginImg from '@/asset/login4.png';
-import logomain from '@/asset/logomain.png';
+const loginImg = '/asset/login4.png';
+const logomain = '/asset/logomain.png';
 
 const Register = () => {
   const navigate = useNavigate();

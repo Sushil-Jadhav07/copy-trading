@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
         if (!isMounted) return;
 
         setUser(currentUser);
-        setIsAuthenticated(true);
+        setIsAuthenticated(Boolean(currentUser));
       } catch (error) {
         authService.clearSession();
         if (!isMounted) return;

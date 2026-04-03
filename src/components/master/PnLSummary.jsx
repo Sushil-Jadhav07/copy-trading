@@ -2,13 +2,17 @@ import React from 'react';
 import GlassCard from '@/components/shared/GlassCard';
 import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
-import { monthlyPnL, formatCurrency } from '@/data/mockData';
+import { useMasterAnalytics } from '@/hooks/useMaster';
+import { formatCurrency } from '@/lib/utils';
 
 const PnLSummary = () => {
+  const { analytics } = useMasterAnalytics();
+  const monthlyPnL = analytics.pnl || analytics.pnlSummary || [];
   const totalPnL = monthlyPnL.reduce((sum, m) => sum + m.netPnL, 0);
   const totalTrades = monthlyPnL.reduce((sum, m) => sum + m.trades, 0);
-  const avgWinRate =
-    monthlyPnL.reduce((sum, m) => sum + m.winRate, 0) / monthlyPnL.length;
+  const avgWinRate = monthlyPnL.length
+    ? monthlyPnL.reduce((sum, m) => sum + (m.winRate || 0), 0) / monthlyPnL.length
+    : 0;
 
   const columns = [
     { header: 'Month', accessor: 'month' },

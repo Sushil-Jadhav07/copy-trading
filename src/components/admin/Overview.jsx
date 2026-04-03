@@ -4,7 +4,7 @@ import StatCard from '@/components/shared/StatCard';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
 import DataTable from '@/components/shared/DataTable';
-import { formatCurrency } from '@/data/mockData';
+import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -149,7 +149,7 @@ const Overview = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-muted-foreground">
-                      {service.latency ? `${service.latency}ms` : service.uptime}
+                      {service.metric || (service.latency ? `${service.latency}ms` : service.uptime)}
                     </span>
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${

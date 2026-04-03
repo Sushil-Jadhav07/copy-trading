@@ -45,10 +45,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import whitelogo from '@/asset/whitelogo.png';       // dark mode — full logo
-import singlelogo from '@/asset/singlelogo.png';     // dark mode — icon only
-import logomain from '@/asset/logomain.png';         // light mode — full logo
-import logo from '@/asset/logo.png';                 // light mode — icon only
+const whitelogo = '/asset/whitelogo.png';
+const singlelogo = '/asset/singlelogo.png';
+const logomain = '/asset/logomain.png';
+const logo = '/asset/logo.png';
 
 const SidebarItem = ({ to, icon: Icon, label, collapsed, badge }) => {
   const [showTooltip, setShowTooltip] = useState(false);

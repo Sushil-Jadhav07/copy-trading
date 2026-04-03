@@ -4,9 +4,10 @@ import { Zap, AlertTriangle, Users, ChevronDown, Plus, Trash2 } from 'lucide-rea
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
-import { brokerAccounts, followers, formatCurrency } from '@/data/mockData';
+import { formatCurrency } from '@/lib/utils';
+import { useBrokerAccounts } from '@/hooks/useBroker';
+import { useMasterChildren } from '@/hooks/useMaster';
 
-const BROKERS = ['zerodha', 'groww', 'angelone', 'upstox', 'dhan'];
 const EXCHANGES = ['NSE', 'BSE', 'NFO', 'MCX', 'CDS'];
 const ORDER_TYPES = ['MARKET', 'LIMIT', 'STOPLOSS', 'STOPLOSS_MARKET', 'TRAILING_STOP'];
 const PRODUCTS = ['INTRADAY', 'DELIVERY', 'CARRYFORWARD'];
@@ -59,6 +60,8 @@ const BasketRow = ({ row, idx, onChange, onRemove, instruments }) => (
 
 const TradeExecution = () => {
   const { addToast } = useToast();
+  const { accounts } = useBrokerAccounts();
+  const { children } = useMasterChildren();
   const [mode, setMode] = useState('single'); // single | basket | oco
   const [form, setForm] = useState({
     broker: '',
@@ -84,7 +87,12 @@ const TradeExecution = () => {
   ]);
   const [ocoForm, setOcoForm] = useState({ targetPrice: '', stopLossPrice: '' });
 
-  const activeFollowers = followers.filter((f) => f.status === 'Active');
+  const BROKERS = accounts.map((account) => account.broker).filter(Boolean);
+  const activeFollowers = children.filter((f) => f.status === 'ACTIVE' || f.tradingEnabled).map((f) => ({
+    id: f.id || f.childId,
+    name: f.name || f.childName || 'Child',
+    initials: (f.name || f.childName || 'CH').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+  }));
   const selectedInstrument = INSTRUMENTS.find((i) => i.symbol === form.symbol);
 
   const handleInstrumentSearch = (q) => {

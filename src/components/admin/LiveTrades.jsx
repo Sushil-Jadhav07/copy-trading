@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { formatCurrency, formatDate, formatNumber } from '@/data/mockData';
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 

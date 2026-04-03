@@ -13,19 +13,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { notifications, masters } from '@/data/mockData';
 
 const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
   const navigate = useNavigate();
   const { user, logout, getEffectiveRole } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const notifications = [];
+  const masters = [];
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(
-    notifications.filter((notification) => !notification.read).length
-  );
+  const [unreadCount, setUnreadCount] = useState(0);
   const [localNotifications, setLocalNotifications] = useState(notifications);
 
   const notificationRef = useRef(null);

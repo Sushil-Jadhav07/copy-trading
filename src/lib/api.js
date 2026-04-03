@@ -1,12 +1,9 @@
 import axios from 'axios';
 
+const FALLBACK_API_BASE_URL = 'https://copy-trading-production-3981.up.railway.app';
 const configuredBaseURL = import.meta.env.VITE_API_BASE_URL || '';
 
-const baseURL = (
-  import.meta.env.DEV
-    ? ''
-    : (configuredBaseURL || 'https://copy-trading-production-3981.up.railway.app')
-).replace(/\/$/, '');
+const baseURL = (configuredBaseURL || FALLBACK_API_BASE_URL).replace(/\/$/, '');
 
 let accessToken = null;
 let refreshRequest = null;

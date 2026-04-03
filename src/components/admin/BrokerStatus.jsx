@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCw, Server, Wifi } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
-import { adminService } from '@/lib/admin';
+import { brokerService } from '@/lib/broker';
 
 const StatusDot = ({ status }) => {
   const value = String(status || '').toLowerCase();
@@ -21,22 +21,31 @@ const BrokerStatus = () => {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState('');
 
-  const loadSystemHealth = async () => {
+  const loadBrokerStatus = async () => {
     setLoading(true);
 
     try {
-      const response = await adminService.getSystemHealth();
-      setServices(response);
+      const response = await brokerService.getAdminBrokerStatus();
+      setServices(
+        response.map((service, index) => ({
+          id: service.id || service.name || `broker-${index}`,
+          name: service.name || service.brokerName || service.broker || `Broker ${index + 1}`,
+          status: service.status || service.health || 'UNKNOWN',
+          latency: Number(service.latency || service.responseTime || 0),
+          uptime: service.uptime || service.availability || 'N/A',
+          ordersToday: Number(service.ordersToday || service.requestsToday || 0),
+        }))
+      );
       setLastRefresh(new Date().toLocaleTimeString('en-IN'));
     } catch (error) {
-      addToast(error.message || 'Unable to load system health', 'error');
+      addToast(error.message || 'Unable to load broker status', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSystemHealth();
+    loadBrokerStatus();
   }, []);
 
   const summary = useMemo(() => {
@@ -67,7 +76,7 @@ const BrokerStatus = () => {
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">Last updated: {lastRefresh || 'Not yet'}</span>
           <button
-            onClick={loadSystemHealth}
+            onClick={loadBrokerStatus}
             className="flex items-center gap-2 rounded-lg bg-black/5 px-3 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
