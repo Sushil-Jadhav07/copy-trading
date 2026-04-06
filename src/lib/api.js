@@ -5,6 +5,7 @@ const configuredBaseURL = import.meta.env.VITE_API_BASE_URL || '';
 
 const baseURL = (configuredBaseURL || FALLBACK_API_BASE_URL).replace(/\/$/, '');
 
+const ACCESS_TOKEN_KEY = 'tradepilot_access_token';
 let accessToken = null;
 let refreshRequest = null;
 const REFRESH_TOKEN_KEY = 'tradepilot_refresh_token';
@@ -19,12 +20,37 @@ const getStorageTargets = () => {
 
 export const setAccessToken = (token) => {
   accessToken = token || null;
+  getStorageTargets().forEach((storage) => {
+    if (token) {
+      storage.setItem(ACCESS_TOKEN_KEY, token);
+    } else {
+      storage.removeItem(ACCESS_TOKEN_KEY);
+    }
+  });
 };
 
-export const getAccessToken = () => accessToken;
+export const getAccessToken = () => {
+  if (accessToken) {
+    return accessToken;
+  }
+
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  accessToken =
+    localStorage.getItem(ACCESS_TOKEN_KEY) ||
+    sessionStorage.getItem(ACCESS_TOKEN_KEY) ||
+    null;
+
+  return accessToken;
+};
 
 export const clearAccessToken = () => {
   accessToken = null;
+  getStorageTargets().forEach((storage) => {
+    storage.removeItem(ACCESS_TOKEN_KEY);
+  });
 };
 
 export const setRefreshToken = (token) => {
@@ -78,9 +104,17 @@ const refreshClient = axios.create({
 api.interceptors.request.use((config) => {
   const nextConfig = { ...config };
   nextConfig.headers = nextConfig.headers || {};
+  const token = getAccessToken();
+  const url = String(nextConfig.url || '');
+  const isAuthBootstrapRequest =
+    url.includes('/api/v1/auth/login') ||
+    url.includes('/api/v1/auth/register') ||
+    url.includes('/api/v1/auth/forgot-password') ||
+    url.includes('/api/v1/auth/reset-password') ||
+    url.includes('/api/v1/auth/refresh-token');
 
-  if (accessToken) {
-    nextConfig.headers.Authorization = `Bearer ${accessToken}`;
+  if (token && !isAuthBootstrapRequest) {
+    nextConfig.headers.Authorization = `Bearer ${token}`;
   }
 
   return nextConfig;

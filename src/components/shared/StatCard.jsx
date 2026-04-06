@@ -16,14 +16,16 @@ const StatCard = ({
   isCurrency = false,
   isPercentage = false,
 }) => {
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
   const animatedValue = decimals > 0
-    ? useAnimatedDecimal(value, 2000, decimals)
-    : useAnimatedCounter(value, 2000);
+    ? useAnimatedDecimal(safeValue, 2000, decimals)
+    : useAnimatedCounter(safeValue, 2000);
 
   const formatValue = (val) => {
-    if (isCurrency) return new Intl.NumberFormat('en-IN').format(val);
-    if (isPercentage) return val.toFixed(decimals);
-    return val;
+    const normalized = Number.isFinite(Number(val)) ? Number(val) : 0;
+    if (isCurrency) return new Intl.NumberFormat('en-IN').format(normalized);
+    if (isPercentage) return normalized.toFixed(decimals);
+    return normalized;
   };
 
   return (

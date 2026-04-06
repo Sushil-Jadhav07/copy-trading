@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Link, Link2Off, Trash2, ChevronDown } from 'lucide-react';
+import { RefreshCw, Eye, Link, Link2Off, Trash2, ChevronDown, CheckSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
-import { useMasterChildren } from '@/hooks/useMaster';
+import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
+import { brokerService } from '@/lib/broker';
 import { formatCurrency } from '@/lib/utils';
 
 const normalizeChildRow = (child) => ({
@@ -32,6 +33,7 @@ const CopyTrading = () => {
   const navigate = useNavigate();
   const { accounts, loading: accountsLoading } = useBrokerAccounts();
   const { children, loading, refetch, setChildren } = useMasterChildren();
+  const { subscriptions, loading: subscriptionsLoading, refetch: refetchSubscriptions } = useMasterSubscriptions();
   const [masterAccountId, setMasterAccountId] = useState('');
   const [masterConnected, setMasterConnected] = useState(false);
   const [masterInfo, setMasterInfo] = useState(null);
@@ -44,16 +46,19 @@ const CopyTrading = () => {
   const [selectedRow, setSelectedRow] = useState(null);
   const [search, setSearch] = useState('');
   const [scalingMap, setScalingMap] = useState({});
-  const [manuallyConnectedIds, setManuallyConnectedIds] = useState([]);
+  const [selectedBulkChildren, setSelectedBulkChildren] = useState([]);
 
   useEffect(() => {
-    const onFocus = () => refetch();
+    const onFocus = () => {
+      refetch();
+      refetchSubscriptions();
+    };
     window.addEventListener('focus', onFocus);
 
     return () => {
       window.removeEventListener('focus', onFocus);
     };
-  }, [refetch]);
+  }, [refetch, refetchSubscriptions]);
 
   const masterOptions = accounts.map((a) => ({
     value: a.accountId,
@@ -61,6 +66,7 @@ const CopyTrading = () => {
   }));
 
   const connectedRows = useMemo(() => children.map(normalizeChildRow), [children]);
+  const subscribedRows = useMemo(() => subscriptions.map(normalizeChildRow), [subscriptions]);
   const childRows = connectedRows;
 
   useEffect(() => {
@@ -75,11 +81,17 @@ const CopyTrading = () => {
     return () => { isMounted = false; };
   }, [connectedRows]);
 
-  const childOptions = childRows.filter(
+  const childOptions = subscribedRows.filter(
     (child) =>
       child.id !== masterAccountId &&
-      !manuallyConnectedIds.includes(child.id)
+      !connectedRows.some((row) => String(row.id) === String(child.id))
   );
+
+  const toggleBulkChild = (childId) => {
+    setSelectedBulkChildren((prev) =>
+      prev.includes(childId) ? prev.filter((id) => id !== childId) : [...prev, childId]
+    );
+  };
 
   const handleConnectMaster = () => {
     if (!masterAccountId) { addToast('Please select a master account', 'error'); return; }
@@ -97,18 +109,17 @@ const CopyTrading = () => {
 
   const handleAddChild = async () => {
     if (!selectedChild) { addToast('Please select a child account', 'error'); return; }
-    const selectedChildRow = childRows.find((item) => String(item.id) === String(selectedChild));
+    const selectedChildRow = childOptions.find((item) => String(item.id) === String(selectedChild));
+    const scalingFactor = Number(childMultiplier) || 1;
     try {
-      await masterService.linkChild(selectedChild);
-      await masterService.updateChildScaling(selectedChild, { multiplier: Number(childMultiplier) || 1 });
+      await masterService.linkChild(selectedChild, scalingFactor);
       if (selectedChildRow) {
-        setManuallyConnectedIds((prev) => (prev.includes(selectedChildRow.id) ? prev : [...prev, selectedChildRow.id]));
         setChildren((prev) => {
           const exists = prev.some((item) => String(item.id || item.childId) === String(selectedChild));
           if (exists) {
             return prev.map((item) =>
               String(item.id || item.childId) === String(selectedChild)
-                ? { ...item, multiplier: Number(childMultiplier) || 1, status: 'ACTIVE', enabled: true, isLinked: true, isSubscribedOnly: false }
+                ? { ...item, multiplier: scalingFactor, status: 'ACTIVE', enabled: true, isLinked: true, isSubscribedOnly: false }
                 : item
             );
           }
@@ -119,7 +130,7 @@ const CopyTrading = () => {
               ...selectedChildRow,
               childId: selectedChildRow.id,
               id: selectedChildRow.id,
-              multiplier: Number(childMultiplier) || 1,
+              multiplier: scalingFactor,
               status: 'ACTIVE',
               enabled: true,
               isLinked: true,
@@ -131,7 +142,32 @@ const CopyTrading = () => {
       setSelectedChild('');
       setChildMultiplier('1');
       addToast('Child linked successfully', 'success');
-      await refetch();
+      await Promise.all([refetch(), refetchSubscriptions()]);
+    } catch (error) {
+      addToast(error.message, 'error');
+    }
+  };
+
+  const handleBulkLink = async () => {
+    if (!selectedBulkChildren.length) {
+      addToast('Select at least one child for bulk connect', 'error');
+      return;
+    }
+
+    const scalingFactor = Number(childMultiplier) || 1;
+
+    try {
+      await brokerService.bulkLinkChildren(
+        selectedBulkChildren.map((childId) => ({
+          childId,
+          scalingFactor,
+        }))
+      );
+      setSelectedBulkChildren([]);
+      setSelectedChild('');
+      setChildMultiplier('1');
+      addToast('Children connected successfully', 'success');
+      await Promise.all([refetch(), refetchSubscriptions()]);
     } catch (error) {
       addToast(error.message, 'error');
     }
@@ -141,12 +177,7 @@ const CopyTrading = () => {
     const child = connectedRows.find((item) => item.id === id);
     const next = !child.tradingEnabled;
     setChildren((prev) => prev.map((item) => (item.id || item.childId) === id ? { ...item, status: next ? 'ACTIVE' : 'PAUSED', enabled: next } : item));
-    try {
-      await masterService.updateChildScaling(id, { enabled: next });
-    } catch (error) {
-      addToast(error.message, 'error');
-      refetch();
-    }
+    addToast('Trading status toggle is not backed by a dedicated master API endpoint in the current spec', 'warning');
   };
 
   const handleRefresh = async (id) => {
@@ -165,7 +196,7 @@ const CopyTrading = () => {
   const handleMultiplierChange = async (id, val) => {
     setChildren((prev) => prev.map((item) => (item.id || item.childId) === id ? { ...item, multiplier: val } : item));
     try {
-      await masterService.updateChildScaling(id, { ...(scalingMap[id] || {}), multiplier: val });
+      await masterService.updateChildScaling(id, { ...(scalingMap[id] || {}), scalingFactor: val });
     } catch (error) {
       addToast(error.message, 'error');
       refetch();
@@ -232,15 +263,46 @@ const CopyTrading = () => {
             <input type="number" value={childMultiplier} onChange={(e) => setChildMultiplier(e.target.value)} placeholder="Multiplier" min="0.1" step="0.1" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
           </div>
           <button onClick={handleAddChild} className="px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
+          <button onClick={handleBulkLink} className="px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2">
+            <CheckSquare className="w-4 h-4" />
+            Connect Selected
+          </button>
         </div>
-        
+        {childOptions.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+            {childOptions.map((child) => {
+              const checked = selectedBulkChildren.includes(child.id);
+              return (
+                <label
+                  key={child.id}
+                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
+                    checked ? 'border-brand-purple bg-brand-purple/10' : 'border-border bg-black/5 dark:bg-white/5'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleBulkChild(child.id)}
+                    className="accent-brand-purple"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{child.broker}-{child.userId}-{child.nickname}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {String(child.status || child.copyingStatus || 'SUBSCRIBED').replaceAll('_', ' ')}
+                    </p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </GlassCard>
 
       <GlassCard noPadding>
         <div className="p-4 border-b border-border/50 flex justify-end">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="w-56 bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
         </div>
-        {loading || accountsLoading ? (
+        {loading || accountsLoading || subscriptionsLoading ? (
           <div className="p-4"><SkeletonLoader type="table" rows={5} columns={11} /></div>
         ) : (
           <div className="overflow-x-auto">

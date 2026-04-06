@@ -122,11 +122,38 @@ export const childService = {
 
   async subscribe(body) {
     try {
-      const res = await api.post('/api/v1/child/subscriptions', body);
+      const payload = {
+        masterId: body?.masterId,
+        brokerAccountId: body?.brokerAccountId,
+      };
+      const res = await api.post('/api/v1/child/subscriptions', payload);
+      if (body?.scalingFactor != null && Number(body.scalingFactor) !== 1 && body?.masterId) {
+        await this.updateScaling({
+          masterId: body.masterId,
+          scalingFactor: body.scalingFactor,
+        });
+      }
       cacheSubscriptionAllocation(body?.masterId, body?.allocationAmount || body?.allocation);
       return normalizeSubscription(res.data?.data || res.data || body);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to subscribe'));
+    }
+  },
+
+  async bulkSubscribe(masters) {
+    try {
+      const res = await api.post('/api/v1/child/subscriptions/bulk', {
+        masters,
+      });
+      masters.forEach((master) => {
+        cacheSubscriptionAllocation(
+          master?.masterId,
+          master?.allocationAmount || master?.allocation
+        );
+      });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to bulk subscribe'));
     }
   },
 
@@ -173,8 +200,7 @@ export const childService = {
       const numericMultiplier = Number(body?.multiplier ?? body?.scalingFactor ?? 1);
       const safeMultiplier = Math.min(10, Math.max(0.01, Number.isFinite(numericMultiplier) ? numericMultiplier : 1));
       const payload = {
-        ...body,
-        multiplier: safeMultiplier,
+        masterId: body?.masterId,
         scalingFactor: safeMultiplier,
       };
       const res = await api.put('/api/v1/child/scaling', payload);

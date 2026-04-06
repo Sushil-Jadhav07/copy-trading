@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authService, authStorage } from '@/lib/auth';
 
 const AuthContext = createContext(null);
@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const login = async (email, password, role) => {
+  const login = useCallback(async (email, password, role) => {
     try {
       const result = await authService.login({ email, password, role });
 
@@ -61,9 +61,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { success: false, error: error.message || 'Login failed' };
     }
-  };
+  }, []);
 
-  const register = async (name, email, password, confirmPassword, role, phone = '') => {
+  const register = useCallback(async (name, email, password, confirmPassword, role, phone = '') => {
     if (password !== confirmPassword) {
       return { success: false, error: 'Passwords do not match' };
     }
@@ -85,38 +85,38 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { success: false, error: error.message || 'Registration failed' };
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authService.logout();
     } finally {
       setUser(null);
       setIsAuthenticated(false);
     }
-  };
+  }, []);
 
-  const switchRole = (newRole) => {
+  const switchRole = useCallback((newRole) => {
     if (user && user.role === 'Admin') {
       const updatedUser = { ...user, impersonatedRole: newRole };
       setUser(updatedUser);
       authStorage.setImpersonatedRole(newRole);
     }
-  };
+  }, [user]);
 
-  const getEffectiveRole = () => {
+  const getEffectiveRole = useCallback(() => {
     if (!user) return null;
     return user.impersonatedRole || authStorage.getImpersonatedRole() || user.role;
-  };
+  }, [user]);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const currentUser = await authService.getMe();
     setUser(currentUser);
     setIsAuthenticated(true);
     return currentUser;
-  };
+  }, []);
 
-  const updateProfile = async (profile) => {
+  const updateProfile = useCallback(async (profile) => {
     const updatedUser = await authService.updateMe(profile);
     const nextUser = {
       ...updatedUser,
@@ -125,9 +125,9 @@ export const AuthProvider = ({ children }) => {
 
     setUser(nextUser);
     return nextUser;
-  };
+  }, [user?.impersonatedRole]);
 
-  const changePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+  const changePassword = useCallback(async ({ currentPassword, newPassword, confirmPassword }) => {
     if (newPassword !== confirmPassword) {
       throw new Error('New passwords do not match');
     }
@@ -136,14 +136,14 @@ export const AuthProvider = ({ children }) => {
       currentPassword,
       newPassword,
     });
-  };
+  }, []);
 
-  const verifyTwoFactor = async (code) => {
+  const verifyTwoFactor = useCallback(async (code) => {
     const result = await authService.verifyTwoFactor(code);
     setUser(result.user);
     setIsAuthenticated(true);
     return result.user;
-  };
+  }, []);
 
   const value = useMemo(() => ({
     user,
@@ -158,7 +158,20 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     verifyTwoFactor,
-  }), [user, isAuthenticated, loading]);
+  }), [
+    user,
+    isAuthenticated,
+    loading,
+    login,
+    register,
+    logout,
+    switchRole,
+    getEffectiveRole,
+    refreshUser,
+    updateProfile,
+    changePassword,
+    verifyTwoFactor,
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

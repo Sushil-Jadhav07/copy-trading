@@ -113,14 +113,18 @@ export const brokerService = {
     }
   },
 
-  async loginAccount(accountId, totpCode) {
+  async getOAuthUrl(accountId) {
     try {
-      const sanitizedCode = String(totpCode || '').replace(/\D/g, '').slice(0, 6);
-      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/login`, {
-        totpCode: sanitizedCode,
-        totp: sanitizedCode,
-        otp: sanitizedCode,
-      });
+      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/oauth-url`);
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load broker login url'));
+    }
+  },
+
+  async loginAccount(accountId, payload = {}) {
+    try {
+      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/login`, payload || {});
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Broker login failed'));
@@ -171,6 +175,17 @@ export const brokerService = {
       return extractList(res.data).map(normalizeBrokerAccount);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker accounts'));
+    }
+  },
+
+  async bulkLinkChildren(children) {
+    try {
+      const res = await api.post('/api/v1/master/children/bulk-link', {
+        children,
+      });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to bulk link children'));
     }
   },
 };

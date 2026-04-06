@@ -105,6 +105,10 @@ export const authStorage = {
 export const authService = {
   async login({ email, password }) {
     try {
+      clearAccessToken();
+      clearRefreshToken();
+      authStorage.clearImpersonatedRole();
+
       const response = await api.post(
         '/api/v1/auth/login',
         {

@@ -56,6 +56,30 @@ export const useMasterSubscriptions = () => {
   return { subscriptions, loading, error, refetch: load };
 };
 
+export const useMasterPendingChildren = () => {
+  const [pendingChildren, setPendingChildren] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setPendingChildren(await masterService.getPendingChildren());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { pendingChildren, setPendingChildren, loading, error, refetch: load };
+};
+
 export const useMasterAnalytics = () => {
   const [analytics, setAnalytics] = useState({});
   const [loading, setLoading] = useState(true);

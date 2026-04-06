@@ -8,6 +8,9 @@ import {
   TrendingDown,
   Copy,
   IndianRupee,
+  Check,
+  X,
+  Clock3,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
@@ -15,7 +18,7 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
-import { useMasterChildren } from '@/hooks/useMaster';
+import { useMasterChildren, useMasterPendingChildren } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
@@ -35,6 +38,13 @@ const MultiplierControl = ({ value, onChange, disabled }) => {
 const ActiveFollowers = () => {
   const { addToast } = useToast();
   const { children, loading, refetch, setChildren } = useMasterChildren();
+  const {
+    pendingChildren,
+    setPendingChildren,
+    loading: pendingLoading,
+    refetch: refetchPending,
+    error: pendingError,
+  } = useMasterPendingChildren();
   const [removeModalOpen, setRemoveModalOpen] = useState(false);
   const [selectedFollower, setSelectedFollower] = useState(null);
   const [pendingMultiplier, setPendingMultiplier] = useState({});
@@ -73,6 +83,10 @@ const ActiveFollowers = () => {
     return () => timers.forEach(clearTimeout);
   }, [pendingMultiplier, addToast, refetch]);
 
+  useEffect(() => {
+    if (pendingError) addToast(pendingError, 'error');
+  }, [pendingError, addToast]);
+
   const updateChild = (id, updater) => {
     setChildren((prev) => prev.map((child) => {
       if ((child.id || child.childId) !== id) return child;
@@ -84,13 +98,7 @@ const ActiveFollowers = () => {
     const follower = followerList.find((x) => x.id === id);
     const newValue = !follower.tradingEnabled;
     updateChild(id, () => ({ tradingEnabled: newValue, status: newValue ? 'ACTIVE' : 'PAUSED' }));
-    try {
-      await masterService.updateChildScaling(id, { enabled: newValue });
-      addToast(`${follower.name} ${newValue ? 'activated' : 'paused'}`, newValue ? 'success' : 'warning');
-    } catch (error) {
-      updateChild(id, () => ({ tradingEnabled: follower.tradingEnabled, status: follower.status === 'Active' ? 'ACTIVE' : 'PAUSED' }));
-      addToast(error.message, 'error');
-    }
+    addToast('Trading status toggle is not backed by a dedicated master API endpoint in the current spec', 'warning');
   };
 
   const handleToggleRejected = (id) => {
@@ -116,6 +124,37 @@ const ActiveFollowers = () => {
       addToast(e.message, 'error');
     }
     setRemoveModalOpen(false);
+  };
+
+  const handleApprove = async (child) => {
+    try {
+      await masterService.approveChild(child.id);
+      addToast(`${child.name} approved`, 'success');
+      setPendingChildren((prev) => prev.filter((item) => item.id !== child.id));
+      await Promise.all([refetch(), refetchPending()]);
+    } catch (error) {
+      addToast(error.message, 'error');
+    }
+  };
+
+  const handleReject = async (child) => {
+    try {
+      await masterService.rejectChild(child.id);
+      addToast(`${child.name} rejected`, 'warning');
+      setPendingChildren((prev) => prev.filter((item) => item.id !== child.id));
+      await refetchPending();
+    } catch (error) {
+      addToast(error.message, 'error');
+    }
+  };
+
+  const handleSubscribeToChild = async (child) => {
+    try {
+      await masterService.subscribeToChild(child.id, child.multiplier || 1);
+      addToast(`Subscribed to ${child.name}'s trades`, 'success');
+    } catch (error) {
+      addToast(error.message, 'error');
+    }
   };
 
   const totalAUM = followerList.reduce((sum, f) => sum + f.allocation, 0);
@@ -151,6 +190,56 @@ const ActiveFollowers = () => {
           </GlassCard>
         ))}
       </div>
+
+      <GlassCard>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Pending Approvals</h2>
+            <p className="text-sm text-muted-foreground">New child subscriptions waiting for your approval</p>
+          </div>
+          <div className="px-3 py-1 rounded-full bg-warning/10 text-warning text-sm font-medium">
+            {pendingChildren.length}
+          </div>
+        </div>
+
+        {pendingLoading ? (
+          <SkeletonLoader type="card" count={2} />
+        ) : pendingChildren.length ? (
+          <div className="space-y-3">
+            {pendingChildren.map((child) => (
+              <div key={child.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-warning to-brand-purple flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-foreground">
+                      {(child.name || 'UN').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{child.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{child.email || child.clientId || child.childId}</p>
+                    <div className="flex items-center gap-1.5 text-xs text-warning mt-1">
+                      <Clock3 className="w-3.5 h-3.5" />
+                      <span>Requested {child.requestedAt ? new Date(child.requestedAt).toLocaleString('en-IN') : 'recently'}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleReject(child)} className="px-3 py-2 rounded-lg bg-danger/15 hover:bg-danger/25 text-danger text-sm font-medium transition-colors inline-flex items-center gap-2">
+                    <X className="w-4 h-4" />
+                    Reject
+                  </button>
+                  <button onClick={() => handleApprove(child)} className="px-3 py-2 rounded-lg bg-success/15 hover:bg-success/25 text-success text-sm font-medium transition-colors inline-flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    Approve
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">No pending approvals</div>
+        )}
+      </GlassCard>
 
       <GlassCard noPadding>
         <div className="hidden md:grid grid-cols-8 gap-3 px-5 py-3 border-b border-border/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -224,9 +313,18 @@ const ActiveFollowers = () => {
                     </div>
 
                     <div className="hidden md:block">
-                      <button onClick={() => handleRemove(follower)} className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors" title="Remove child">
-                        <UserMinus className="w-4 h-4 text-danger" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSubscribeToChild(follower)}
+                          className="p-1.5 hover:bg-brand-purple/20 rounded-lg transition-colors"
+                          title="Subscribe to child trades"
+                        >
+                          <Copy className="w-4 h-4 text-brand-purple" />
+                        </button>
+                        <button onClick={() => handleRemove(follower)} className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors" title="Remove child">
+                          <UserMinus className="w-4 h-4 text-danger" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

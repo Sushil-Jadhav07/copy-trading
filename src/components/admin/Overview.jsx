@@ -26,6 +26,11 @@ const normalizeChartData = (growth = []) => {
   }));
 };
 
+const safeNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const Overview = () => {
   const { addToast } = useToast();
   const [analytics, setAnalytics] = useState({
@@ -47,18 +52,28 @@ const Overview = () => {
       setLoading(true);
 
       try {
-        const [analyticsResponse, healthResponse, logsResponse] = await Promise.all([
+        const [analyticsResponse, healthResponse, logsResponse, usersResponse] = await Promise.all([
           adminService.getAnalytics(),
           adminService.getSystemHealth(),
           adminService.getTradeLogs(),
+          adminService.getUsers({ page: 1, limit: 1 }),
         ]);
 
         if (!isMounted) {
           return;
         }
 
+        const resolvedTotalUsers =
+          safeNumber(analyticsResponse.totalUsers, -1) >= 0
+            ? safeNumber(analyticsResponse.totalUsers)
+            : safeNumber(usersResponse?.meta?.total, usersResponse?.users?.length || 0);
+
         setAnalytics({
           ...analyticsResponse,
+          totalUsers: resolvedTotalUsers,
+          activeMasters: safeNumber(analyticsResponse.activeMasters),
+          volumeToday: safeNumber(analyticsResponse.volumeToday),
+          revenueMtd: safeNumber(analyticsResponse.revenueMtd),
           userGrowth: normalizeChartData(analyticsResponse.userGrowth),
         });
         setHealth(healthResponse);

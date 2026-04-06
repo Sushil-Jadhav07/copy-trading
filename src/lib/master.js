@@ -40,9 +40,11 @@ const normalizeChild = (raw = {}, index = 0) => {
 
   const statusValue = String(
     raw.status ||
+      raw.copyingStatus ||
       raw.subscriptionStatus ||
       raw.tradingStatus ||
       source.status ||
+      source.copyingStatus ||
       source.subscriptionStatus ||
       'PAUSED'
   ).toUpperCase();
@@ -55,6 +57,7 @@ const normalizeChild = (raw = {}, index = 0) => {
     name,
     childName: name,
     nickname: raw.nickname || source.nickname || name,
+    email: raw.email || source.email || '',
     broker: raw.broker || raw.brokerName || source.broker || source.brokerName || '',
     brokerName: raw.brokerName || source.brokerName || raw.broker || source.broker || '',
     multiplier: Number(raw.multiplier || raw.scalingFactor || raw.scale || 1),
@@ -72,7 +75,8 @@ const normalizeChild = (raw = {}, index = 0) => {
     ),
     enabled: Boolean(raw.enabled ?? raw.tradingEnabled ?? raw.isActive ?? statusValue === 'ACTIVE'),
     status: statusValue,
-    joinedDate: raw.joinedDate || raw.createdAt || source.createdAt || null,
+    subscribedAt: raw.subscribedAt || raw.requestedAt || raw.createdAt || source.createdAt || null,
+    joinedDate: raw.joinedDate || raw.subscribedAt || raw.requestedAt || raw.createdAt || source.createdAt || null,
     placeRejected: Boolean(raw.placeRejected),
     isLinked: true,
     isSubscribedOnly: false,
@@ -111,39 +115,44 @@ export const masterService = {
     try {
       const res = await api.get(`/api/subscriptions/master/${masterId}`);
       return extractList(res.data).map((raw, index) => ({
-        id: raw.childId || raw.id || `subscription-${index}`,
-        subscriptionId: raw.id || '',
-        childId: raw.childId || '',
-        userId: raw.childId || '',
-        clientId: raw.childId || '',
-        name: raw.childName || `Child ${String(raw.childId || index + 1).slice(0, 8)}`,
-        childName: raw.childName || `Child ${String(raw.childId || index + 1).slice(0, 8)}`,
-        nickname: raw.childName || `Child ${String(raw.childId || index + 1).slice(0, 8)}`,
+        ...normalizeChild(raw, index),
+        id: raw.childId || raw.id || `child-${index}`,
+        childId: raw.childId || raw.id || `child-${index}`,
         brokerAccountId: raw.brokerAccountId || '',
-        allocation: Number(raw.allocation || raw.allocationAmount || 0),
-        allocationAmount: Number(raw.allocationAmount || raw.allocation || 0),
-        multiplier: Number(raw.multiplier || raw.scalingFactor || 1),
+        multiplier: Number(raw.scalingFactor || raw.multiplier || 1),
         scalingFactor: Number(raw.scalingFactor || raw.multiplier || 1),
-        status: String(raw.copyingStatus || raw.status || 'PAUSED').toUpperCase(),
-        tradingEnabled: String(raw.copyingStatus || raw.status || '').toUpperCase() === 'ACTIVE',
-        enabled: String(raw.copyingStatus || raw.status || '').toUpperCase() === 'ACTIVE',
-        totalPnL: Number(raw.totalPnL || raw.pnl || 0),
-        pnl: Number(raw.pnl || raw.totalPnL || 0),
-        tradesCopied: Number(raw.tradesCopied || raw.tradeCount || 0),
-        tradeCount: Number(raw.tradeCount || raw.tradesCopied || 0),
-        joinedDate: raw.createdAt || null,
+        status: String(raw.copyingStatus || raw.status || 'ACTIVE').toUpperCase(),
         isLinked: false,
         isSubscribedOnly: true,
-        raw,
       }));
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load subscriptions'));
+      throw new Error(getErrorMessage(error, 'Unable to load master subscriptions'));
     }
   },
 
-  async linkChild(childId) {
+  async getPendingChildren() {
     try {
-      const res = await api.post(`/api/v1/master/children/${childId}/link`);
+      const res = await api.get('/api/v1/master/children/pending');
+      const list = res.data?.pendingApprovals || [];
+      return (Array.isArray(list) ? list : extractList(res.data)).map((raw, index) => ({
+        ...normalizeChild(raw, index),
+        subscriptionId: raw.subscriptionId || raw.id || '',
+        requestedAt: raw.requestedAt || raw.createdAt || null,
+        status: 'PENDING_APPROVAL',
+        tradingEnabled: false,
+        enabled: false,
+        isLinked: false,
+        isPendingApproval: true,
+      }));
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load pending approvals'));
+    }
+  },
+
+  async linkChild(childId, scalingFactor) {
+    try {
+      const body = scalingFactor == null ? undefined : { scalingFactor };
+      const res = await api.post(`/api/v1/master/children/${childId}/link`, body);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to link child'));
@@ -170,7 +179,9 @@ export const masterService = {
 
   async updateChildScaling(childId, body) {
     try {
-      const res = await api.put(`/api/v1/master/children/${childId}/scaling`, body);
+      const numericScaling = Number(body?.scalingFactor ?? body?.multiplier ?? 1);
+      const scalingFactor = Math.min(10, Math.max(0.01, Number.isFinite(numericScaling) ? numericScaling : 1));
+      const res = await api.put(`/api/v1/master/children/${childId}/scaling`, { scalingFactor });
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to update scaling'));
@@ -192,6 +203,34 @@ export const masterService = {
       return extractList(res.data).map(normalizeTrade);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load trade history'));
+    }
+  },
+
+  async subscribeToChild(childId, scalingFactor) {
+    try {
+      const body = scalingFactor == null ? undefined : { scalingFactor };
+      const res = await api.post(`/api/v1/master/subscribe/${childId}`, body);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to subscribe to child'));
+    }
+  },
+
+  async approveChild(childId) {
+    try {
+      const res = await api.post(`/api/v1/master/children/${childId}/approve`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to approve child'));
+    }
+  },
+
+  async rejectChild(childId) {
+    try {
+      const res = await api.post(`/api/v1/master/children/${childId}/reject`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to reject child'));
     }
   },
 };

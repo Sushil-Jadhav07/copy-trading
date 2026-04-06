@@ -17,6 +17,8 @@ const baseBrokerFields = [
   { key: 'apiSecret', label: 'API Secret', placeholder: 'Enter API Secret' },
 ];
 
+const normalizeBrokerKey = (value) => String(value || '').trim().toLowerCase();
+
 const UserManagement = ({
   title = 'User Management',
   connectTitle = "Connect User's Broker",
@@ -44,6 +46,11 @@ const UserManagement = ({
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [totpCode, setTotpCode] = useState('');
   const [brokerFields, setBrokerFields] = useState(baseBrokerFields);
+  const [loginConfig, setLoginConfig] = useState(null);
+  const [oauthRedirectUrl, setOauthRedirectUrl] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [oauthOpened, setOauthOpened] = useState(false);
+  const [oauthPopupRef, setOauthPopupRef] = useState(null);
 
   useEffect(() => {
     load();
@@ -58,9 +65,26 @@ const UserManagement = ({
   const brokerOptions = useMemo(
     () =>
       brokers.map((b) => ({
-        value: b.id || b.brokerId || b.name,
-        label: b.name || b.brokerName || b.id || b.brokerId,
+        value: normalizeBrokerKey(b.brokerId || b.id || b.name),
+        label: b.name || b.brokerName || b.brokerId || b.id,
       })),
+    [brokers]
+  );
+
+  const brokerMetaMap = useMemo(
+    () =>
+      brokers.reduce((acc, broker) => {
+        const keys = [
+          normalizeBrokerKey(broker.brokerId),
+          normalizeBrokerKey(broker.id),
+          normalizeBrokerKey(broker.name),
+          normalizeBrokerKey(broker.brokerName),
+        ].filter(Boolean);
+        keys.forEach((key) => {
+          acc[key] = broker;
+        });
+        return acc;
+      }, {}),
     [brokers]
   );
 
@@ -80,28 +104,29 @@ const UserManagement = ({
   };
 
   const handleBrokerChange = (value) => {
-    setForm((prev) => ({ ...prev, broker: value }));
+    setForm((prev) => ({ ...prev, broker: normalizeBrokerKey(value) }));
     setBrokerFields(baseBrokerFields);
   };
 
   const handleAdd = async () => {
     if (!validate()) return;
     try {
+      const selectedBrokerMeta = brokerMetaMap[normalizeBrokerKey(form.broker)];
+      const normalizedBrokerId = normalizeBrokerKey(selectedBrokerMeta?.brokerId || form.broker);
       const newAcc = await brokerService.addAccount({
-        brokerId: form.broker,
+        brokerId: normalizedBrokerId,
         clientId: form.clientId || form.mobile,
         apiKey: form.apiKey || '',
         apiSecret: form.apiSecret || '',
         accessToken: form.accessToken || '',
         accountNickname: form.nickname,
       });
-      setLoginTarget(newAcc.accountId);
-      setLoginModalOpen(true);
       setForm({ broker: '', nickname: '', clientId: '', mobile: '', apiKey: '', apiSecret: '', accessToken: '' });
       setFormErrors({});
       setBrokerFields(baseBrokerFields);
       addToast('Account added — please login to activate', 'success');
       refetch();
+      await openLoginModal(newAcc.accountId, null, selectedBrokerMeta);
     } catch (e) {
       addToast(e.message, 'error');
     }
@@ -113,21 +138,132 @@ const UserManagement = ({
     setBrokerFields(baseBrokerFields);
   };
 
+  const parseCodeFromRedirectUrl = (value, loginField) => {
+    if (!value) return '';
+    const aliases = {
+      requestToken: ['request_token', 'requestToken'],
+      authCode: ['auth_code', 'authCode'],
+      code: ['code'],
+    };
+    const candidates = [loginField, ...(aliases[loginField] || [])].filter(Boolean);
+    const readParams = (params) => {
+      for (const candidate of candidates) {
+        const found = params.get(candidate);
+        if (found) return found;
+      }
+      return '';
+    };
+
+    try {
+      const parsed = new URL(value.trim());
+      return readParams(parsed.searchParams);
+    } catch {
+      try {
+        const parsed = new URL(value.trim(), window.location.origin);
+        return readParams(parsed.searchParams);
+      } catch {
+        const queryIndex = value.indexOf('?');
+        const query = queryIndex >= 0 ? value.slice(queryIndex + 1) : value;
+        const params = new URLSearchParams(query);
+        return readParams(params);
+      }
+    }
+  };
+
+  const closeLoginModal = () => {
+    setLoginModalOpen(false);
+    setLoginConfig(null);
+    setTotpCode('');
+    setOauthRedirectUrl('');
+    setOauthOpened(false);
+    setOauthPopupRef(null);
+  };
+
+  const openOauthWindow = (oauthUrl, popupRef = null) => {
+    if (!oauthUrl) return;
+    const popup = popupRef || window.open('about:blank', '_blank');
+    if (!popup) {
+      addToast('Popup blocked. Please allow popups and try again.', 'error');
+      return;
+    }
+    popup.location.href = oauthUrl;
+    setOauthPopupRef(popup);
+    setOauthOpened(true);
+  };
+
+  const openLoginModal = async (accountId, popupRef = null, brokerHint = null) => {
+    setLoginTarget(accountId);
+    setTotpCode('');
+    setOauthRedirectUrl('');
+    setLoginLoading(true);
+
+    try {
+      const oauthData = await brokerService.getOAuthUrl(accountId);
+      const accountMeta = accounts.find((item) => (item.accountId || item.id) === accountId);
+      const localBrokerMeta =
+        brokerHint ||
+        brokerMetaMap[normalizeBrokerKey(accountMeta?.brokerId)] ||
+        brokerMetaMap[normalizeBrokerKey(accountMeta?.broker)] ||
+        brokerMetaMap[normalizeBrokerKey(accountMeta?.brokerName)];
+      const resolvedLoginMethod =
+        oauthData?.loginMethod ||
+        localBrokerMeta?.loginMethod ||
+        'secret';
+      const resolvedLoginField =
+        oauthData?.loginField ||
+        localBrokerMeta?.loginField ||
+        'totpCode';
+      setLoginConfig({
+        broker: oauthData?.broker || localBrokerMeta?.name || accountMeta?.brokerName || accountMeta?.broker || '',
+        loginMethod: resolvedLoginMethod,
+        loginField: resolvedLoginField,
+        oauthUrl: oauthData?.oauthUrl || '',
+        message: oauthData?.message || '',
+      });
+      setLoginModalOpen(true);
+      if (String(resolvedLoginMethod).toLowerCase() === 'oauth' && oauthData?.oauthUrl) {
+        openOauthWindow(oauthData.oauthUrl, popupRef);
+      }
+    } catch (error) {
+      if (popupRef && !popupRef.closed) {
+        popupRef.close();
+      }
+      addToast(error.message, 'error');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
   const handleBrokerLogin = async () => {
-    const sanitizedCode = String(totpCode || '').replace(/\D/g, '').slice(0, 6);
-    if (sanitizedCode.length !== 6) {
-      addToast('Enter a valid 6-digit TOTP', 'error');
+    if (!loginTarget || !loginConfig) {
+      addToast('Broker login configuration is missing', 'error');
       return;
     }
 
+    setLoginLoading(true);
+
+    const sanitizedCode = String(totpCode || '').replace(/\D/g, '').slice(0, 6);
+
     try {
-      await brokerService.loginAccount(loginTarget, sanitizedCode);
-      setLoginModalOpen(false);
-      setTotpCode('');
+      if (loginConfig.loginMethod === 'secret') {
+        const payload = sanitizedCode ? { totpCode: sanitizedCode } : {};
+        await brokerService.loginAccount(loginTarget, payload);
+      } else {
+        const extractedCode = parseCodeFromRedirectUrl(oauthRedirectUrl, loginConfig.loginField);
+        if (!extractedCode) {
+          addToast(`Unable to find ${loginConfig.loginField} in the pasted redirect URL`, 'error');
+          return;
+        }
+        await brokerService.loginAccount(loginTarget, { [loginConfig.loginField]: extractedCode });
+      }
+
+      closeLoginModal();
       addToast('Broker connected successfully', 'success');
       refetch();
     } catch (e) {
       addToast(e.message, 'error');
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -158,8 +294,8 @@ const UserManagement = ({
       return;
     }
 
-    setLoginTarget(id);
-    setLoginModalOpen(true);
+    const popup = window.open('about:blank', '_blank');
+    openLoginModal(id, popup);
   };
 
   const confirmDelete = async () => {
@@ -302,7 +438,10 @@ const UserManagement = ({
                           </button>
                           <button
                             title="Re-login"
-                            onClick={() => { setLoginTarget(id); setLoginModalOpen(true); }}
+                            onClick={() => {
+                              const popup = window.open('about:blank', '_blank');
+                              openLoginModal(id, popup);
+                            }}
                             className="w-8 h-8 bg-teal-500/80 hover:bg-teal-500 rounded-lg flex items-center justify-center transition-colors"
                           >
                             <RefreshCw className="w-4 h-4 text-foreground" />
@@ -343,22 +482,62 @@ const UserManagement = ({
         </div>
       </Modal>
 
-      <Modal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} title="Broker Login" size="sm">
+      <Modal
+        isOpen={loginModalOpen}
+        onClose={closeLoginModal}
+        title="Broker Login"
+        size="md"
+      >
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">TOTP Code</label>
-            <input
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="Enter TOTP"
-              inputMode="numeric"
-              maxLength={6}
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
-            />
-          </div>
+          {loginConfig?.message && (
+            <p className="text-xs text-muted-foreground">{loginConfig.message}</p>
+          )}
+
+          {loginConfig?.loginMethod === 'secret' ? (
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">TOTP Code (Optional)</label>
+              <input
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="Enter TOTP if required"
+                inputMode="numeric"
+                maxLength={6}
+                className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={() => openOauthWindow(loginConfig?.oauthUrl, oauthPopupRef)}
+                className="w-full py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors"
+              >
+                {oauthOpened ? 'Open Broker Login Again' : `Login with ${loginConfig?.broker || 'Broker'}`}
+              </button>
+              <p className="text-xs text-muted-foreground">
+                {oauthOpened
+                  ? 'Complete login in the opened tab, then paste the full redirect URL below and click Confirm.'
+                  : 'Click the button above to open the broker login, then paste the full redirect URL below and click Confirm.'}
+              </p>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Redirect URL</label>
+                <input
+                  value={oauthRedirectUrl}
+                  onChange={(e) => setOauthRedirectUrl(e.target.value)}
+                  placeholder="Paste the redirect URL after login"
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
+                />
+              </div>
+            </div>
+          )}
           <div className="flex gap-3">
-            <button onClick={() => setLoginModalOpen(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={handleBrokerLogin} className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors">Submit</button>
+            <button onClick={closeLoginModal} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
+            <button
+              onClick={handleBrokerLogin}
+              disabled={loginLoading}
+              className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+            >
+              {loginLoading ? 'Submitting...' : loginConfig?.loginMethod === 'oauth' ? 'Confirm' : 'Submit'}
+            </button>
           </div>
         </div>
       </Modal>

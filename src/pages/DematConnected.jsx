@@ -17,18 +17,33 @@ const DematConnected = () => {
     }
 
     let isMounted = true;
+    const requestToken = searchParams.get('request_token');
+    const authCode = searchParams.get('auth_code');
+    const code = searchParams.get('code');
+    const brokerCode = requestToken || authCode || code;
 
-    brokerService
-      .getAccountStatus(accountId)
-      .then(() => {
-        if (isMounted) setStatus('success');
-      })
-      .catch((error) => {
+    const verifyConnection = async () => {
+      try {
+        if (brokerCode) {
+          const oauthData = await brokerService.getOAuthUrl(accountId);
+          const loginField = oauthData?.loginField || (requestToken ? 'requestToken' : authCode ? 'authCode' : 'code');
+          await brokerService.loginAccount(accountId, { [loginField]: brokerCode });
+        } else {
+          await brokerService.getAccountStatus(accountId);
+        }
+
+        if (isMounted) {
+          setStatus('success');
+        }
+      } catch (error) {
         if (isMounted) {
           setStatus('error');
           addToast(error.message || 'Unable to verify broker connection', 'error');
         }
-      });
+      }
+    };
+
+    verifyConnection();
 
     return () => {
       isMounted = false;
