@@ -168,6 +168,33 @@ export const masterService = {
     }
   },
 
+  async bulkLinkChildren(children) {
+    try {
+      const res = await api.post('/api/v1/master/children/bulk-link', {
+        children: (children || []).map((child) => ({
+          childId: child.childId || child.id,
+          ...(child.scalingFactor != null ? { scalingFactor: child.scalingFactor } : {}),
+        })),
+      });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to bulk link children'));
+    }
+  },
+
+  async bulkUnlinkChildren(children) {
+    try {
+      const res = await api.post('/api/v1/master/children/bulk-unlink', {
+        children: (children || []).map((child) => ({
+          childId: child.childId || child.id || child,
+        })),
+      });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to bulk unlink children'));
+    }
+  },
+
   async getChildScaling(childId) {
     try {
       const res = await api.get(`/api/v1/master/children/${childId}/scaling`);
@@ -185,6 +212,24 @@ export const masterService = {
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to update scaling'));
+    }
+  },
+
+  async pauseChild(childId) {
+    try {
+      const res = await api.post(`/api/v1/master/children/${childId}/pause`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to pause child'));
+    }
+  },
+
+  async resumeChild(childId) {
+    try {
+      const res = await api.post(`/api/v1/master/children/${childId}/resume`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to resume child'));
     }
   },
 

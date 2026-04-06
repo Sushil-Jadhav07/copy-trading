@@ -122,6 +122,15 @@ export const brokerService = {
     }
   },
 
+  async handleCallback(params = {}) {
+    try {
+      const res = await api.get('/api/v1/brokers/callback', { params });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to complete broker callback'));
+    }
+  },
+
   async loginAccount(accountId, payload = {}) {
     try {
       const res = await api.post(`/api/v1/brokers/accounts/${accountId}/login`, payload || {});

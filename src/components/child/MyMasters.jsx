@@ -36,6 +36,28 @@ const MyMasters = () => {
   const [unfollowModal, setUnfollowModal] = useState(false);
   const [selectedMaster, setSelectedMaster] = useState(null);
 
+  const handleBulkUnfollow = async () => {
+    if (!masters.length) {
+      addToast('No masters to unfollow', 'warning');
+      return;
+    }
+
+    try {
+      await childService.bulkUnsubscribe(masters.map((master) => master.id));
+      setSubscriptions((prev) =>
+        prev.map((item) => ({
+          ...item,
+          status: 'INACTIVE',
+          copyingStatus: 'INACTIVE',
+        }))
+      );
+      addToast('All subscriptions removed', 'success');
+      refetch();
+    } catch (error) {
+      addToast(error.message, 'error');
+    }
+  };
+
   useEffect(() => {
     setMasters(
       subscriptions.map((s) => ({
@@ -112,6 +134,16 @@ const MyMasters = () => {
       <div>
         <h1 className="text-2xl font-bold">My Masters</h1>
         <p className="text-muted-foreground">Masters you are currently copying trades from</p>
+        {masters.length > 0 && (
+          <div className="mt-3">
+            <button
+              onClick={handleBulkUnfollow}
+              className="px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors"
+            >
+              Unfollow All
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">

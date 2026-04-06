@@ -9,7 +9,6 @@ import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
 import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
-import { brokerService } from '@/lib/broker';
 import { formatCurrency } from '@/lib/utils';
 
 const normalizeChildRow = (child) => ({
@@ -157,7 +156,7 @@ const CopyTrading = () => {
     const scalingFactor = Number(childMultiplier) || 1;
 
     try {
-      await brokerService.bulkLinkChildren(
+      await masterService.bulkLinkChildren(
         selectedBulkChildren.map((childId) => ({
           childId,
           scalingFactor,
@@ -173,11 +172,36 @@ const CopyTrading = () => {
     }
   };
 
+  const handleBulkUnlink = async () => {
+    if (!connectedRows.length) {
+      addToast('No linked child accounts to disconnect', 'warning');
+      return;
+    }
+
+    try {
+      await masterService.bulkUnlinkChildren(connectedRows.map((child) => ({ childId: child.id })));
+      addToast('All linked children disconnected', 'success');
+      await Promise.all([refetch(), refetchSubscriptions()]);
+    } catch (error) {
+      addToast(error.message, 'error');
+    }
+  };
+
   const handleToggleTrading = async (id) => {
     const child = connectedRows.find((item) => item.id === id);
     const next = !child.tradingEnabled;
     setChildren((prev) => prev.map((item) => (item.id || item.childId) === id ? { ...item, status: next ? 'ACTIVE' : 'PAUSED', enabled: next } : item));
-    addToast('Trading status toggle is not backed by a dedicated master API endpoint in the current spec', 'warning');
+    try {
+      if (next) {
+        await masterService.resumeChild(id);
+      } else {
+        await masterService.pauseChild(id);
+      }
+      addToast(`Child ${next ? 'resumed' : 'paused'}`, next ? 'success' : 'warning');
+    } catch (error) {
+      addToast(error.message, 'error');
+      refetch();
+    }
   };
 
   const handleRefresh = async (id) => {
@@ -267,6 +291,9 @@ const CopyTrading = () => {
             <CheckSquare className="w-4 h-4" />
             Connect Selected
           </button>
+          <button onClick={handleBulkUnlink} className="px-5 py-2.5 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">
+            Disconnect All Linked
+          </button>
         </div>
         {childOptions.length > 0 && (
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -348,8 +375,38 @@ const CopyTrading = () => {
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1">
-                        <button className="w-8 h-8 bg-warning/80 hover:bg-warning rounded-lg flex items-center justify-center transition-colors" title="Disconnect"><Link2Off className="w-3.5 h-3.5 text-foreground" /></button>
-                        <button className="w-8 h-8 bg-success/80 hover:bg-success rounded-lg flex items-center justify-center transition-colors" title="Connect"><Link className="w-3.5 h-3.5 text-foreground" /></button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await masterService.unlinkChild(child.id);
+                              addToast('Child disconnected', 'success');
+                              refetch();
+                              refetchSubscriptions();
+                            } catch (error) {
+                              addToast(error.message, 'error');
+                            }
+                          }}
+                          className="w-8 h-8 bg-warning/80 hover:bg-warning rounded-lg flex items-center justify-center transition-colors"
+                          title="Disconnect"
+                        >
+                          <Link2Off className="w-3.5 h-3.5 text-foreground" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await masterService.linkChild(child.id, child.multiplier);
+                              addToast('Child connected', 'success');
+                              refetch();
+                              refetchSubscriptions();
+                            } catch (error) {
+                              addToast(error.message, 'error');
+                            }
+                          }}
+                          className="w-8 h-8 bg-success/80 hover:bg-success rounded-lg flex items-center justify-center transition-colors"
+                          title="Connect"
+                        >
+                          <Link className="w-3.5 h-3.5 text-foreground" />
+                        </button>
                       </div>
                     </td>
                     <td className="px-3 py-3">

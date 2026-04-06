@@ -157,6 +157,19 @@ export const childService = {
     }
   },
 
+  async bulkUnsubscribe(masterIds) {
+    try {
+      const res = await api.post('/api/v1/child/subscriptions/bulk-unsubscribe', {
+        masterIds,
+        masters: (masterIds || []).map((masterId) => ({ masterId })),
+      });
+      (masterIds || []).forEach(removeSubscriptionAllocation);
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to bulk unsubscribe'));
+    }
+  },
+
   async unsubscribe(masterId) {
     try {
       const res = await api.delete(`/api/v1/child/subscriptions/${masterId}`);

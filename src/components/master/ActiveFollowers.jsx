@@ -98,7 +98,17 @@ const ActiveFollowers = () => {
     const follower = followerList.find((x) => x.id === id);
     const newValue = !follower.tradingEnabled;
     updateChild(id, () => ({ tradingEnabled: newValue, status: newValue ? 'ACTIVE' : 'PAUSED' }));
-    addToast('Trading status toggle is not backed by a dedicated master API endpoint in the current spec', 'warning');
+    try {
+      if (newValue) {
+        await masterService.resumeChild(id);
+      } else {
+        await masterService.pauseChild(id);
+      }
+      addToast(`${follower.name} ${newValue ? 'resumed' : 'paused'}`, newValue ? 'success' : 'warning');
+    } catch (error) {
+      addToast(error.message, 'error');
+      refetch();
+    }
   };
 
   const handleToggleRejected = (id) => {
