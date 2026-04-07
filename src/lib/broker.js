@@ -187,14 +187,4 @@ export const brokerService = {
     }
   },
 
-  async bulkLinkChildren(children) {
-    try {
-      const res = await api.post('/api/v1/master/children/bulk-link', {
-        children,
-      });
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to bulk link children'));
-    }
-  },
 };

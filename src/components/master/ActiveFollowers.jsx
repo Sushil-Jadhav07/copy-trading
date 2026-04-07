@@ -252,7 +252,7 @@ const ActiveFollowers = () => {
       </GlassCard>
 
       <GlassCard noPadding>
-        <div className="hidden md:grid grid-cols-8 gap-3 px-5 py-3 border-b border-border/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <div className="hidden md:grid md:grid-cols-[2.2fr_1.1fr_1.05fr_1.05fr_1.05fr_1.05fr_0.7fr] gap-3 px-5 py-3 border-b border-border/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           <div className="col-span-2">Follower</div>
           <div>Allocation</div>
           <div>Multiplier</div>
@@ -270,7 +270,7 @@ const ActiveFollowers = () => {
           <div className="divide-y divide-border/30">
             {followerList.map((follower, idx) => (
               <motion.div key={follower.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className={`px-4 sm:px-5 py-4 hover:bg-white/3 transition-colors ${follower.status !== 'Active' ? 'opacity-60' : ''}`}>
-                <div className="space-y-4 md:grid md:grid-cols-8 md:gap-3 md:items-center md:space-y-0">
+                <div className="space-y-4 md:grid md:grid-cols-[2.2fr_1.1fr_1.05fr_1.05fr_1.05fr_1.05fr_0.7fr] md:gap-3 md:items-center md:space-y-0">
                   <div className="col-span-2 flex items-center justify-between gap-3 md:justify-start">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center flex-shrink-0">
@@ -322,8 +322,8 @@ const ActiveFollowers = () => {
                       </span>
                     </div>
 
-                    <div className="hidden md:block">
-                      <div className="flex items-center gap-2">
+                    <div className="hidden md:block md:justify-self-end">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleSubscribeToChild(follower)}
                           className="p-1.5 hover:bg-brand-purple/20 rounded-lg transition-colors"

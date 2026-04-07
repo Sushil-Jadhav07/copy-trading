@@ -20,13 +20,16 @@ const DematConnected = () => {
     const requestToken = searchParams.get('request_token');
     const authCode = searchParams.get('auth_code');
     const code = searchParams.get('code');
-    const brokerCode = requestToken || authCode || code;
+    const tokenId = searchParams.get('tokenId') || searchParams.get('token_id');
+    const brokerCode = requestToken || authCode || code || tokenId;
 
     const verifyConnection = async () => {
       try {
         if (brokerCode) {
           const oauthData = await brokerService.getOAuthUrl(accountId);
-          const loginField = oauthData?.loginField || (requestToken ? 'requestToken' : authCode ? 'authCode' : 'code');
+          const loginField =
+            oauthData?.loginField ||
+            (requestToken ? 'requestToken' : authCode || tokenId ? 'authCode' : 'code');
           await brokerService.loginAccount(accountId, { [loginField]: brokerCode });
         } else {
           await brokerService.getAccountStatus(accountId);
