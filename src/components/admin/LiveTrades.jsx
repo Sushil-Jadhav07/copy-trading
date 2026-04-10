@@ -47,16 +47,16 @@ const LiveTrades = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Live Trade Feed</h1>
-        <p className="text-muted-foreground">Trade activity derived from live admin trade logs.</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Live Trade Feed</h1>
+        <p className="text-sm text-muted-foreground">Trade activity derived from live admin trade logs.</p>
       </div>
 
       <div className="glass-card overflow-x-auto p-0">
-        <table className="min-w-full divide-y divide-border/50">
+        <table className="w-full divide-y divide-border/50">
           <thead className="bg-black/5 dark:bg-white/5">
             <tr>
               {['Instrument', 'Type', 'Master', 'Children Copied', 'Total Qty', 'Avg. Price', 'Total Value', 'Time'].map((header) => (
-                <th key={header} className="px-3 py-3.5 text-left text-sm font-semibold">
+                <th key={header} className="whitespace-nowrap px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:text-sm">
                   {header}
                 </th>
               ))}

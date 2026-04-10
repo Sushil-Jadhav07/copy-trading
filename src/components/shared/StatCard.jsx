@@ -33,36 +33,41 @@ const StatCard = ({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-      className="glass-card p-4 sm:p-5 hover-lift stat-card-glow"
+      className="glass-card p-5 sm:p-6 hover-lift group"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-muted-foreground truncate">{title}</p>
-          <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground break-words">
+          <p className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest">{title}</p>
+          <h3 className="text-2xl sm:text-3xl font-extrabold mt-1 text-slate-900 dark:text-foreground break-words tracking-tight">
             {prefix}
             {formatValue(animatedValue)}
             {suffix}
           </h3>
           {change !== undefined && (
-            <div className="flex items-center gap-1.5 mt-2">
-              {change >= 0 ? (
-                <TrendingUp className="w-3.5 h-3.5 text-success" />
-              ) : (
-                <TrendingDown className="w-3.5 h-3.5 text-danger" />
-              )}
-              <span className={`text-xs font-medium ${change >= 0 ? 'text-success' : 'text-danger'}`}>
+            <div className="flex items-center gap-1.5 mt-3">
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                change >= 0 
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' 
+                  : 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'
+              }`}>
+                {change >= 0 ? (
+                  <TrendingUp className="w-3 h-3" />
+                ) : (
+                  <TrendingDown className="w-3 h-3" />
+                )}
                 {change >= 0 ? '+' : ''}{change}%
-              </span>
+              </div>
               {changeLabel && (
-                <span className="text-xs text-muted-foreground">{changeLabel}</span>
+                <span className="text-[10px] font-medium text-slate-400 dark:text-muted-foreground uppercase tracking-wider">{changeLabel}</span>
               )}
             </div>
           )}
         </div>
         {Icon && (
-          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0 shadow-lg`}
-            style={{ boxShadow: '0 4px 15px rgba(0, 200, 150, 0.25)' }}>
-            <Icon className="w-5 h-5 text-white" />
+          <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300 relative`}
+            style={{ boxShadow: '0 8px 20px -4px rgba(0, 200, 150, 0.3)' }}>
+            <div className="absolute inset-0 rounded-2xl border border-white/20 dark:border-white/10" />
+            <Icon className="w-6 h-6 text-white relative z-10" />
           </div>
         )}
       </div>

@@ -61,11 +61,11 @@ const Overview = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Overview</h1>
-        <p className="text-muted-foreground">Welcome back, Rahul!</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
+        <p className="text-sm text-muted-foreground">Welcome back, Rahul!</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Followers" value={analytics.totalChildren || analytics.totalFollowers || children.length || 0} icon={Users} />
         <StatCard title="Revenue / Earnings" value={analytics.revenue || analytics.totalEarnings || 0} isCurrency icon={IndianRupee} gradient="from-brand-blue to-brand-teal" />
         <StatCard title="Win Rate" value={analytics.winRate || 0} suffix="%" decimals={1} icon={Percent} gradient="from-brand-teal to-success" />

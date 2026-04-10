@@ -64,10 +64,10 @@ const Subscriptions = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Subscriptions</h1>
-          <p className="text-muted-foreground">Live subscription data from the admin API</p>
+          <h1 className="text-xl font-bold sm:text-2xl">Subscriptions</h1>
+          <p className="text-sm text-muted-foreground">Live subscription data from the admin API</p>
         </div>
         <select
           value={statusFilter}
@@ -81,7 +81,7 @@ const Subscriptions = () => {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {stats.map((stat) => (
           <GlassCard key={stat.label}>
             <div className="flex items-center gap-3">

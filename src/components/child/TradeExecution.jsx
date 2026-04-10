@@ -58,8 +58,8 @@ const ChildTradeExecution = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Place Order</h1>
-        <p className="text-muted-foreground">Execute personal trades — independent from copy trading</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Place Order</h1>
+        <p className="text-sm text-muted-foreground">Execute personal trades — independent from copy trading</p>
       </div>
 
       <div className="flex items-start gap-2 p-3 bg-brand-blue/10 border border-brand-blue/20 rounded-lg text-sm">
@@ -70,7 +70,7 @@ const ChildTradeExecution = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <GlassCard title="Order Form">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-muted-foreground mb-1.5">Broker *</label>
                 <select value={form.broker} onChange={(e) => setForm((f) => ({ ...f, broker: e.target.value }))}

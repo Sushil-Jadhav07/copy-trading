@@ -181,11 +181,11 @@ const ActiveFollowers = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Child Accounts</h1>
-        <p className="text-muted-foreground">Manage copy trading settings for each child account</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Child Accounts</h1>
+        <p className="text-sm text-muted-foreground">Manage copy trading settings for each child account</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {stats.map((stat) => (
           <GlassCard key={stat.label}>
             <div className="flex items-center gap-3">

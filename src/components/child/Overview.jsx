@@ -43,11 +43,11 @@ const Overview = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Overview</h1>
-        <p className="text-muted-foreground">Welcome back, Amit!</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
+        <p className="text-sm text-muted-foreground">Welcome back, Amit!</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Portfolio Value" value={analytics.portfolioValue || 0} prefix="₹" isCurrency icon={IndianRupee} />
         <StatCard title="Total P&L" value={analytics.totalPnL || 0} prefix="₹" isCurrency icon={TrendingUp} gradient="from-brand-blue to-brand-teal" />
         <StatCard title="Win Rate" value={analytics.winRate || 0} suffix="%" decimals={1} icon={Percent} gradient="from-brand-teal to-success" />

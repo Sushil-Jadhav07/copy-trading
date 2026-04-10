@@ -53,7 +53,7 @@ const Logs = () => {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">Logs</h1></div>
+      <div><h1 className="text-xl font-bold sm:text-2xl">Logs</h1></div>
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
           <GlassCard noPadding>

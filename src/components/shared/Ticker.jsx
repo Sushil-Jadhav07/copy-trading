@@ -6,19 +6,19 @@ const Ticker = () => {
   const doubledData = [...instruments, ...instruments];
 
   return (
-    <div className="h-10 bg-gradient-to-r from-brand-purple/20 via-brand-blue/20 to-brand-teal/20 border-b border-black/10 dark:border-white/10 flex items-center overflow-hidden">
+    <div className="h-9 bg-white/80 dark:bg-black/40 backdrop-blur-md border-b border-slate-200/60 dark:border-white/10 flex items-center overflow-hidden z-20">
       <div className="ticker-container w-full">
-        <div className="ticker-content">
+        <div className="ticker-content py-1">
           {doubledData.map((item, idx) => (
             <div
               key={idx}
-              className="inline-flex items-center gap-2 px-4 sm:px-6 border-r border-black/10 dark:border-white/10"
+              className="inline-flex items-center gap-3 px-6 border-r border-slate-100 dark:border-white/5"
             >
-              <span className="text-xs sm:text-sm font-medium">{item.symbol}</span>
-              <span className="text-xs sm:text-sm">Rs.{item.price.toLocaleString('en-IN')}</span>
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{item.symbol}</span>
+              <span className="text-xs font-semibold text-slate-900 dark:text-white">₹{item.price.toLocaleString('en-IN')}</span>
               <span
-                className={`flex items-center gap-0.5 text-[11px] sm:text-xs ${
-                  item.change >= 0 ? 'text-success' : 'text-danger'
+                className={`flex items-center gap-1 text-[11px] font-bold ${
+                  item.change >= 0 ? 'text-emerald-500' : 'text-rose-500'
                 }`}
               >
                 {item.change >= 0 ? (

@@ -165,8 +165,8 @@ const TradeExecution = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Trade Execution</h1>
-        <p className="text-muted-foreground">Place orders — automatically copied to all active child accounts</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Trade Execution</h1>
+        <p className="text-sm text-muted-foreground">Place orders — automatically copied to all active child accounts</p>
       </div>
 
       {/* Active children banner */}
@@ -197,147 +197,112 @@ const TradeExecution = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Form */}
           <div className="lg:col-span-2 space-y-4">
-            <GlassCard title="Order Details">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Broker */}
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1.5">Broker *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Select Broker</label>
+                <div className="relative">
                   <select value={form.broker} onChange={(e) => setForm((f) => ({ ...f, broker: e.target.value }))}
                     className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
                     <option value="" className="bg-background">Select Broker</option>
-                    {BROKERS.map((b) => <option key={b} value={b} className="bg-background capitalize">{b}</option>)}
+                    {BROKERS.map((b) => <option key={b} value={b} className="bg-background">{b}</option>)}
                   </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 </div>
+              </div>
 
-                {/* Exchange */}
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1.5">Exchange *</label>
-                  <select value={form.exchange} onChange={(e) => setForm((f) => ({ ...f, exchange: e.target.value }))}
-                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
-                    {EXCHANGES.map((e) => <option key={e} value={e} className="bg-background">{e}</option>)}
-                  </select>
-                </div>
-
-                {/* Instrument Search */}
-                <div className="md:col-span-2 relative">
-                  <label className="block text-xs text-muted-foreground mb-1.5">Instrument *</label>
-                  <input value={form.instrumentSearch} onChange={(e) => handleInstrumentSearch(e.target.value)}
-                    placeholder="Search symbol (e.g. RELIANCE, NIFTY...)"
-                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Search Instrument</label>
+                <div className="relative">
+                  <input type="text" value={form.instrumentSearch} onChange={(e) => handleInstrumentSearch(e.target.value)}
+                    placeholder="Search by name or symbol" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
                   {instrumentResults.length > 0 && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 glass-card border border-border/50 rounded-lg overflow-hidden">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden">
                       {instrumentResults.map((inst) => (
-                        <button key={inst.symbol} onClick={() => selectInstrument(inst)}
-                          className="w-full text-left px-4 py-2.5 hover:bg-black/10 dark:bg-white/10 transition-colors flex items-center justify-between">
-                          <div>
-                            <span className="font-semibold text-sm">{inst.symbol}</span>
-                            <span className="text-xs text-muted-foreground ml-2">{inst.name}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-medium">₹{inst.ltp.toLocaleString('en-IN')}</span>
-                            <span className="text-xs text-muted-foreground ml-2">{inst.exchange}</span>
-                          </div>
+                        <button key={inst.symbol} onClick={() => selectInstrument(inst)} className="w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors border-b border-border/50 last:border-0">
+                          <span className="font-bold">{inst.symbol}</span> · <span className="text-xs text-muted-foreground">{inst.name}</span> · <span className="text-xs font-medium text-brand-purple">₹{inst.ltp}</span>
                         </button>
                       ))}
                     </div>
                   )}
-                  {form.symbol && (
-                    <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-2 bg-brand-purple/10 border border-brand-purple/20 rounded-lg">
-                      <span className="text-sm font-bold text-brand-purple">{form.symbol}</span>
-                      <span className="text-sm">LTP: <strong>₹{selectedInstrument?.ltp.toLocaleString('en-IN')}</strong></span>
-                      <span className="text-xs text-muted-foreground">{form.exchange}</span>
-                    </div>
-                  )}
                 </div>
-
-                {/* BUY / SELL toggle */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-muted-foreground mb-1.5">Transaction Type *</label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    {['BUY', 'SELL'].map((t) => (
-                      <button key={t} onClick={() => setForm((f) => ({ ...f, transType: t }))}
-                        className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-colors ${
-                          form.transType === t
-                            ? t === 'BUY' ? 'bg-success text-foreground' : 'bg-danger text-foreground'
-                            : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'
-                        }`}>
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Order Type */}
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1.5">Order Type *</label>
-                  <select value={form.orderType} onChange={(e) => setForm((f) => ({ ...f, orderType: e.target.value }))}
-                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
-                    {ORDER_TYPES.map((t) => <option key={t} value={t} className="bg-background">{t.replace(/_/g, ' ')}</option>)}
-                  </select>
-                </div>
-
-                {/* Product */}
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1.5">Product *</label>
-                  <select value={form.product} onChange={(e) => setForm((f) => ({ ...f, product: e.target.value }))}
-                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
-                    {PRODUCTS.map((p) => <option key={p} value={p} className="bg-background">{p}</option>)}
-                  </select>
-                </div>
-
-                {/* Quantity */}
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1.5">Quantity *</label>
-                  <input type="number" value={form.qty} onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
-                    placeholder="Enter quantity" min="1"
-                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
-                </div>
-
-                {/* Price (conditional) */}
-                {needsPrice && (
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1.5">
-                      {form.orderType === 'TRAILING_STOP' ? 'Base Price' : 'Price'} *
-                    </label>
-                    <input type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                      placeholder="Enter price" step="0.05"
-                      className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
-                  </div>
-                )}
-
-                {/* Trigger Price (conditional) */}
-                {needsTrigger && (
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1.5">Trigger Price *</label>
-                    <input type="number" value={form.triggerPrice} onChange={(e) => setForm((f) => ({ ...f, triggerPrice: e.target.value }))}
-                      placeholder="Enter trigger price" step="0.05"
-                      className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
-                  </div>
-                )}
-
-                {/* Trailing Jump */}
-                {needsTrailing && (
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1.5">Trailing Jump (₹) *</label>
-                    <input type="number" value={form.trailingJump} onChange={(e) => setForm((f) => ({ ...f, trailingJump: e.target.value }))}
-                      placeholder="e.g. 5" step="0.5"
-                      className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
-                  </div>
-                )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-border/40">
-                <button onClick={handleSubmit}
-                  className={`flex-1 py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                    form.transType === 'BUY'
-                      ? 'bg-success hover:bg-success/90 text-foreground shadow-lg shadow-success/20'
-                      : 'bg-danger hover:bg-danger/90 text-foreground shadow-lg shadow-danger/20'
-                  }`}>
-                  <Zap className="w-4 h-4" />
-                  Place {form.transType} Order
-                </button>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Exchange</label>
+                <select value={form.exchange} onChange={(e) => setForm((f) => ({ ...f, exchange: e.target.value }))}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple">
+                  {EXCHANGES.map((e) => <option key={e} value={e} className="bg-background">{e}</option>)}
+                </select>
               </div>
-            </GlassCard>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Type</label>
+                <select value={form.orderType} onChange={(e) => setForm((f) => ({ ...f, orderType: e.target.value }))}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple">
+                  {ORDER_TYPES.map((t) => <option key={t} value={t} className="bg-background">{t.replaceAll('_', ' ')}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Product Type</label>
+                <select value={form.product} onChange={(e) => setForm((f) => ({ ...f, product: e.target.value }))}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple">
+                  {PRODUCTS.map((p) => <option key={p} value={p} className="bg-background">{p}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transaction Type</label>
+                <div className="flex p-1 bg-black/5 dark:bg-white/5 rounded-lg border border-border">
+                  <button onClick={() => setForm((f) => ({ ...f, transType: 'BUY' }))}
+                    className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.transType === 'BUY' ? 'bg-success text-white shadow-lg shadow-success/20' : 'text-muted-foreground hover:text-foreground'}`}>BUY</button>
+                  <button onClick={() => setForm((f) => ({ ...f, transType: 'SELL' }))}
+                    className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.transType === 'SELL' ? 'bg-danger text-white shadow-lg shadow-danger/20' : 'text-muted-foreground hover:text-foreground'}`}>SELL</button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quantity</label>
+                <input type="number" value={form.qty} onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
+                  placeholder="Lot / Qty" min="1" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
+              </div>
+
+              {needsPrice && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Price</label>
+                  <input type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                    placeholder="Limit Price" min="0" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
+                </div>
+              )}
+
+              {needsTrigger && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trigger Price</label>
+                  <input type="number" value={form.triggerPrice} onChange={(e) => setForm((f) => ({ ...f, triggerPrice: e.target.value }))}
+                    placeholder="Trigger Price" min="0" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
+                </div>
+              )}
+
+              {needsTrailing && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trailing Jump</label>
+                  <input type="number" value={form.trailingJump} onChange={(e) => setForm((f) => ({ ...f, trailingJump: e.target.value }))}
+                    placeholder="Jump points" min="0" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Estimated Value</p>
+                <p className="text-xl font-bold text-brand-purple">₹{estimatedValue.toLocaleString('en-IN')}</p>
+              </div>
+              <button onClick={handleSubmit}
+                className="w-full sm:w-auto px-10 py-3 bg-gradient-to-r from-brand-purple to-brand-blue hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg shadow-brand-purple/20 flex items-center justify-center gap-2">
+                <Zap className="w-5 h-5 fill-white" />
+                Place Copy Order
+              </button>
+            </div>
           </div>
 
           {/* Order Summary sidebar */}

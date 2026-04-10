@@ -40,9 +40,12 @@ const PnLDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">P&L Dashboard</h1><p className="text-muted-foreground">Your personal P&L vs master-copied trade performance</p></div>
+      <div>
+        <h1 className="text-xl font-bold sm:text-2xl">P&L Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Your personal P&L vs master-copied trade performance</p>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <PnLCard label="Total P&L" value={totalPnL} isPositive={totalPnL >= 0} icon={IndianRupee} subLabel="Personal + Copied" />
         <PnLCard label="Personal Trades P&L" value={personalPnL} isPositive={personalPnL >= 0} icon={BarChart2} subLabel={`${analytics.personalTrades || 0} trades`} />
         <PnLCard label="Copied Trades P&L" value={copiedPnL} isPositive={copiedPnL >= 0} icon={Users} subLabel={`${trades.length} copied`} />

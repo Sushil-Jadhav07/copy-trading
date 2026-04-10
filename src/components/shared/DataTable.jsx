@@ -151,37 +151,77 @@ const DataTable = ({
       </div>
 
       {pagination && totalPages > 1 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, sortedData.length)} of {sortedData.length} entries
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2">
+          <p className="text-xs sm:text-sm text-muted-foreground order-2 sm:order-1 text-center sm:text-left">
+            Showing <span className="font-medium text-foreground">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-medium text-foreground">{Math.min(currentPage * pageSize, sortedData.length)}</span> of <span className="font-medium text-foreground">{sortedData.length}</span> entries
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center justify-center gap-1.5 order-1 sm:order-2">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2.5 rounded-xl bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-slate-200/60 dark:border-white/10 shadow-sm"
+              aria-label="Previous page"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-foreground" />
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                  currentPage === page
-                    ? 'bg-brand-purple text-white'
-                    : 'hover:bg-black/10 dark:hover:bg-white/10 text-foreground'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
+            
+            <div className="flex items-center gap-1.5">
+              {totalPages <= 5 ? (
+                Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
+                      currentPage === page
+                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105'
+                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-500 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground border border-slate-200/60 dark:border-white/10'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))
+              ) : (
+                <>
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
+                      currentPage === 1
+                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105'
+                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-500 dark:text-muted-foreground border border-slate-200/60 dark:border-white/10'
+                    }`}
+                  >
+                    1
+                  </button>
+                  {currentPage > 3 && <span className="text-slate-400 dark:text-muted-foreground px-1 font-bold">...</span>}
+                  {currentPage > 2 && currentPage < totalPages - 1 && (
+                    <button
+                      className="w-10 h-10 rounded-xl text-xs font-black bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105"
+                    >
+                      {currentPage}
+                    </button>
+                  )}
+                  {currentPage < totalPages - 2 && <span className="text-slate-400 dark:text-muted-foreground px-1 font-bold">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
+                      currentPage === totalPages
+                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105'
+                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-500 dark:text-muted-foreground border border-slate-200/60 dark:border-white/10'
+                    }`}
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+            </div>
+
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2.5 rounded-xl bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-slate-200/60 dark:border-white/10 shadow-sm"
+              aria-label="Next page"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 text-slate-600 dark:text-foreground" />
             </button>
           </div>
         </div>

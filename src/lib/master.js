@@ -170,7 +170,7 @@ export const masterService = {
 
   async bulkLinkChildren(children) {
     try {
-      const res = await api.post('/api/v1/master/children/bulk-link', {
+      const res = await api.post('/master/children/bulk-link', {
         children: (children || []).map((child) => ({
           childId: child.childId || child.id,
           ...(child.scalingFactor != null ? { scalingFactor: child.scalingFactor } : {}),
@@ -184,7 +184,7 @@ export const masterService = {
 
   async bulkUnlinkChildren(children) {
     try {
-      const res = await api.post('/api/v1/master/children/bulk-unlink', {
+      const res = await api.post('/master/children/bulk-unlink', {
         children: (children || []).map((child) => ({
           childId: child.childId || child.id || child,
         })),
@@ -217,7 +217,7 @@ export const masterService = {
 
   async pauseChild(childId) {
     try {
-      const res = await api.post(`/api/v1/master/children/${childId}/pause`);
+      const res = await api.post(`/master/children/${childId}/pause`);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to pause child'));
@@ -226,7 +226,7 @@ export const masterService = {
 
   async resumeChild(childId) {
     try {
-      const res = await api.post(`/api/v1/master/children/${childId}/resume`);
+      const res = await api.post(`/master/children/${childId}/resume`);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to resume child'));
@@ -254,7 +254,7 @@ export const masterService = {
   async subscribeToChild(childId, scalingFactor) {
     try {
       const body = scalingFactor == null ? undefined : { scalingFactor };
-      const res = await api.post(`/api/v1/master/subscribe/${childId}`, body);
+      const res = await api.post(`/master/subscribe/${childId}`, body);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to subscribe to child'));
@@ -267,6 +267,15 @@ export const masterService = {
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to approve child'));
+    }
+  },
+
+  async declineChild(childId) {
+    try {
+      const res = await api.post(`/api/v1/master/children/${childId}/decline`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to decline child'));
     }
   },
 

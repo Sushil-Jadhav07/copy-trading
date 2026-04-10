@@ -55,26 +55,30 @@ const Holdings = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Holdings</h1>
-          <p className="text-muted-foreground">Total Portfolio Value: <span className="font-medium text-foreground">{formatCurrency(totalValue)}</span></p>
+          <h1 className="text-xl font-bold sm:text-2xl">Holdings</h1>
+          <p className="text-sm text-muted-foreground">Total Portfolio Value: <span className="font-medium text-foreground">{formatCurrency(totalValue)}</span></p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {accounts.length > 1 && (
-            <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple">
+            <select 
+              value={selectedAccountId} 
+              onChange={(e) => setSelectedAccountId(e.target.value)} 
+              className="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+            >
               {accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.broker} - {account.nickname}</option>)}
             </select>
           )}
-          <div className="grid grid-cols-2 gap-4 sm:flex sm:items-center">
-            <div className="text-right"><p className="text-xs text-muted-foreground">Day's Change</p><p className={`font-medium ${dayChange >= 0 ? 'text-success' : 'text-danger'}`}>{dayChange >= 0 ? '+' : ''}{formatCurrency(dayChange)}</p></div>
-            <div className="text-right"><p className="text-xs text-muted-foreground">Total Return</p><p className={`font-medium ${totalReturn >= 0 ? 'text-success' : 'text-danger'}`}>{totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)}</p></div>
+          <div className="flex items-center justify-between gap-6 sm:justify-end">
+            <div className="text-right"><p className="text-[10px] text-muted-foreground uppercase tracking-wider">Day's Change</p><p className={`text-sm font-bold ${dayChange >= 0 ? 'text-success' : 'text-danger'}`}>{dayChange >= 0 ? '+' : ''}{formatCurrency(dayChange)}</p></div>
+            <div className="text-right"><p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Return</p><p className={`text-sm font-bold ${totalReturn >= 0 ? 'text-success' : 'text-danger'}`}>{totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)}</p></div>
           </div>
         </div>
       </div>
 
       {loading ? <SkeletonLoader type="card" count={3} /> : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {holdings.map((holding) => (
             <GlassCard key={holding.id} hover={false}>
               <div className="flex items-start justify-between gap-3 mb-4">

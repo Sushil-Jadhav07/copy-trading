@@ -38,17 +38,15 @@ const PnLSummary = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">P&L Summary</h1>
-          <p className="text-muted-foreground">
-            Track your trading performance over time
-          </p>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold sm:text-2xl">P&L Summary</h1>
+        <p className="text-sm text-muted-foreground">
+          Track your trading performance over time
+        </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         <GlassCard>
           <p className="text-sm text-muted-foreground">Total Net P&L</p>
           <p

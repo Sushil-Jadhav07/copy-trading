@@ -249,29 +249,29 @@ const AllUsers = ({ scope = 'all' }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{viewConfig.title}</h1>
-          <p className="text-muted-foreground">{viewConfig.subtitle}</p>
+          <h1 className="text-xl font-bold sm:text-2xl">{viewConfig.title}</h1>
+          <p className="text-sm text-muted-foreground">{viewConfig.subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => loadUsers(false)}
-            className="rounded-lg border border-white/10 bg-black/5 px-4 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="flex-1 rounded-lg border border-white/10 bg-black/5 px-3 py-2 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:px-4 sm:text-sm"
           >
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
           <button
             onClick={() => setCreateModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-2 text-xs font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95 sm:px-4 sm:text-sm"
           >
-            <UserPlus className="h-4 w-4" />
-            Create Account
+            <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="whitespace-nowrap">Create Account</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {stats.map((stat) => (
           <GlassCard key={stat.label}>
             <p className="text-xs text-muted-foreground">{stat.label}</p>

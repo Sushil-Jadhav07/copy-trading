@@ -115,7 +115,7 @@ export const brokerService = {
 
   async getOAuthUrl(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/oauth-url`);
+      const res = await api.get(`/brokers/accounts/${accountId}/oauth-url`);
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker login url'));
@@ -124,10 +124,19 @@ export const brokerService = {
 
   async handleCallback(params = {}) {
     try {
-      const res = await api.get('/api/v1/brokers/callback', { params });
+      const res = await api.get('/brokers/callback', { params });
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to complete broker callback'));
+    }
+  },
+
+  async testAccount(accountId) {
+    try {
+      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/test`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Broker test failed'));
     }
   },
 

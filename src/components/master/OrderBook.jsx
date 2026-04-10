@@ -31,8 +31,11 @@ const OrderBook = () => {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">Order Book</h1><p className="text-muted-foreground">Your orders and their copy status across all followers</p></div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <h1 className="text-xl font-bold sm:text-2xl">Order Book</h1>
+        <p className="text-sm text-muted-foreground">Your orders and their copy status across all followers</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         {[{ label: 'Total Orders', value: orders.length }, { label: 'Pending', value: orders.filter((o) => String(o.status).toUpperCase() === 'PENDING').length, color: 'text-warning' }, { label: 'Executed', value: orders.filter((o) => String(o.status).toUpperCase() === 'EXECUTED').length, color: 'text-success' }].map((s) => <GlassCard key={s.label}><p className="text-xs text-muted-foreground">{s.label}</p><p className={`text-xl font-bold mt-1 ${s.color || ''}`}>{s.value}</p></GlassCard>)}
       </div>
       <GlassCard noPadding>

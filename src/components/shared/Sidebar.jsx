@@ -44,6 +44,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { usePendingFollowCount } from '@/hooks/useMaster';
 import { useTheme } from '@/context/ThemeContext';
 const whitelogo = '/asset/whitelogo.png';
 const singlelogo = '/asset/singlelogo.png';
@@ -62,21 +63,31 @@ const SidebarItem = ({ to, icon: Icon, label, collapsed, badge }) => {
       <NavLink
         to={to}
         className={({ isActive }) =>
-          `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-300 group ${
+          `flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden ${
             isActive
-              ? 'bg-gradient-to-r from-brand-purple/20 to-brand-blue/10 text-brand-purple dark:text-white border border-brand-purple/30 shadow-[0_0_12px_rgba(0,200,150,0.15)]'
-              : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:border hover:border-black/5 dark:hover:border-white/5 border border-transparent'
+              ? 'bg-brand-purple/10 text-brand-purple dark:text-white border border-brand-purple/20 shadow-lg shadow-brand-purple/5'
+              : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-foreground border border-transparent'
           }`
         }
       >
-        <Icon className="w-5 h-5 flex-shrink-0" />
-        {!collapsed && (
-          <span className="text-sm font-medium truncate">{label}</span>
-        )}
-        {!collapsed && badge && (
-          <span className="ml-auto bg-brand-purple text-white text-xs px-2 py-0.5 rounded-full">
-            {badge}
-          </span>
+        {({ isActive }) => (
+          <>
+            <Icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-brand-purple' : ''}`} />
+            {!collapsed && (
+              <span className="text-sm font-bold tracking-tight truncate">{label}</span>
+            )}
+            {!collapsed && badge && (
+              <span className="ml-auto bg-brand-purple text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-md shadow-brand-purple/20 uppercase tracking-tighter">
+                {badge}
+              </span>
+            )}
+            {isActive && (
+              <motion.div
+                layoutId="active-indicator"
+                className="absolute left-0 top-3 bottom-3 w-1 bg-brand-purple rounded-r-full"
+              />
+            )}
+          </>
         )}
       </NavLink>
 
@@ -102,13 +113,12 @@ const SidebarItem = ({ to, icon: Icon, label, collapsed, badge }) => {
 };
 
 const SidebarSection = ({ title, children, collapsed }) => {
-  if (collapsed) return <div className="space-y-1">{children}</div>;
+  if (collapsed) return <div className="space-y-2">{children}</div>;
 
   return (
-    <div className="space-y-1">
-<h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-widest text-primary/60 dark:text-primary/50">              {title}
-      </h3>
-      {children}
+    <div className="space-y-2">
+      <h3 className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-muted-foreground/60">{title}</h3>
+      <div className="space-y-1.5 px-1">{children}</div>
     </div>
   );
 };
@@ -117,6 +127,9 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile = false, isOpen = false, on
   const { getEffectiveRole, logout } = useAuth();
   const { isDark } = useTheme();
   const role = getEffectiveRole();
+  const pendingFollowCount = usePendingFollowCount();
+  const pendingFollowCountBadge =
+    role === 'Master' && pendingFollowCount > 0 ? String(pendingFollowCount) : undefined;
 
   const handleLogout = async () => {
     try {
@@ -159,6 +172,7 @@ const masterSidebarItems = [
       section: 'Child Accounts',
       items: [
         { to: '/master/followers', icon: Users, label: 'Child Accounts' },
+        { to: '/master/follow-requests', icon: UserPlus, label: 'Follow Requests', badge: pendingFollowCountBadge },
         { to: '/master/earnings', icon: DollarSign, label: 'Earnings' },
       ],
     },
@@ -234,33 +248,34 @@ const childSidebarItems = [
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className={`h-16 flex items-center border-b border-border/50 relative ${collapsed && !isMobile ? 'justify-center px-2' : 'justify-between px-4'}`}>
+      <div className={`h-20 flex items-center border-b border-slate-100/50 dark:border-white/5 relative transition-all duration-300 ${collapsed && !isMobile ? 'justify-center px-2' : 'justify-between px-6'}`}>
         <div className={`flex items-center gap-3 overflow-hidden ${collapsed && !isMobile ? 'justify-center' : ''}`}>
-          <div className={`${collapsed && !isMobile ? 'w-16 h-16' : 'w-40 h-12'} flex-shrink-0 transition-all duration-300`}>
-            <img 
-              src={collapsed && !isMobile
-                ? (isDark ? singlelogo : logo)
-                : (isDark ? whitelogo  : logomain)
-              }
-              alt="Logo"
-              className="w-full h-full object-contain"
-            />
+          <div className={`${collapsed && !isMobile ? 'w-10 h-10 rounded-xl bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center shadow-lg shadow-brand-purple/20' : 'w-40 h-12'} flex-shrink-0 transition-all duration-500`}>
+            {collapsed && !isMobile ? (
+              <img src="/asset/whitelogo.png" alt="Logo" className="w-6 h-6 object-contain" />
+            ) : (
+              <img 
+                src={isDark ? whitelogo : logomain}
+                alt="Logo"
+                className="w-full h-full object-contain"
+              />
+            )}
           </div>
         </div>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className={`hidden md:flex p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${collapsed ? 'absolute -right-3 top-1/2 -translate-y-1/2 bg-brand-purple text-white shadow-lg z-50 rounded-full w-6 h-6 items-center justify-center' : ''}`}
+          className={`hidden md:flex p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-all group ${collapsed ? 'absolute -right-3 top-1/2 -translate-y-1/2 bg-brand-purple text-white shadow-xl z-50 rounded-full w-7 h-7 items-center justify-center scale-110 hover:scale-125' : 'text-slate-400 dark:text-muted-foreground'}`}
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />
           ) : (
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
           )}
         </button>
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-4 px-2 space-y-4 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto py-6 px-3 space-y-6 scrollbar-hide">
         {sidebarItems.map((section, idx) => (
           <SidebarSection
             key={idx}
@@ -282,16 +297,16 @@ const childSidebarItems = [
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-border/50 space-y-4">
+      <div className="p-4 mt-auto">
         <button
           onClick={handleLogout}
-          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-danger hover:bg-danger/10 dark:hover:bg-danger/10 transition-all duration-300 group ${
+          className={`flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-300 group ${
             collapsed && !isMobile ? 'justify-center' : ''
           }`}
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
+          <LogOut className={`w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110 group-hover:-translate-x-0.5 ${collapsed && !isMobile ? '' : ''}`} />
           {(!collapsed || isMobile) && (
-            <span className="text-sm font-medium">Logout</span>
+            <span className="text-sm font-bold uppercase tracking-wider">Sign Out</span>
           )}
         </button>
       </div>

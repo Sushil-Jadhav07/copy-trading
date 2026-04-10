@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import api from '@/lib/api';
 import { masterService } from '@/lib/master';
 import { useAuth } from '@/context/AuthContext';
 
@@ -126,4 +127,26 @@ export const useMasterTradeHistory = () => {
   }, [load]);
 
   return { trades, loading, error, refetch: load };
+};
+
+export const usePendingFollowCount = () => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await api.get('/api/v1/master/children/pending');
+        const data = res.data?.data || res.data || [];
+        setCount(Array.isArray(data) ? data.length : 0);
+      } catch {
+        // silently fail — don't break the sidebar
+      }
+    };
+
+    fetch();
+    const interval = setInterval(fetch, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return count;
 };

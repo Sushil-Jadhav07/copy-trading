@@ -27,18 +27,18 @@ const MyTrades = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">My Trades</h1>
-          <p className="text-muted-foreground">Your executed trades — copied to followers automatically</p>
+          <h1 className="text-xl font-bold sm:text-2xl">My Trades</h1>
+          <p className="text-sm text-muted-foreground">Your executed trades — copied to followers automatically</p>
         </div>
-        <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg transition-colors text-sm">
+        <button onClick={handleExport} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg transition-colors text-sm">
           <Download className="w-4 h-4" />
           Export CSV
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[
           { label: 'Total Trades', value: trades.length },
           { label: 'Winning Trades', value: trades.filter((t) => t.pnl > 0).length, color: 'text-success' },

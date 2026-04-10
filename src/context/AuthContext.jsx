@@ -145,6 +145,26 @@ export const AuthProvider = ({ children }) => {
     return result.user;
   }, []);
 
+  const sendOtp = useCallback(async (phone) => {
+    try {
+      await authService.sendOtp(phone);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  const verifyOtp = useCallback(async (phone, otp) => {
+    try {
+      const result = await authService.verifyOtp(phone, otp);
+      setUser(result.user);
+      setIsAuthenticated(true);
+      return { success: true, user: result.user };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
+
   const value = useMemo(() => ({
     user,
     isAuthenticated,
@@ -158,6 +178,8 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     verifyTwoFactor,
+    sendOtp,
+    verifyOtp,
   }), [
     user,
     isAuthenticated,
@@ -171,6 +193,8 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     verifyTwoFactor,
+    sendOtp,
+    verifyOtp,
   ]);
 
   return (

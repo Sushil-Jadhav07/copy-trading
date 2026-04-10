@@ -99,41 +99,43 @@ const SystemLogs = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">System Logs</h1>
-          <p className="text-muted-foreground">Trade and replication logs from the live admin API</p>
+          <h1 className="text-xl font-bold sm:text-2xl">System Logs</h1>
+          <p className="text-sm text-muted-foreground">Detailed activity from the admin trade logs</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Updated: {lastUpdate || 'Not yet'}</span>
-          <button
-            onClick={loadLogs}
-            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors ${
-              loading ? 'bg-emerald-500/15 text-emerald-400' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
-            }`}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <button
-            onClick={() => {
-              const file = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(file);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = 'trade-logs.json';
-              link.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-black/5 px-3 py-1.5 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export
-          </button>
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <span className="text-[10px] text-muted-foreground sm:text-xs">Updated: {lastUpdate || 'Never'}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadLogs}
+              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors ${
+                loading ? 'bg-emerald-500/15 text-emerald-400' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+              } sm:text-sm`}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''} sm:h-4 sm:w-4`} />
+              Refresh
+            </button>
+            <button
+              onClick={() => {
+                const file = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(file);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'trade-logs.json';
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-2 rounded-lg bg-black/5 px-3 py-1.5 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:text-sm"
+            >
+              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Export
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-5">
         {[
           { label: 'Total', value: stats.total, color: '' },
           { label: 'Executed', value: stats.executed, color: 'text-emerald-400' },

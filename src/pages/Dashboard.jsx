@@ -24,7 +24,7 @@ const CursorGlow = ({ position, isVisible }) => {
 };
 
 const Dashboard = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user, role } = useAuth();
   const { isDark } = useTheme();
   const isMobile = useIsMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -108,6 +108,25 @@ const Dashboard = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
+                <div>
+                  <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
+                    {role === 'Admin' ? 'Admin Dashboard' : role === 'Master' ? 'Master Hub' : 'Portfolio Overview'}
+                  </h1>
+                  <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
+                    Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex flex-col text-right">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
+                    <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <Outlet />
             </motion.div>
           )}

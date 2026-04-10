@@ -231,13 +231,16 @@ const CopyTrading = () => {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">Copy Trading</h1></div>
+      <div>
+        <h1 className="text-xl font-bold sm:text-2xl">Copy Trading</h1>
+      </div>
 
-      <GlassCard>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <GlassCard>
         {!masterConnected ? (
           <div>
-            <p className="text-sm font-semibold text-muted-foreground mb-3">Master Account</p>
-            <div className="flex items-center gap-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Master Account</p>
+            <div className="flex flex-col gap-3 sm:flex-row">
               <div className="flex-1 relative">
                 <select value={masterAccountId} onChange={(e) => setMasterAccountId(e.target.value)} className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
                   <option value="" className="bg-background">Select Master Account</option>
@@ -245,55 +248,59 @@ const CopyTrading = () => {
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               </div>
-              <button onClick={handleConnectMaster} className="px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
+              <button onClick={handleConnectMaster} className="w-full sm:w-auto px-6 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <span className="w-2.5 h-2.5 rounded-full bg-success animate-pulse" />
-              <span className="font-bold text-lg uppercase">{masterInfo?.broker?.toUpperCase()}-{masterInfo?.userId}-{masterInfo?.nickname?.toUpperCase()}</span>
+              <span className="font-bold text-base sm:text-lg uppercase break-all">{masterInfo?.broker?.toUpperCase()}-{masterInfo?.userId}-{masterInfo?.nickname?.toUpperCase()}</span>
             </div>
-            <div className="flex items-center gap-6 flex-wrap">
-              <button onClick={handleConnectMaster} className="px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Disconnect</button>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div onClick={() => setTradingEnabled((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${tradingEnabled ? 'bg-brand-purple' : 'bg-white/20'}`}>
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${tradingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                </div>
-                <span className="text-sm font-medium">Trading ON / OFF</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div onClick={() => setPlaceRejected((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${placeRejected ? 'bg-brand-purple' : 'bg-white/20'}`}>
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${placeRejected ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                </div>
-                <span className="text-sm font-medium">Place Rejected Order Also</span>
-              </label>
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+              <button onClick={handleConnectMaster} className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Disconnect</button>
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div onClick={() => setTradingEnabled((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${tradingEnabled ? 'bg-brand-purple' : 'bg-white/20'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${tradingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Trading ON / OFF</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div onClick={() => setPlaceRejected((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${placeRejected ? 'bg-brand-purple' : 'bg-white/20'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${placeRejected ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Place Rejected Order</span>
+                </label>
+              </div>
             </div>
           </div>
         )}
       </GlassCard>
 
       <GlassCard>
-        <p className="text-sm font-semibold text-muted-foreground mb-3">Child Accounts</p>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-48 relative">
+        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Child Accounts</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="flex-1 min-w-full sm:min-w-[200px] relative">
             <select value={selectedChild} onChange={(e) => setSelectedChild(e.target.value)} className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple appearance-none">
-              <option value="" className="bg-background">Select User Broker Child's</option>
+              <option value="" className="bg-background">Select Child Account</option>
               {childOptions.map((a) => <option key={a.id} value={a.id} className="bg-background">{a.broker}-{a.userId}-{a.nickname}</option>)}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           </div>
-          <div className="w-32">
+          <div className="w-full sm:w-32">
             <input type="number" value={childMultiplier} onChange={(e) => setChildMultiplier(e.target.value)} placeholder="Multiplier" min="0.1" step="0.1" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
           </div>
-          <button onClick={handleAddChild} className="px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
-          <button onClick={handleBulkLink} className="px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2">
-            <CheckSquare className="w-4 h-4" />
-            Connect Selected
-          </button>
-          <button onClick={handleBulkUnlink} className="px-5 py-2.5 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">
-            Disconnect All Linked
-          </button>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <button onClick={handleAddChild} className="flex-1 sm:flex-none px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
+            <button onClick={handleBulkLink} className="flex-1 sm:flex-none px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+              <CheckSquare className="w-4 h-4" />
+              Bulk Connect
+            </button>
+            <button onClick={handleBulkUnlink} className="w-full sm:w-auto px-5 py-2.5 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">
+              Disconnect All
+            </button>
+          </div>
         </div>
         {childOptions.length > 0 && (
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -324,8 +331,9 @@ const CopyTrading = () => {
           </div>
         )}
       </GlassCard>
+    </div>
 
-      <GlassCard noPadding>
+    <GlassCard noPadding>
         <div className="p-4 border-b border-border/50 flex justify-end">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="w-56 bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
         </div>

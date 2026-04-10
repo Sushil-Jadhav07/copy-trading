@@ -212,6 +212,28 @@ export const authService = {
     };
   },
 
+  async sendOtp(phone, purpose = 'login') {
+    try {
+      return await api.post('/api/v1/auth/send-otp', { phone, purpose }, { skipAuthRefresh: true });
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to send OTP'));
+    }
+  },
+
+  async verifyOtp(phone, otp, purpose = 'login') {
+    try {
+      const response = await api.post('/api/v1/auth/verify-otp', { phone, otp, purpose }, { skipAuthRefresh: true });
+      const token = extractAccessToken(response.data);
+      const refreshToken = response.data?.refreshToken || response.data?.data?.refreshToken || null;
+      if (token) setAccessToken(token);
+      if (refreshToken) setRefreshToken(refreshToken);
+      const user = response.data?.user ? normalizeUser(response.data) : await this.getMe();
+      return { user };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'OTP verification failed'));
+    }
+  },
+
   async register({ name, email, password, role, phone }) {
     try {
       await api.post(
@@ -230,189 +252,70 @@ export const authService = {
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Registration failed'));
     }
-
-    return {
-      success: true,
-    };
-  },
-
-  async logout() {
-    let logoutError = null;
-
-    try {
-      await api.post(
-        '/api/v1/auth/logout',
-        {
-          refreshToken: getRefreshToken(),
-        },
-        {
-          skipAuthRefresh: true,
-        },
-      );
-    } catch (error) {
-      logoutError = error;
-    } finally {
-      clearAccessToken();
-      clearRefreshToken();
-      authStorage.clearImpersonatedRole();
-    }
-
-    if (logoutError) {
-      return {
-        success: false,
-        error: getErrorMessage(logoutError, 'Logout failed'),
-      };
-    }
-
-    return {
-      success: true,
-    };
   },
 
   async getMe() {
-    const response = await api.get('/api/v1/auth/me');
-    return normalizeUser(response.data);
-  },
-
-  async restoreSession() {
-    const hasAccessToken = Boolean(getAccessToken());
-    const hasRefreshToken = Boolean(getRefreshToken());
-    const refreshToken = getRefreshToken();
-
-    if (!hasAccessToken && !hasRefreshToken) {
-      return null;
-    }
-
-    const refreshSession = async () => {
-      if (!refreshToken) {
-        return null;
-      }
-
-      const refreshResponse = await api.post(
-        '/api/v1/auth/refresh-token',
-        {
-          refreshToken,
-        },
-        {
-          skipAuthRefresh: true,
-        },
-      );
-
-      const token = extractAccessToken(refreshResponse.data);
-      const nextRefreshToken =
-        refreshResponse.data?.refreshToken ||
-        refreshResponse.data?.data?.refreshToken ||
-        refreshResponse.data?.tokens?.refreshToken ||
-        null;
-
-      if (!token) {
-        throw new Error('Missing access token');
-      }
-
-      setAccessToken(token);
-      if (nextRefreshToken) {
-        setRefreshToken(nextRefreshToken);
-      }
-
-      return this.getMe();
-    };
-
     try {
-      if (!hasAccessToken && hasRefreshToken) {
-        return await refreshSession();
-      }
-
-      return await this.getMe();
+      const response = await api.get('/api/v1/auth/me');
+      return normalizeUser(response.data);
     } catch (error) {
-      if (error.response?.status === 401 && hasRefreshToken) {
-        try {
-          return await refreshSession();
-        } catch {
-          clearAccessToken();
-          clearRefreshToken();
-          authStorage.clearImpersonatedRole();
-          return null;
-        }
-      }
-
-      clearAccessToken();
-      clearRefreshToken();
-      authStorage.clearImpersonatedRole();
-      return null;
+      throw new Error(getErrorMessage(error, 'Unable to load profile'));
     }
   },
 
-  async updateMe(profile) {
-    const response = await api.put('/api/v1/auth/me', {
-      name: profile.name,
-      phone: profile.phone,
-      currentPassword: profile.currentPassword,
-      newPassword: profile.newPassword,
-    });
-    return normalizeUser(response.data);
+  async updateMe(body) {
+    try {
+      const response = await api.put('/api/v1/auth/me', body);
+      return normalizeUser(response.data);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to update profile'));
+    }
   },
 
   async forgotPassword(email) {
     try {
-      return await api.post(
-        '/api/v1/auth/forgot-password',
-        { email },
-        {
-          skipAuthRefresh: true,
-        },
-      );
+      await api.post('/api/v1/auth/forgot-password', { email });
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to send reset instructions'));
+      throw new Error(getErrorMessage(error, 'Unable to send reset link'));
     }
   },
 
-  async resetPassword(body) {
+  async resetPassword(token, newPassword) {
     try {
-      return await api.post(
-        '/api/v1/auth/reset-password',
-        body,
-        {
-          skipAuthRefresh: true,
-        },
-      );
+      await api.post('/api/v1/auth/reset-password', { token, newPassword });
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to reset password'));
     }
   },
 
-  async changePassword(body) {
+  async enable2FA() {
     try {
-      return await api.put('/api/v1/auth/me', body);
+      await api.post('/api/v1/auth/2fa/enable');
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to update password'));
+      throw new Error(getErrorMessage(error, 'Unable to enable 2FA'));
     }
   },
 
-  async enableTwoFactor() {
-    let response;
-
+  async disable2FA(password, otp) {
     try {
-      response = await api.post('/api/v1/auth/2fa/enable', {});
+      await api.delete('/api/v1/auth/2fa/disable', { data: { password, otp } });
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to enable two-factor authentication'));
-    }
-
-    return response.data?.data || response.data || {};
-  },
-
-  async disableTwoFactor(body) {
-    try {
-      return await api.delete('/api/v1/auth/2fa/disable', {
-        data: body,
-      });
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to disable two-factor authentication'));
+      throw new Error(getErrorMessage(error, 'Unable to disable 2FA'));
     }
   },
 
-  clearSession() {
-    clearAccessToken();
-    clearRefreshToken();
-    authStorage.clearImpersonatedRole();
+  async logout() {
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await api.post('/api/v1/auth/logout', { refreshToken });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      clearAccessToken();
+      clearRefreshToken();
+      authStorage.clearImpersonatedRole();
+    }
   },
 };

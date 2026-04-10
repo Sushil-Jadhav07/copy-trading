@@ -14,7 +14,9 @@ const Profile = () => {
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingTwoFactor, setSavingTwoFactor] = useState(false);
   const [settings, setSettings] = useState({
-    name: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     email: '',
     phone: '',
   });
@@ -70,8 +72,15 @@ const Profile = () => {
   }, [user]);
 
   useEffect(() => {
+    const nameParts = (user?.name || '').split(' ').filter(Boolean);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 2 ? nameParts[nameParts.length - 1] : nameParts[1] || '';
+    const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
     setSettings({
-      name: user?.name || '',
+      firstName,
+      middleName,
+      lastName,
       email: user?.email || '',
       phone: user?.phone || '',
     });
@@ -90,8 +99,15 @@ const Profile = () => {
           return;
         }
 
+        const nameParts = (latestUser?.name || '').split(' ').filter(Boolean);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.length > 2 ? nameParts[nameParts.length - 1] : nameParts[1] || '';
+        const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
         setSettings({
-          name: latestUser?.name || '',
+          firstName,
+          middleName,
+          lastName,
           email: latestUser?.email || '',
           phone: latestUser?.phone || '',
         });
@@ -117,8 +133,11 @@ const Profile = () => {
     setSavingProfile(true);
 
     try {
+      const fullName = [settings.firstName, settings.middleName, settings.lastName]
+        .filter(Boolean)
+        .join(' ');
       await updateProfile({
-        name: settings.name,
+        name: fullName,
         phone: settings.phone,
       });
       addToast('Profile saved successfully', 'success');
@@ -268,7 +287,7 @@ const Profile = () => {
                   <div>
                     <h2 className="text-lg font-semibold">Account Details</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      This section is populated from <span className="text-emerald-400">GET /api/v1/auth/me</span>.
+                      This section shows your latest account details.
                     </p>
                   </div>
                   {loadingProfile && (
@@ -281,13 +300,38 @@ const Profile = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium">Full Name</label>
-                    <input
-                      type="text"
-                      value={settings.name}
-                      onChange={(e) => setSettings({ ...settings, name: e.target.value })}
-                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                      disabled={loadingProfile}
-                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="relative">
+                        <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={settings.firstName}
+                          onChange={(e) => setSettings({ ...settings, firstName: e.target.value })}
+                          placeholder="First"
+                          required
+                          className="w-full pl-8 pr-2 py-2.5 rounded-xl border border-black/10 bg-black/5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                          disabled={loadingProfile}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={settings.middleName}
+                        onChange={(e) => setSettings({ ...settings, middleName: e.target.value })}
+                        placeholder="Middle"
+                        className="w-full px-3 py-2.5 rounded-xl border border-black/10 bg-black/5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                        disabled={loadingProfile}
+                      />
+                      <input
+                        type="text"
+                        value={settings.lastName}
+                        onChange={(e) => setSettings({ ...settings, lastName: e.target.value })}
+                        placeholder="Last"
+                        required
+                        className="w-full px-3 py-2.5 rounded-xl border border-black/10 bg-black/5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                        disabled={loadingProfile}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">Middle name is optional</p>
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium">Email</label>
@@ -315,9 +359,7 @@ const Profile = () => {
                 <div className="mb-4">
                   <h3 className="text-base font-semibold">Update Profile</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Saves through <span className="text-emerald-400">PUT /api/v1/auth/me</span> with
-                    <span className="text-emerald-400"> name </span>and
-                    <span className="text-emerald-400"> phone</span>.
+                    Save your updated name and phone details here.
                   </p>
                 </div>
 
@@ -339,7 +381,7 @@ const Profile = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold">Identity</h3>
-                    <p className="text-sm text-muted-foreground">Live values returned by the auth API.</p>
+                    <p className="text-sm text-muted-foreground">Live values returned for your account.</p>
                   </div>
                 </div>
 
@@ -397,9 +439,7 @@ const Profile = () => {
               <div className="mb-5">
                 <h2 className="text-lg font-semibold">Change Password</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  This uses <span className="text-emerald-400">PUT /api/v1/auth/me</span> with
-                  <span className="text-emerald-400"> currentPassword </span>and
-                  <span className="text-emerald-400"> newPassword</span>.
+                  Use this form to update your password.
                 </p>
               </div>
 

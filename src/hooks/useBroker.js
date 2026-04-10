@@ -23,7 +23,15 @@ export const useBrokerAccounts = () => {
     load();
   }, [load]);
 
-  return { accounts, loading, error, refetch: load };
+  const testAccount = async (accountId) => {
+    try {
+      return await brokerService.testAccount(accountId);
+    } catch (e) {
+      throw e;
+    }
+  };
+
+  return { accounts, loading, error, refetch: load, testAccount };
 };
 
 export const useBrokerList = () => {

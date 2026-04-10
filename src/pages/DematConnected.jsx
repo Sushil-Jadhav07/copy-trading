@@ -1,95 +1,190 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { CheckCircle2, XCircle, RefreshCw, Wifi, Clock, IndianRupee } from 'lucide-react';
 import { brokerService } from '@/lib/broker';
 import { useToast } from '@/components/shared/Toast';
+import { formatCurrency } from '@/lib/utils';
+
+const formatSyncTime = (raw) => {
+  if (!raw) return null;
+  try {
+    return new Date(raw).toLocaleString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return null; }
+};
 
 const DematConnected = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { addToast } = useToast();
-  const [status, setStatus] = useState('loading');
+  const navigate        = useNavigate();
+  const { addToast }    = useToast();
+
+  const [status, setStatus]               = useState('loading'); // 'loading' | 'success' | 'error'
+  const [accountDetails, setAccountDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [retrying, setRetrying]           = useState(false);
+
+  const accountId = searchParams.get('accountId') || searchParams.get('account_id');
+
+  const verifyConnection = async () => {
+    const requestToken = searchParams.get('request_token');
+    const authCode     = searchParams.get('auth_code');
+    const code         = searchParams.get('code');
+    const tokenId      = searchParams.get('tokenId') || searchParams.get('token_id');
+    const brokerCode   = requestToken || authCode || code || tokenId;
+
+    try {
+      if (!accountId) {
+        setStatus('success');
+        return;
+      }
+      if (brokerCode) {
+        const oauthData  = await brokerService.getOAuthUrl(accountId);
+        const loginField = oauthData?.loginField ||
+          (requestToken ? 'requestToken' : authCode || tokenId ? 'authCode' : 'code');
+        await brokerService.loginAccount(accountId, { [loginField]: brokerCode });
+      } else {
+        await brokerService.getAccountStatus(accountId);
+      }
+      setStatus('success');
+    } catch (error) {
+      setStatus('error');
+      addToast(error.message || 'Unable to verify broker connection', 'error');
+    }
+  };
+
+  const fetchDetails = async () => {
+    if (!accountId) return;
+    setDetailsLoading(true);
+    try {
+      const data = await brokerService.getAccount(accountId);
+      setAccountDetails(data);
+    } catch { /* non-critical */ }
+    finally { setDetailsLoading(false); }
+  };
 
   useEffect(() => {
-    const accountId = searchParams.get('accountId') || searchParams.get('account_id');
-    if (!accountId) {
-      setStatus('success');
-      return;
-    }
+    let mounted = true;
+    (async () => {
+      await verifyConnection();
+      if (mounted) fetchDetails();
+    })();
+    return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    let isMounted = true;
-    const requestToken = searchParams.get('request_token');
-    const authCode = searchParams.get('auth_code');
-    const code = searchParams.get('code');
-    const tokenId = searchParams.get('tokenId') || searchParams.get('token_id');
-    const brokerCode = requestToken || authCode || code || tokenId;
+  const handleRetry = async () => {
+    setRetrying(true);
+    setStatus('loading');
+    await verifyConnection();
+    await fetchDetails();
+    setRetrying(false);
+  };
 
-    const verifyConnection = async () => {
-      try {
-        if (brokerCode) {
-          const oauthData = await brokerService.getOAuthUrl(accountId);
-          const loginField =
-            oauthData?.loginField ||
-            (requestToken ? 'requestToken' : authCode || tokenId ? 'authCode' : 'code');
-          await brokerService.loginAccount(accountId, { [loginField]: brokerCode });
-        } else {
-          await brokerService.getAccountStatus(accountId);
-        }
-
-        if (isMounted) {
-          setStatus('success');
-        }
-      } catch (error) {
-        if (isMounted) {
-          setStatus('error');
-          addToast(error.message || 'Unable to verify broker connection', 'error');
-        }
-      }
-    };
-
-    verifyConnection();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [addToast, searchParams]);
-
-  const handleContinue = () => navigate('/');
-
+  /* ── Loading spinner ── */
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+        <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-muted-foreground">Verifying broker connection…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="glass-card p-10 text-center max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="glass-card p-8 sm:p-10 text-center max-w-sm w-full">
+
         {status === 'success' ? (
           <>
-            <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4">
-              <span className="text-success text-2xl">✓</span>
+            {/* Success icon */}
+            <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Broker Connected</h2>
-            <p className="text-muted-foreground mb-6">Your broker account has been linked successfully.</p>
-            <button
-              onClick={handleContinue}
-              className="px-6 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg font-medium transition-colors"
-            >
+
+            <h2 className="text-xl font-bold mb-1">Broker Connected</h2>
+            <p className="text-sm text-muted-foreground mb-6">Your broker account has been linked and verified successfully.</p>
+
+            {/* Account info */}
+            {detailsLoading ? (
+              <div className="mb-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                Fetching account details…
+              </div>
+            ) : accountDetails ? (
+              <div className="mb-6 space-y-2.5">
+                {/* Connection Status */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/8 border border-emerald-500/15">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+                    Connection Status
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-500">Connected & Verified</span>
+                </div>
+
+                {/* Balance */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <IndianRupee className="w-3.5 h-3.5" />
+                    Available Balance
+                  </div>
+                  <span className="text-sm font-bold">
+                    {formatCurrency(accountDetails.margin || 0)}
+                  </span>
+                </div>
+
+                {/* Account ID */}
+                {(accountDetails.clientId || accountDetails.userId) && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
+                    <span className="text-xs text-muted-foreground">Account ID</span>
+                    <span className="text-xs font-medium font-mono">{accountDetails.clientId || accountDetails.userId}</span>
+                  </div>
+                )}
+
+                {/* Last Synced */}
+                {accountDetails.linkedAt && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock className="w-3.5 h-3.5" />
+                      Last Synced
+                    </div>
+                    <span className="text-xs text-muted-foreground">{formatSyncTime(accountDetails.linkedAt)}</span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <button onClick={() => navigate('/')}
+              className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+              style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.28)' }}>
               Continue to Dashboard
             </button>
           </>
         ) : (
           <>
-            <h2 className="text-2xl font-bold mb-2 text-danger">Connection Failed</h2>
-            <p className="text-muted-foreground mb-6">Something went wrong. Please try again from the Demat page.</p>
-            <button
-              onClick={() => navigate('/master/user-management')}
-              className="px-6 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg font-medium transition-colors"
-            >
-              Back to Demat
-            </button>
+            {/* Error icon */}
+            <div className="w-16 h-16 rounded-full bg-red-500/12 border border-red-500/20 flex items-center justify-center mx-auto mb-5">
+              <XCircle className="w-8 h-8 text-red-500" />
+            </div>
+
+            <h2 className="text-xl font-bold mb-1 text-red-500">Connection Failed</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              We couldn't verify your broker connection. This may be due to an expired or invalid token.
+            </p>
+
+            <div className="space-y-2">
+              <button onClick={handleRetry} disabled={retrying}
+                className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.22)' }}>
+                <RefreshCw className={`w-4 h-4 ${retrying ? 'animate-spin' : ''}`} />
+                {retrying ? 'Retrying…' : 'Retry Connection'}
+              </button>
+              <button onClick={() => navigate(-1)}
+                className="w-full py-2.5 rounded-xl text-sm font-medium border border-border hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                Go Back
+              </button>
+            </div>
           </>
         )}
       </div>

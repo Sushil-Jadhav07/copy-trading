@@ -68,24 +68,24 @@ const BrokerStatus = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Broker Status</h1>
-          <p className="text-muted-foreground">Live broker and system health from the admin API</p>
+          <h1 className="text-xl font-bold sm:text-2xl">Broker Status</h1>
+          <p className="text-sm text-muted-foreground">Live broker and system health monitoring</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Last updated: {lastRefresh || 'Not yet'}</span>
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <span className="text-[10px] text-muted-foreground sm:text-xs">Last updated: {lastRefresh || 'Not yet'}</span>
           <button
             onClick={loadBrokerStatus}
-            className="flex items-center gap-2 rounded-lg bg-black/5 px-3 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="flex items-center gap-2 rounded-lg bg-black/5 px-3 py-2 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:text-sm"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[
           { label: 'Total Services', value: summary.total, icon: Server },
           { label: 'Online', value: summary.online, icon: CheckCircle2, color: 'text-emerald-400' },

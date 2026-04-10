@@ -75,8 +75,8 @@ const PendingVerification = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Pending Verification</h1>
-        <p className="text-muted-foreground">Review submitted KYC documents and approve or reject new accounts</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Pending Verification</h1>
+        <p className="text-sm text-muted-foreground">Review submitted KYC documents and approve or reject new accounts</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

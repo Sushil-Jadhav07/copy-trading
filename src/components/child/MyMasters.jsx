@@ -16,16 +16,16 @@ const normalizeStatus = (status) => String(status || 'INACTIVE').toUpperCase();
 const getStatusMeta = (status) => {
   switch (normalizeStatus(status)) {
     case 'ACTIVE':
-      return { label: 'Active', pill: 'bg-success/20 text-success' };
+      return { label: 'Active', pill: 'bg-success/20 text-success', subtitle: 'Trades are being copied to your account' };
     case 'PENDING_APPROVAL':
-      return { label: 'Pending Approval', pill: 'bg-warning/20 text-warning' };
+      return { label: 'Pending Approval', pill: 'bg-warning/20 text-warning', subtitle: "Master hasn't approved your request yet" };
     case 'PAUSED':
-      return { label: 'Paused', pill: 'bg-warning/20 text-warning' };
+      return { label: 'Paused', pill: 'bg-warning/20 text-warning', subtitle: "You've paused copying — resume anytime" };
     case 'REJECTED':
-      return { label: 'Rejected', pill: 'bg-danger/20 text-danger' };
+      return { label: 'Rejected', pill: 'bg-danger/20 text-danger', subtitle: 'Master declined your request' };
     case 'INACTIVE':
     default:
-      return { label: 'Inactive', pill: 'bg-white/10 text-muted-foreground' };
+      return { label: 'Inactive', pill: 'bg-white/10 text-muted-foreground', subtitle: 'Not currently copying' };
   }
 };
 
@@ -131,22 +131,22 @@ const MyMasters = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Masters</h1>
-        <p className="text-muted-foreground">Masters you are currently copying trades from</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">My Masters</h1>
+          <p className="text-sm text-muted-foreground">Masters you are currently copying trades from</p>
+        </div>
         {masters.length > 0 && (
-          <div className="mt-3">
-            <button
-              onClick={handleBulkUnfollow}
-              className="px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors"
-            >
-              Unfollow All
-            </button>
-          </div>
+          <button
+            onClick={handleBulkUnfollow}
+            className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors"
+          >
+            Unfollow All
+          </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[
           { label: 'Masters Copied', value: masters.length, icon: Users, color: 'text-brand-purple' },
           { label: 'Active', value: active, icon: Copy, color: 'text-success' },
@@ -185,6 +185,7 @@ const MyMasters = () => {
             const statusMeta = getStatusMeta(master.status);
             const canToggle = ['ACTIVE', 'PAUSED'].includes(normalizeStatus(master.status));
             const canScale = normalizeStatus(master.status) === 'ACTIVE';
+            const isPending = normalizeStatus(master.status) === 'PENDING_APPROVAL';
 
             return (
               <motion.div
@@ -194,6 +195,11 @@ const MyMasters = () => {
                 transition={{ delay: idx * 0.08 }}
                 className={`glass-card p-5 ${master.tradingEnabled ? 'border border-brand-purple/30' : 'opacity-70'}`}
               >
+                {isPending && (
+                  <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                    Waiting for master approval — you'll be notified when accepted
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center">
@@ -206,6 +212,7 @@ const MyMasters = () => {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusMeta.pill}`}>
                         {statusMeta.label}
                       </span>
+                      <p className="text-xs text-muted-foreground mt-1">{statusMeta.subtitle}</p>
                     </div>
                   </div>
                   <button
@@ -235,33 +242,40 @@ const MyMasters = () => {
                     </div>
                   ))}
 
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Multiplier</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleMultiplier(master.id, 'down')}
-                        disabled={!canScale}
-                        className="w-6 h-6 bg-black/10 dark:bg-white/10 hover:bg-white/20 rounded text-sm font-bold transition-colors disabled:opacity-40"
-                      >
-                        -
-                      </button>
-                      <span className="w-10 text-center font-bold text-amber-400 text-sm">{master.multiplier}x</span>
-                      <button
-                        onClick={() => handleMultiplier(master.id, 'up')}
-                        disabled={!canScale}
-                        className="w-6 h-6 bg-black/10 dark:bg-white/10 hover:bg-white/20 rounded text-sm font-bold transition-colors disabled:opacity-40"
-                      >
-                        +
-                      </button>
+                  {isPending ? (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Multiplier</span>
+                      <span className="font-medium text-amber-400 text-sm">{master.multiplier}x</span>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Multiplier</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleMultiplier(master.id, 'down')}
+                          disabled={!canScale}
+                          className="w-6 h-6 bg-black/10 dark:bg-white/10 hover:bg-white/20 rounded text-sm font-bold transition-colors disabled:opacity-40"
+                        >
+                          -
+                        </button>
+                        <span className="w-10 text-center font-bold text-amber-400 text-sm">{master.multiplier}x</span>
+                        <button
+                          onClick={() => handleMultiplier(master.id, 'up')}
+                          disabled={!canScale}
+                          className="w-6 h-6 bg-black/10 dark:bg-white/10 hover:bg-white/20 rounded text-sm font-bold transition-colors disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-border/40">
                   <span className="text-sm text-muted-foreground">Copy Trading</span>
                   <button
                     onClick={() => canToggle && handleToggle(master.id)}
-                    className={`flex items-center gap-2 ${!canToggle ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`flex items-center gap-2 ${!canToggle || isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     {master.tradingEnabled ? (
                       <ToggleRight className="w-8 h-8 text-success" />

@@ -21,19 +21,26 @@ const CopiedTrades = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Copied Trades</h1>
-        <p className="text-muted-foreground">Live feed of trades copied from your masters</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Copied Trades</h1>
+        <p className="text-sm text-muted-foreground">Live feed of trades copied from your masters</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[{ label: 'Total Trades', value: copiedTrades.length, color: 'text-brand-purple' }, { label: 'Total P&L', value: (totalPnL >= 0 ? '+' : '') + formatCurrency(Math.abs(totalPnL)), color: totalPnL >= 0 ? 'text-success' : 'text-danger' }, { label: 'Masters Active', value: [...new Set(copiedTrades.map((t) => t.master))].length, color: 'text-brand-blue' }].map((s) => (
-          <GlassCard key={s.label}><p className="text-xs text-muted-foreground">{s.label}</p><p className={`text-xl font-bold mt-1 ${s.color}`}>{s.value}</p></GlassCard>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+        {[
+          { label: 'Total Trades', value: copiedTrades.length, color: 'text-brand-purple' },
+          { label: 'Total P&L', value: (totalPnL >= 0 ? '+' : '') + formatCurrency(Math.abs(totalPnL)), color: totalPnL >= 0 ? 'text-success' : 'text-danger' },
+          { label: 'Masters Active', value: [...new Set(copiedTrades.map((t) => t.master))].length, color: 'text-brand-blue' }
+        ].map((s) => (
+          <GlassCard key={s.label}>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
+            <p className={`text-lg font-bold mt-1 ${s.color}`}>{s.value}</p>
+          </GlassCard>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {['All', 'BUY', 'SELL'].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 text-muted-foreground'}`}>{f}</button>
+          <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground'}`}>{f}</button>
         ))}
       </div>
 

@@ -48,12 +48,23 @@ const OpenPositions = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div><h1 className="text-2xl font-bold">Open Positions</h1><p className="text-muted-foreground">Your live positions — followers are copying these in real-time</p></div>
-        {accounts.length > 1 && <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple">{accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.broker} - {account.nickname}</option>)}</select>}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
+          <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
+        </div>
+        {accounts.length > 1 && (
+          <select 
+            value={selectedAccountId} 
+            onChange={(e) => setSelectedAccountId(e.target.value)} 
+            className="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+          >
+            {accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.broker} - {account.nickname}</option>)}
+          </select>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[{ label: 'Open Positions', value: positions.length }, { label: 'Unrealized P&L', value: formatCurrency(Math.abs(totalUnrealized)), color: totalUnrealized >= 0 ? 'text-success' : 'text-danger' }, { label: 'Followers Copying', value: positions.reduce((sum, pos) => sum + (Array.isArray(pos.children) ? pos.children.length : 0), 0), color: 'text-brand-purple' }, { label: 'Total Child Positions', value: positions.reduce((sum, pos) => sum + (Array.isArray(pos.children) ? pos.children.length : 0), 0), color: 'text-brand-blue' }].map((s) => <GlassCard key={s.label}><p className="text-xs text-muted-foreground">{s.label}</p><p className={`text-xl font-bold mt-1 ${s.color || ''}`}>{s.value}</p></GlassCard>)}
       </div>
 

@@ -115,12 +115,12 @@ const Overview = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Admin Overview</h1>
-        <p className="text-muted-foreground">Platform analytics and operational monitoring</p>
+        <h1 className="text-xl font-bold sm:text-2xl">Admin Overview</h1>
+        <p className="text-sm text-muted-foreground">Platform analytics and operational monitoring</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Users" value={analytics.totalUsers} icon={Users} changeLabel="from /admin/analytics" />
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Total Users" value={analytics.totalUsers} icon={Users} changeLabel="live analytics" />
         <StatCard
           title="Active Masters"
           value={analytics.activeMasters}
@@ -149,11 +149,11 @@ const Overview = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GlassCard title="User Growth" subtitle="Live data from /api/v1/admin/analytics">
+        <GlassCard title="User Growth" subtitle="Live analytics data">
           <LineChart data={analytics.userGrowth} xKey="date" yKey="totalUsers" height={250} />
         </GlassCard>
 
-        <GlassCard title="System Health" subtitle="Live data from /api/v1/admin/system-health">
+        <GlassCard title="System Health" subtitle="Live system status">
           <div className="space-y-3">
             {health.length ? (
               health.map((service) => (
@@ -189,11 +189,11 @@ const Overview = () => {
         </GlassCard>
       </div>
 
-      <GlassCard title="Recent Trade Activity" subtitle="Latest rows from /api/v1/admin/trade-logs">
+      <GlassCard title="Recent Trade Activity" subtitle="Latest trade activity">
         <DataTable columns={tradeColumns} data={logs} pagination={false} />
       </GlassCard>
 
-      <GlassCard title="Top Masters" subtitle="Derived from /api/v1/admin/analytics when available">
+      <GlassCard title="Top Masters" subtitle="Derived from platform analytics">
         {topMasters.length ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {topMasters.map((master, index) => (

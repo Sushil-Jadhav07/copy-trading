@@ -142,7 +142,7 @@ export const childService = {
 
   async bulkSubscribe(masters) {
     try {
-      const res = await api.post('/api/v1/child/subscriptions/bulk', {
+      const res = await api.post('/child/subscriptions/bulk', {
         masters,
       });
       masters.forEach((master) => {
@@ -159,7 +159,7 @@ export const childService = {
 
   async bulkUnsubscribe(masterIds) {
     try {
-      const res = await api.post('/api/v1/child/subscriptions/bulk-unsubscribe', {
+      const res = await api.post('/child/subscriptions/bulk-unsubscribe', {
         masterIds,
         masters: (masterIds || []).map((masterId) => ({ masterId })),
       });

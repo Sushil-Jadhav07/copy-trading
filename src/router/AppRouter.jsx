@@ -30,6 +30,7 @@ import TradeExecution from '@/components/master/TradeExecution';
 import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
+import FollowRequests from '@/components/master/FollowRequests';
 // ──────────────────────────────────────────────────────────
 
 // Child Components
@@ -58,13 +59,13 @@ import { useParams } from 'react-router-dom';
 const DematDetailWrapper = () => {
   const { accountId } = useParams();
   const navigate = React.useCallback(() => window.history.back(), []);
-  return <DematDetail accountId={accountId} onBack={navigate} />;
+  return <DematDetail accountId={accountId} onBack={navigate} scope="master" />;
 };
 
 const ChildDematDetailWrapper = () => {
   const { accountId } = useParams();
   const navigate = React.useCallback(() => window.history.back(), []);
-  return <DematDetail accountId={accountId} onBack={navigate} />;
+  return <DematDetail accountId={accountId} onBack={navigate} scope="child" />;
 };
 // ──────────────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ const AppRouter = () => {
                 <Route path="master/user-management" element={<UserManagement />} />
                 <Route path="master/demat/:accountId" element={<DematDetailWrapper />} />
                 <Route path="master/copy-trading" element={<CopyTrading />} />
+                <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/logs" element={<Logs />} />
                 <Route path="master/trade-execution" element={<TradeExecution />} />
                 {/* ───────────────────── */}
