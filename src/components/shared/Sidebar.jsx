@@ -18,7 +18,6 @@ import {
   ArrowLeftRight,
   PieChart,
   Target,
-  Zap,
   Key,
   Settings,
   HelpCircle,
@@ -158,7 +157,6 @@ const masterSidebarItems = [
         { to: '/master/trades', icon: TrendingUp, label: 'My Trades' },
         { to: '/master/positions', icon: Activity, label: 'Open Positions' },
         { to: '/master/orders', icon: BookOpen, label: 'Order Book' },
-        { to: '/master/trade-execution', icon: Zap, label: 'Trade Execution' },
       ],
     },
     {
@@ -194,7 +192,6 @@ const childSidebarItems = [
       items: [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
-        { to: '/child/trade-execution', icon: Zap, label: 'Place Order' },
         { to: '/child/pnl-dashboard', icon: BarChart2, label: 'P&L Dashboard' },
       ],
     },

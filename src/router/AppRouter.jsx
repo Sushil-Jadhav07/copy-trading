@@ -25,7 +25,6 @@ import Profile from '@/components/master/Profile';
 
 // ── NEW MASTER COMPONENTS ──────────────────────────────────
 import UserManagement from '@/components/master/UserManagement';
-import TradeExecution from '@/components/master/TradeExecution';
 
 import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
@@ -38,7 +37,6 @@ import MyMasters from '@/components/child/MyMasters';
 import CopiedTrades from '@/components/child/CopiedTrades';
 import ChildOverview from '@/components/child/Overview';
 import FindMasters from '@/components/child/FindMasters';
-import ChildTradeExecution from '@/components/child/TradeExecution';
 import PnLDashboard from '@/components/child/PnLDashboard';
 
 
@@ -147,7 +145,6 @@ const AppRouter = () => {
                 <Route path="master/copy-trading" element={<CopyTrading />} />
                 <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/logs" element={<Logs />} />
-                <Route path="master/trade-execution" element={<TradeExecution />} />
                 {/* ───────────────────── */}
 
                 {/* Child Routes */}
@@ -163,7 +160,6 @@ const AppRouter = () => {
                 <Route path="child/my-masters" element={<MyMasters />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
                 <Route path="child/profile" element={<Profile />} />
-                <Route path="child/trade-execution" element={<ChildTradeExecution />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
 
                 {/* Admin Routes */}
