@@ -5,18 +5,39 @@ import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
+import { connectChannel } from '@/lib/websocket';
 
 const CopiedTrades = () => {
   const { trades: copiedTrades, loading, error } = useChildCopiedTrades();
   const { addToast } = useToast();
   const [filter, setFilter] = useState('All');
+  const [trades, setTrades] = useState([]);
 
   useEffect(() => {
     if (error) addToast(error, 'error');
   }, [error, addToast]);
 
-  const filtered = copiedTrades.filter((t) => filter === 'All' || t.type === filter);
-  const totalPnL = copiedTrades.reduce((s, t) => s + t.pnl, 0);
+  useEffect(() => {
+    setTrades(copiedTrades);
+  }, [copiedTrades]);
+
+  useEffect(() => {
+    const sub = connectChannel(
+      'trades',
+      (event, data) => {
+        if (event === 'TRADE_COPIED' || event === 'copy_trade' || event === 'MESSAGE') {
+          setTrades((prev) => [data, ...prev]);
+        }
+      },
+      () => console.log('WS trades connected'),
+      (err) => console.error('WS trades error', err),
+    );
+
+    return () => sub.close();
+  }, []);
+
+  const filtered = trades.filter((t) => filter === 'All' || t.type === filter);
+  const totalPnL = trades.reduce((s, t) => s + (Number(t.pnl) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -27,9 +48,9 @@ const CopiedTrades = () => {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         {[
-          { label: 'Total Trades', value: copiedTrades.length, color: 'text-brand-purple' },
+          { label: 'Total Trades', value: trades.length, color: 'text-brand-purple' },
           { label: 'Total P&L', value: (totalPnL >= 0 ? '+' : '') + formatCurrency(Math.abs(totalPnL)), color: totalPnL >= 0 ? 'text-success' : 'text-danger' },
-          { label: 'Masters Active', value: [...new Set(copiedTrades.map((t) => t.master))].length, color: 'text-brand-blue' }
+          { label: 'Masters Active', value: [...new Set(trades.map((t) => t.master))].length, color: 'text-brand-blue' }
         ].map((s) => (
           <GlassCard key={s.label}>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>

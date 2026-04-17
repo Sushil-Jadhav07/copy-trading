@@ -6,6 +6,7 @@ import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { brokerService } from '@/lib/broker';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
+import { connectChannel } from '@/lib/websocket';
 
 const OpenPositions = () => {
   const { addToast } = useToast();
@@ -37,6 +38,25 @@ const OpenPositions = () => {
     });
     return () => { isMounted = false; };
   }, [selectedAccountId, addToast]);
+
+  useEffect(() => {
+    const sub = connectChannel(
+      'positions',
+      (event, data) => {
+        if (event === 'POSITION_UPDATE' || event === 'position_update' || event === 'MESSAGE') {
+          setPositions((prev) =>
+            prev.map((position) =>
+              position.symbol === data.symbol ? { ...position, ...data } : position
+            )
+          );
+        }
+      },
+      null,
+      null,
+    );
+
+    return () => sub.close();
+  }, []);
 
   const confirmClose = async () => {
     if (!selectedPos) return;

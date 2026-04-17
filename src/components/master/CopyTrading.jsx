@@ -10,6 +10,7 @@ import { useBrokerAccounts } from '@/hooks/useBroker';
 import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
 import { engineService } from '@/lib/engine';
+import { connectChannel } from '@/lib/websocket';
 import { formatCurrency } from '@/lib/utils';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
@@ -130,6 +131,25 @@ const CopyTrading = () => {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const sub = connectChannel(
+      'trades',
+      (event, data) => {
+        if (event === 'TRADE_COPIED' || event === 'copy_trade') {
+          addToast(`Trade copied to ${data?.childName || 'follower'} — ${data?.symbol || ''} ${data?.qty || ''}`, 'success');
+          refetch();
+        }
+        if (event === 'TRADE_COPY_FAILED' || event === 'copy_trade_failed') {
+          addToast(`Copy failed for ${data?.childName || 'follower'}: ${data?.reason || 'unknown error'}`, 'error');
+        }
+      },
+      null,
+      (err) => console.error('WS master trades error', err),
+    );
+
+    return () => sub.close();
+  }, [addToast, refetch]);
 
   const masterOptions = accounts.map((a) => ({
     value: a.accountId,
