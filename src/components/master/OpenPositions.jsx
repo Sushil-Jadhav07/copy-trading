@@ -38,10 +38,22 @@ const OpenPositions = () => {
     return () => { isMounted = false; };
   }, [selectedAccountId, addToast]);
 
-  const confirmClose = () => {
-    setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
-    setCloseModal(false);
-    addToast(`${selectedPos.instrument} position closed`, 'success');
+  const confirmClose = async () => {
+    if (!selectedPos) return;
+    try {
+      await brokerService.closePosition(selectedAccountId, {
+        symbol: selectedPos.symbol || selectedPos.instrument,
+        qty: selectedPos.qty,
+        type: 'SELL',
+        product: selectedPos.market || 'MIS',
+      });
+      setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
+      setCloseModal(false);
+      addToast(`${selectedPos.instrument} position closed`, 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to close position', 'error');
+      setCloseModal(false);
+    }
   };
 
   const totalUnrealized = positions.reduce((s, p) => s + p.unrealizedPnl, 0);
@@ -99,7 +111,7 @@ const OpenPositions = () => {
       </GlassCard>
 
       <Modal isOpen={closeModal} onClose={() => setCloseModal(false)} title="Close Position" size="sm">
-        {selectedPos && <div className="space-y-4"><div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">{[['Instrument', selectedPos.instrument], ['Type', selectedPos.type], ['Qty', selectedPos.qty], ['LTP', `₹${selectedPos.ltp.toFixed(2)}`], ['Unrealized P&L', (selectedPos.unrealizedPnl >= 0 ? '+' : '') + formatCurrency(selectedPos.unrealizedPnl)]].map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{v}</span></div>)}</div><div className="flex gap-3"><button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button><button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Close Position</button></div></div>}
+        {selectedPos && <div className="space-y-4"><div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">{[['Instrument', selectedPos.instrument], ['Type', selectedPos.type], ['Qty', selectedPos.qty], ['LTP', `₹${selectedPos.ltp.toFixed(2)}`], ['Unrealized P&L', (selectedPos.unrealizedPnl >= 0 ? '+' : '') + formatCurrency(selectedPos.unrealizedPnl)]].map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{v}</span></div>)}</div><div className="flex gap-3"><button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button><button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Close Position</button></div></div>}
       </Modal>
 
       <Modal isOpen={childDetailModal} onClose={() => setChildDetailModal(false)} title={`Children copying ${selectedInstrument}`} size="md">

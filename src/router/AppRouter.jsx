@@ -30,6 +30,9 @@ import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
 import FollowRequests from '@/components/master/FollowRequests';
+import TradeExecutor from '@/components/master/TradeExecutor';
+import RiskDashboard from '@/components/master/RiskDashboard';
+import PnLAnalytics from '@/components/master/PnLAnalytics';
 // ──────────────────────────────────────────────────────────
 
 // Child Components
@@ -38,6 +41,7 @@ import CopiedTrades from '@/components/child/CopiedTrades';
 import ChildOverview from '@/components/child/Overview';
 import FindMasters from '@/components/child/FindMasters';
 import PnLDashboard from '@/components/child/PnLDashboard';
+import ChildPnLAnalytics from '@/components/child/ChildPnLAnalytics';
 
 
 
@@ -50,6 +54,8 @@ import PendingVerification from '@/components/admin/PendingVerification';
 import SystemLogs from '@/components/admin/SystemLogs';
 import LiveTrades from '@/components/admin/LiveTrades';
 import OrderFeed from '@/components/admin/OrderFeed';
+import AdminPnL from '@/components/admin/AdminPnL';
+import AdminRiskRules from '@/components/admin/AdminRiskRules';
 
 
 // ── DematDetail wrapper: reads accountId from URL params ──
@@ -145,6 +151,9 @@ const AppRouter = () => {
                 <Route path="master/copy-trading" element={<CopyTrading />} />
                 <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/logs" element={<Logs />} />
+                <Route path="master/trade-executor" element={<TradeExecutor />} />
+                <Route path="master/risk-dashboard" element={<RiskDashboard />} />
+                <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
                 {/* ───────────────────── */}
 
                 {/* Child Routes */}
@@ -161,6 +170,7 @@ const AppRouter = () => {
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
                 <Route path="child/profile" element={<Profile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
+                <Route path="child/pnl-analytics" element={<ChildPnLAnalytics />} />
 
                 {/* Admin Routes */}
                 <Route path="admin/overview" element={<AdminOverview />} />
@@ -174,6 +184,8 @@ const AppRouter = () => {
                 <Route path="admin/broker-status" element={<BrokerStatus />} />
                 <Route path="admin/subscriptions" element={<Subscriptions />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
+                <Route path="admin/pnl" element={<AdminPnL />} />
+                <Route path="admin/risk-rules" element={<AdminRiskRules />} />
                 
               </Route>
 

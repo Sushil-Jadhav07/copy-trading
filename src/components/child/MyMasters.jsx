@@ -78,30 +78,20 @@ const MyMasters = () => {
     if (error) addToast(error, 'error');
   }, [error, addToast]);
 
-  const handleToggle = async (id) => {
-    const master = masters.find((x) => x.id === id);
-    if (!master || !['ACTIVE', 'PAUSED'].includes(normalizeStatus(master.status))) {
-      addToast('Only active subscriptions can be paused or resumed', 'warning');
-      return;
-    }
-
+  const handleToggle = async (master) => {
     const newEnabled = !master.tradingEnabled;
+    setMasters((prev) => prev.map((m) => m.id === master.id ? { ...m, tradingEnabled: newEnabled } : m));
     try {
       if (newEnabled) {
-        await childService.resumeCopying({ masterId: id });
+        await childService.resumeCopying({ masterId: master.id });
       } else {
-        await childService.pauseCopying({ masterId: id });
+        await childService.pauseCopying({ masterId: master.id });
       }
-      setMasters((prev) =>
-        prev.map((item) =>
-          item.id === id
-            ? { ...item, tradingEnabled: newEnabled, status: newEnabled ? 'ACTIVE' : 'PAUSED' }
-            : item
-        )
-      );
-      addToast(`${master.name} ${newEnabled ? 'activated' : 'paused'}`, newEnabled ? 'success' : 'warning');
+      addToast(newEnabled ? 'Copying resumed' : 'Copying paused', 'success');
+      refetch();
     } catch (e) {
-      addToast(e.message, 'error');
+      setMasters((prev) => prev.map((m) => m.id === master.id ? { ...m, tradingEnabled: master.tradingEnabled } : m));
+      addToast(e.message || 'Failed to update copy status', 'error');
     }
   };
 
@@ -139,7 +129,7 @@ const MyMasters = () => {
         {masters.length > 0 && (
           <button
             onClick={handleBulkUnfollow}
-            className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors"
+            className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors"
           >
             Unfollow All
           </button>
@@ -274,7 +264,7 @@ const MyMasters = () => {
                 <div className="flex items-center justify-between pt-3 border-t border-border/40">
                   <span className="text-sm text-muted-foreground">Copy Trading</span>
                   <button
-                    onClick={() => canToggle && handleToggle(master.id)}
+                    onClick={() => canToggle && handleToggle(master)}
                     className={`flex items-center gap-2 ${!canToggle || isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     {master.tradingEnabled ? (
@@ -323,7 +313,7 @@ const MyMasters = () => {
                 }
                 setUnfollowModal(false);
               }}
-              className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors"
+              className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors"
             >
               Unfollow
             </button>

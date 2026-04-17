@@ -79,7 +79,7 @@ const PhoneInput = ({
           style={inputStyle}
         >
           <FlagImg iso={selected.iso} size={20} />
-          <span className="text-slate-700 dark:text-slate-200 tabular-nums">{selected.code}</span>
+          <span className="text-slate-400 dark:text-slate-200 tabular-nums">{selected.code}</span>
           <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showDrop ? 'rotate-180' : ''}`} />
         </button>
 
@@ -120,6 +120,8 @@ const PhoneInput = ({
         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
         <input
           type="tel"
+          name="phone"
+          autoComplete="tel-national"
           inputMode="numeric"
           maxLength={maxLength}
           value={value}

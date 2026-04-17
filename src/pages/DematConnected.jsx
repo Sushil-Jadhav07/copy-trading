@@ -58,9 +58,11 @@ const DematConnected = () => {
     if (!accountId) return;
     setDetailsLoading(true);
     try {
-      const data = await brokerService.getAccount(accountId);
+      const data = await brokerService.getDashboard(accountId);
       setAccountDetails(data);
-    } catch { /* non-critical */ }
+    } catch {
+      // non-critical — the connection was already verified, don't surface this error
+    }
     finally { setDetailsLoading(false); }
   };
 
@@ -123,33 +125,61 @@ const DematConnected = () => {
                   <span className="text-xs font-semibold text-emerald-500">Connected & Verified</span>
                 </div>
 
-                {/* Balance */}
+                {/* Profile name */}
+                {accountDetails.profile?.name && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
+                    <span className="text-xs text-muted-foreground">Account Holder</span>
+                    <span className="text-xs font-medium">{accountDetails.profile.name}</span>
+                  </div>
+                )}
+
+                {/* Available Balance */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <IndianRupee className="w-3.5 h-3.5" />
                     Available Balance
                   </div>
                   <span className="text-sm font-bold">
-                    {formatCurrency(accountDetails.margin || 0)}
+                    {formatCurrency(accountDetails.margin?.availableMargin ?? accountDetails.account?.margin ?? accountDetails.margin ?? 0)}
                   </span>
                 </div>
 
-                {/* Account ID */}
-                {(accountDetails.clientId || accountDetails.userId) && (
+                {/* Total Funds */}
+                {accountDetails.margin?.totalFunds > 0 && (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
-                    <span className="text-xs text-muted-foreground">Account ID</span>
-                    <span className="text-xs font-medium font-mono">{accountDetails.clientId || accountDetails.userId}</span>
+                    <span className="text-xs text-muted-foreground">Total Funds</span>
+                    <span className="text-xs font-medium">{formatCurrency(accountDetails.margin.totalFunds)}</span>
+                  </div>
+                )}
+
+                {/* Account / Client ID */}
+                {(accountDetails.account?.clientId || accountDetails.clientId || accountDetails.userId) && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
+                    <span className="text-xs text-muted-foreground">Client ID</span>
+                    <span className="text-xs font-medium font-mono">
+                      {accountDetails.account?.clientId || accountDetails.clientId || accountDetails.userId}
+                    </span>
+                  </div>
+                )}
+
+                {/* Open Positions count */}
+                {accountDetails.positions?.length > 0 && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
+                    <span className="text-xs text-muted-foreground">Open Positions</span>
+                    <span className="text-xs font-medium">{accountDetails.positions.length}</span>
                   </div>
                 )}
 
                 {/* Last Synced */}
-                {accountDetails.linkedAt && (
+                {(accountDetails.account?.linkedAt || accountDetails.linkedAt) && (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-black/4 dark:bg-white/4 border border-border/50">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="w-3.5 h-3.5" />
                       Last Synced
                     </div>
-                    <span className="text-xs text-muted-foreground">{formatSyncTime(accountDetails.linkedAt)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatSyncTime(accountDetails.account?.linkedAt || accountDetails.linkedAt)}
+                    </span>
                   </div>
                 )}
               </div>

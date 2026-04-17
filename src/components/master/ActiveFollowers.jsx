@@ -351,7 +351,7 @@ const ActiveFollowers = () => {
           <p className="text-muted-foreground text-sm">Remove <span className="font-semibold text-foreground">{selectedFollower?.name}</span> from your followers?</p>
           <div className="flex flex-col sm:flex-row gap-3">
             <button onClick={() => setRemoveModalOpen(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={confirmRemove} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Remove</button>
+            <button onClick={confirmRemove} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Remove</button>
           </div>
         </div>
       </Modal>

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authService, authStorage } from '@/lib/auth';
+import { disconnectAll } from '@/lib/websocket';
 
 const AuthContext = createContext(null);
 
@@ -91,6 +92,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
     } finally {
+      disconnectAll();
       setUser(null);
       setIsAuthenticated(false);
     }
@@ -147,8 +149,19 @@ export const AuthProvider = ({ children }) => {
 
   const sendOtp = useCallback(async (phone) => {
     try {
-      await authService.sendOtp(phone);
-      return { success: true };
+      const res = await authService.sendOtp(phone);
+      const data = res?.data || res;
+      if (data?.success === false) {
+        const retryAfter = data?.data?.retryAfter ?? null;
+        return {
+          success: false,
+          error: data?.message || data?.error || 'Failed to send OTP',
+          errorCode: data?.error || null,
+          retryAfter,
+        };
+      }
+      const retryAfter = data?.data?.retryAfter ?? null;
+      return { success: true, retryAfter };
     } catch (error) {
       return { success: false, error: error.message };
     }

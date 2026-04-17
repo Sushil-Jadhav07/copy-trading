@@ -13,19 +13,26 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useNotifications } from '@/hooks/useNotifications';
 
 const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
   const navigate = useNavigate();
   const { user, logout, getEffectiveRole } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const notifications = [];
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    refetch,
+  } = useNotifications();
+
   const masters = [];
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [localNotifications, setLocalNotifications] = useState(notifications);
 
   const notificationRef = useRef(null);
   const userMenuRef = useRef(null);
@@ -57,18 +64,13 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
     }
   };
 
-  const markAllAsRead = () => {
-    setLocalNotifications((prev) =>
-      prev.map((n) => ({ ...n, read: true }))
-    );
-    setUnreadCount(0);
+  const onMarkAllRead = async () => {
+    await markAllAsRead();
+    refetch();
   };
 
-  const markAsRead = (id) => {
-    setLocalNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
+  const onMarkRead = async (id) => {
+    await markAsRead(id);
   };
 
   const searchResults = searchQuery
@@ -216,7 +218,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                     <h3 className="font-bold text-slate-800 dark:text-foreground">Notifications</h3>
                     {unreadCount > 0 && (
                       <button
-                        onClick={markAllAsRead}
+                        onClick={onMarkAllRead}
                         className="text-xs font-bold text-brand-purple hover:underline uppercase tracking-wider"
                       >
                         Mark all as read
@@ -224,14 +226,14 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                     )}
                   </div>
                   <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
-                    {localNotifications.length > 0 ? (
-                      localNotifications.map((n) => (
+                    {notifications.length > 0 ? (
+                      notifications.map((n) => (
                         <div
                           key={n.id}
                           className={`p-4 border-b border-slate-50 dark:border-white/5 last:border-0 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer relative ${
                             !n.read ? 'bg-slate-50/50 dark:bg-white/2' : ''
                           }`}
-                          onClick={() => markAsRead(n.id)}
+                          onClick={() => onMarkRead(n.id)}
                         >
                           {!n.read && (
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-purple" />
@@ -246,7 +248,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                                 {n.message}
                               </p>
                               <p className="text-[10px] font-medium text-slate-400 dark:text-muted-foreground mt-2 uppercase tracking-wider">
-                                {n.time}
+                                {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
                               </p>
                             </div>
                           </div>

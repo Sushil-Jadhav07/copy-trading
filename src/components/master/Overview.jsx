@@ -10,6 +10,7 @@ import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren } from '@/hooks/useMaster';
+import { connectChannel } from '@/lib/websocket';
 
 const Overview = () => {
   const { addToast } = useToast();
@@ -20,6 +21,8 @@ const Overview = () => {
     { id: 3, label: 'Go Live', completed: false },
   ]);
   const [showOnboarding, setShowOnboarding] = useState(true);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [liveEvents, setLiveEvents] = useState([]);
   const { analytics, loading: analyticsLoading, error: analyticsError } = useMasterAnalytics();
   const { trades: recentTrades, loading: tradesLoading, error: tradesError } = useMasterTradeHistory();
   const { children } = useMasterChildren();
@@ -28,6 +31,30 @@ const Overview = () => {
     if (analyticsError) addToast(analyticsError, 'error');
     if (tradesError) addToast(tradesError, 'error');
   }, [analyticsError, tradesError, addToast]);
+
+  useEffect(() => {
+    const connection = connectChannel(
+      'trades',
+      (event, data) => {
+        setLiveEvents((current) => [
+          {
+            id: `${Date.now()}-${Math.random()}`,
+            event,
+            data,
+            timestamp: new Date().toISOString(),
+          },
+          ...current,
+        ].slice(0, 20));
+      },
+      () => setLiveConnected(true),
+      () => setLiveConnected(false),
+    );
+
+    return () => {
+      setLiveConnected(false);
+      connection.close();
+    };
+  }, []);
 
   const toggleOnboardingStep = (id) => {
     setOnboardingSteps((prev) => prev.map((step) => (step.id === id ? { ...step, completed: !step.completed } : step)));
@@ -76,7 +103,7 @@ const Overview = () => {
         <GlassCard className="lg:col-span-2" title="Portfolio Performance">
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {['1D', '1W', '1M', '3M'].map((range) => (
-              <button key={range} onClick={() => setTimeRange(range)} className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${timeRange === range ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'}`}>
+              <button key={range} onClick={() => setTimeRange(range)} className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${timeRange === range ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'}`}>
                 {range}
               </button>
             ))}
@@ -111,7 +138,7 @@ const Overview = () => {
               <div key={follower.id} className="flex items-center justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center">
-                    <span className="text-sm font-bold text-foreground">{follower.initials}</span>
+                    <span className="text-sm font-bold text-white">{follower.initials}</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium">{follower.name}</p>
@@ -134,7 +161,7 @@ const Overview = () => {
             <div key={f.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center">
-                  <span className="text-xs font-bold text-foreground">{f.initials}</span>
+                  <span className="text-xs font-bold text-white">{f.initials}</span>
                 </div>
                 <div>
                   <p className="text-sm font-semibold">{f.name}</p>
@@ -150,12 +177,46 @@ const Overview = () => {
         </div>
       </GlassCard>
 
+      <GlassCard
+        title="Live Trade Feed"
+        subtitle="Last 20 trade engine events"
+        action={
+          <span className={`text-xs font-semibold ${liveConnected ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+            {liveConnected ? '● Live' : '○ Disconnected'}
+          </span>
+        }
+      >
+        <div className="max-h-80 space-y-2 overflow-y-auto">
+          {liveEvents.map((item) => {
+            const tone =
+              item.event === 'TRADE_EXECUTED' ? 'bg-emerald-500/15 text-emerald-500' :
+              item.event === 'TRADE_FAILED' ? 'bg-rose-500/15 text-rose-500' :
+              item.event === 'TRADE_CANCELLED' ? 'bg-amber-500/15 text-amber-500' :
+              'bg-brand-blue/15 text-brand-blue';
+            return (
+              <div key={item.id} className="rounded-lg bg-black/5 p-3 dark:bg-white/5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${tone}`}>{item.event}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(item.timestamp).toLocaleTimeString('en-IN')}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {item.data?.message || item.data?.description || item.data?.symbol || 'Trade event received'}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          {!liveEvents.length && <p className="text-sm text-muted-foreground">No live trade events received yet.</p>}
+        </div>
+      </GlassCard>
+
       {showOnboarding && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
               <h3 className="font-semibold">Getting Started</h3>
-              <p className="text-sm text-muted-foreground">Complete these steps to get the most out of TradePilot</p>
+              <p className="text-sm text-muted-foreground">Complete these steps to get the most out of Ascentra Capital</p>
             </div>
             <button onClick={() => setShowOnboarding(false)} className="p-1.5 rounded-lg hover:bg-black/10 dark:bg-white/10 transition-colors">
               <X className="w-5 h-5" />

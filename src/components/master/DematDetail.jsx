@@ -1,18 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Wifi, WifiOff, AlertTriangle, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { formatCurrency } from '@/lib/utils';
 
-const TABS = ['Positions', 'Orders', 'Trades'];
+// ── Signal bars component ────────────────────────────────────────────────────
+const SignalBars = ({ signal }) => {
+  if (!signal) return null;
+  const { bars, maxBars = 4, quality, color } = signal;
+  const colorClass = color === 'green' ? 'bg-success' : color === 'yellow' ? 'bg-warning' : 'bg-danger';
+  return (
+    <div className="flex items-center gap-1.5" title={`Connection: ${quality} (${bars}/${maxBars} bars)`}>
+      {Array.from({ length: maxBars }).map((_, i) => (
+        <div
+          key={i}
+          className={`rounded-sm transition-colors ${i < bars ? colorClass : 'bg-border/40'}`}
+          style={{ width: 4, height: 6 + i * 3 }}
+        />
+      ))}
+      <span className={`text-xs ml-0.5 ${color === 'green' ? 'text-success' : color === 'yellow' ? 'text-warning' : 'text-danger'}`}>
+        {quality}
+      </span>
+    </div>
+  );
+};
+
+// ── Balance alert badge ──────────────────────────────────────────────────────
+const BalanceAlertBadge = ({ alert }) => {
+  if (!alert || alert.level === 'OK') return null;
+  const cfg = {
+    CRITICAL: { cls: 'bg-danger/15 text-danger border-danger/30', Icon: AlertCircle },
+    WARNING:  { cls: 'bg-warning/15 text-warning border-warning/30', Icon: AlertTriangle },
+    LOW:      { cls: 'bg-orange-500/15 text-orange-400 border-orange-500/30', Icon: AlertTriangle },
+  };
+  const { cls, Icon } = cfg[alert.level] || cfg.WARNING;
+  return (
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${cls}`}>
+      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+      {alert.message || `Balance ${alert.level.toLowerCase()}`}
+    </div>
+  );
+};
+
+const TABS = ['Positions', 'Holdings', 'Orders', 'Trades'];
 
 const getMarginValue = (marginData, fallback = 0) =>
   marginData?.availableMargin ?? marginData?.available ?? marginData?.net ?? fallback;
-
-const getErrorText = (error, fallback) => error?.message || fallback;
 
 const toNumber = (value, fallback = 0) => {
   const num = Number(value);
@@ -56,6 +92,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const [squareOffModal, setSquareOffModal] = useState(false);
   const [selectedPos, setSelectedPos] = useState(null);
   const [positions, setPositions] = useState([]);
+  const [holdings, setHoldings] = useState([]);
   const [orders, setOrders] = useState([]);
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
@@ -66,6 +103,10 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const [testResult, setTestResult] = useState(null);
   const [positionsError, setPositionsError] = useState('');
   const [marginError, setMarginError] = useState('');
+  const [signal, setSignal] = useState(null);
+  const [balanceAlert, setBalanceAlert] = useState(null);
+  const [growwReAuthToken, setGrowwReAuthToken] = useState('');
+  const [growwReAuthLoading, setGrowwReAuthLoading] = useState(false);
   const isChildScope = scope === 'child';
 
   const resolvedBack = onBack || (() => navigate('/master/user-management'));
@@ -78,68 +119,87 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
       setLoadingData(true);
       setPositionsError('');
       setMarginError('');
-
-      const requests = [brokerService.getAccount(accountId)];
-
-      if (!isChildScope) {
-        requests.push(brokerService.getPositions(accountId));
-        requests.push(brokerService.getMargin(accountId));
-      }
-
-      const results = await Promise.allSettled(requests);
-      const accountResult = results[0];
-      const positionsResult = isChildScope ? null : results[1];
-      const marginResult = isChildScope ? null : results[2];
-
-      if (!isMounted) return;
-
-      if (accountResult.status === 'fulfilled') {
-        const acct = accountResult.value;
-        const marginValue =
-          marginResult?.status === 'fulfilled'
-            ? getMarginValue(marginResult.value, toNumber(acct.margin))
-            : toNumber(acct.margin);
-
-        setAccount({
-          broker: acct.brokerName || acct.brokerId || '',
-          userId: acct.clientId || '',
-          nickname: acct.nickname || '',
-          margin: marginValue,
-          sessionActive: acct.sessionActive,
-          status: acct.status,
-          linkedAt: acct.linkedAt || null,
-        });
-      } else {
-        addToast(getErrorText(accountResult.reason, 'Unable to load account'), 'error');
-      }
-
-      if (isChildScope) {
-        setPositions([]);
-        setPositionsError('Live positions are not available for child demat accounts with the current API.');
-      } else if (positionsResult.status === 'fulfilled') {
-        setPositions(positionsResult.value);
-      } else {
-        const message = getErrorText(positionsResult.reason, 'Unable to load positions');
-        setPositions([]);
-        setPositionsError(message);
-        addToast(message, 'error');
-      }
-
-      if (isChildScope) {
-        setMarginError('Live margin is not exposed for child demat accounts with the current API.');
-      } else if (marginResult.status === 'fulfilled') {
-        const marginValue = getMarginValue(marginResult.value, 0);
-        setMarginError('');
-        setAccount((prev) => (prev ? { ...prev, margin: marginValue } : prev));
-      } else {
-        const message = getErrorText(marginResult.reason, 'Unable to load margin');
-        setMarginError(message);
-        addToast(message, 'error');
-      }
-
       setOrders([]);
       setTrades([]);
-      setLoadingData(false);
+      setHoldings([]);
+
+      try {
+        const data = await brokerService.getDashboard(accountId);
+
+        if (!isMounted) return;
+
+        if (data.signal) setSignal(data.signal);
+        if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
+        setAccount({
+          broker: data.account.brokerName || data.account.brokerId || '',
+          userId: data.account.clientId || '',
+          nickname: data.account.nickname || '',
+          margin: data.margin?.availableMargin ?? data.account.margin ?? 0,
+          sessionActive: data.account.sessionActive,
+          status: data.account.status,
+          linkedAt: data.account.linkedAt || null,
+        });
+
+        if (isChildScope) {
+          setPositions([]);
+          setPositionsError('Live positions are not available for child demat accounts with the current API.');
+        } else if (data.errors.positions) {
+          setPositionsError(data.errors.positions);
+          setPositions([]);
+          addToast(data.errors.positions, 'error');
+        } else {
+          setPositions(data.positions);
+        }
+
+        if (isChildScope) {
+          setMarginError('Live margin is not exposed for child demat accounts with the current API.');
+        } else if (data.errors.margin) {
+          setMarginError(data.errors.margin);
+          addToast(data.errors.margin, 'error');
+        }
+
+        if (!isChildScope && (data.errors.margin || !data.margin)) {
+          try {
+            const marginData = await brokerService.getMargin(accountId);
+            const marginValue = getMarginValue(marginData, data.account?.margin ?? 0);
+            setAccount((prev) => (prev ? { ...prev, margin: marginValue } : prev));
+          } catch (e) {
+            // keep existing margin
+          }
+        }
+
+        if (data.errors.holdings) {
+          setHoldings([]);
+        } else {
+          setHoldings(data.holdings);
+        }
+
+        const [ordersResult, tradesResult] = await Promise.allSettled([
+          brokerService.getOrders(accountId),
+          brokerService.getTrades(accountId),
+        ]);
+
+        if (isMounted) {
+          if (ordersResult.status === 'fulfilled') {
+            setOrders(ordersResult.value);
+          } else {
+            setOrders([]);
+          }
+
+          if (tradesResult.status === 'fulfilled') {
+            setTrades(tradesResult.value);
+          } else {
+            setTrades([]);
+          }
+
+          setLoadingData(false);
+        }
+      } catch (e) {
+        if (!isMounted) return;
+        addToast(e.message || 'Unable to load account', 'error');
+      } finally {
+        if (isMounted) setLoadingData(false);
+      }
     };
 
     loadData();
@@ -147,7 +207,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     return () => {
       isMounted = false;
     };
-  }, [accountId, addToast]);
+  }, [accountId, addToast, isChildScope]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -155,51 +215,65 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     setMarginError('');
 
     try {
+      const data = await brokerService.getDashboard(accountId);
+
+      if (data.signal) setSignal(data.signal);
+      if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
+      setAccount((prev) => ({
+        ...(prev || {}),
+        broker: data.account.brokerName || data.account.brokerId || prev?.broker || '',
+        userId: data.account.clientId || prev?.userId || '',
+        nickname: data.account.nickname || prev?.nickname || '',
+        margin: data.margin?.availableMargin ?? prev?.margin ?? 0,
+        sessionActive: data.account.sessionActive,
+        status: data.account.status,
+        linkedAt: data.account.linkedAt || prev?.linkedAt || null,
+      }));
+
       if (isChildScope) {
-        const acct = await brokerService.getAccount(accountId);
-        setAccount((prev) => ({
-          ...(prev || {}),
-          broker: acct.brokerName || acct.brokerId || prev?.broker || '',
-          userId: acct.clientId || prev?.userId || '',
-          nickname: acct.nickname || prev?.nickname || '',
-          sessionActive: acct.sessionActive,
-          status: acct.status,
-          linkedAt: acct.linkedAt || prev?.linkedAt || null,
-          margin: prev?.margin || toNumber(acct.margin),
-        }));
-        addToast('Account details refreshed', 'success');
-        return;
+        setPositions([]);
+        setPositionsError('Live positions are not available for child demat accounts with the current API.');
+        setMarginError('Live margin is not exposed for child demat accounts with the current API.');
+      } else {
+        if (data.errors.positions) {
+          setPositionsError(data.errors.positions);
+          setPositions([]);
+          addToast(data.errors.positions, 'error');
+        } else {
+          setPositions(data.positions);
+        }
+        if (data.errors.margin) {
+          setMarginError(data.errors.margin);
+          addToast(data.errors.margin, 'error');
+        }
       }
 
-      const [positionsResult, marginResult] = await Promise.allSettled([
-        brokerService.getPositions(accountId),
-        brokerService.getMargin(accountId),
+      if (!isChildScope && (data.errors.margin || !data.margin)) {
+        try {
+          const marginData = await brokerService.getMargin(accountId);
+          const marginValue = getMarginValue(marginData, data.account?.margin ?? 0);
+          setAccount((prev) => (prev ? { ...prev, margin: marginValue } : prev));
+        } catch (e) {
+          // keep existing margin
+        }
+      }
+
+      if (data.errors.holdings) {
+        setHoldings([]);
+      } else {
+        setHoldings(data.holdings);
+      }
+
+      const [ordersRefresh, tradesRefresh] = await Promise.allSettled([
+        brokerService.getOrders(accountId),
+        brokerService.getTrades(accountId),
       ]);
+      if (ordersRefresh.status === 'fulfilled') setOrders(ordersRefresh.value);
+      if (tradesRefresh.status === 'fulfilled') setTrades(tradesRefresh.value);
 
-      let refreshed = false;
-
-      if (positionsResult.status === 'fulfilled') {
-        setPositions(positionsResult.value);
-        refreshed = true;
-      } else {
-        const message = getErrorText(positionsResult.reason, 'Unable to load positions');
-        setPositionsError(message);
-        addToast(message, 'error');
-      }
-
-      if (marginResult.status === 'fulfilled') {
-        const marginValue = getMarginValue(marginResult.value, toNumber(account?.margin));
-        setAccount((prev) => (prev ? { ...prev, margin: marginValue } : prev));
-        refreshed = true;
-      } else {
-        const message = getErrorText(marginResult.reason, 'Unable to load margin');
-        setMarginError(message);
-        addToast(message, 'error');
-      }
-
-      if (refreshed) {
-        addToast('Refreshed', 'success');
-      }
+      addToast('Refreshed', 'success');
+    } catch (e) {
+      addToast(e.message || 'Refresh failed', 'error');
     } finally {
       setRefreshing(false);
     }
@@ -227,10 +301,45 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     }
   };
 
-  const confirmSquareOff = () => {
-    setPositions((p) => p.filter((x) => x.id !== selectedPos.id));
-    setSquareOffModal(false);
-    addToast(`${selectedPos.symbol} squared off`, 'success');
+  const handleGrowwReAuth = async () => {
+    const token = growwReAuthToken.trim();
+    if (!token) { addToast('Please paste your new Groww access token', 'error'); return; }
+    setGrowwReAuthLoading(true);
+    try {
+      await brokerService.loginAccount(accountId, { accessToken: token });
+      setGrowwReAuthToken('');
+      addToast('Groww session refreshed successfully', 'success');
+      // Reload dashboard data after re-auth
+      const data = await brokerService.getDashboard(accountId);
+      if (data.signal) setSignal(data.signal);
+      if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
+      setAccount((prev) => ({ ...prev, sessionActive: data.account.sessionActive, margin: data.margin?.availableMargin ?? prev?.margin ?? 0 }));
+      setPositions(data.positions || []);
+      setHoldings(data.holdings || []);
+      setOrders(data.orders || []);
+    } catch (e) {
+      addToast(e.message || 'Re-authentication failed. Check your token and try again.', 'error');
+    } finally {
+      setGrowwReAuthLoading(false);
+    }
+  };
+
+  const confirmSquareOff = async () => {
+    if (!selectedPos) return;
+    try {
+      await brokerService.closePosition(accountId, {
+        symbol: selectedPos.symbol,
+        qty: selectedPos.qty,
+        type: 'SELL',
+        product: selectedPos.market || 'MIS',
+      });
+      setPositions((p) => p.filter((x) => x.id !== selectedPos.id));
+      setSquareOffModal(false);
+      addToast(`${selectedPos.symbol} squared off`, 'success');
+    } catch (e) {
+      addToast(e.message || 'Square off failed', 'error');
+      setSquareOffModal(false);
+    }
   };
 
   const getRelativeTime = (date) => {
@@ -275,6 +384,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   })();
 
   const filteredPositions = positions.filter((p) => !search || String(p.symbol || '').toLowerCase().includes(search.toLowerCase()));
+  const filteredHoldings = holdings.filter((h) => !search || String(h.symbol || '').toLowerCase().includes(search.toLowerCase()));
   const filteredOrders = orders.filter((o) => !search || String(o.symbol || '').toLowerCase().includes(search.toLowerCase()));
   const filteredTrades = trades.filter((t) => !search || String(t.symbol || '').toLowerCase().includes(search.toLowerCase()));
 
@@ -315,6 +425,8 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           </div>
           <div className="text-xs text-muted-foreground">{getRelativeTime(account?.linkedAt)}</div>
           <div className="text-xs text-muted-foreground">Balance: {formatCurrency(account?.margin)}</div>
+          <SignalBars signal={signal} />
+          <BalanceAlertBadge alert={balanceAlert} />
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {testResult && (
@@ -331,6 +443,40 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           </button>
         </div>
       </div>
+
+      {/* ── Groww expired token banner ── */}
+      {account && !account.sessionActive && String(account.broker || '').toLowerCase() === 'groww' && (
+        <div className="glass-card p-4 border border-amber-500/30 bg-amber-500/5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-500">Groww session expired</p>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                Groww access tokens reset every day at <span className="font-medium text-foreground">6:00 AM IST</span>.
+                Get your new token from Groww app/web → Profile → Access Token, then paste it below.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={growwReAuthToken}
+                  onChange={(e) => setGrowwReAuthToken(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGrowwReAuth()}
+                  placeholder="Paste new Groww access token…"
+                  className="flex-1 px-3 py-2 rounded-lg bg-black/10 dark:bg-white/10 border border-border/60 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                />
+                <button
+                  onClick={handleGrowwReAuth}
+                  disabled={growwReAuthLoading || !growwReAuthToken.trim()}
+                  className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                >
+                  {growwReAuthLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  {growwReAuthLoading ? 'Refreshing…' : 'Refresh Token'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="glass-card overflow-hidden">
         <div className="flex border-b border-border/50">
@@ -423,7 +569,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
                             setSquareOffModal(true);
                           }}
                           className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
-                            pnl >= 0 ? 'bg-success hover:bg-success/90 text-foreground' : 'bg-danger hover:bg-danger/90 text-foreground'
+                            pnl >= 0 ? 'bg-success hover:bg-success/90 text-white' : 'bg-danger hover:bg-danger/90 text-white'
                           }`}
                         >
                           Square OFF
@@ -443,11 +589,55 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             </table>
           )}
 
+          {activeTab === 'Holdings' && (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/50">
+                  {['#', 'Symbol', 'Qty', 'Avg Price', 'LTP', 'P&L'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredHoldings.map((h, idx) => (
+                  <motion.tr
+                    key={h.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: idx * 0.04 }}
+                    className="border-b border-border/30 hover:bg-white/3 transition-colors"
+                  >
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                    <td className="px-4 py-3 font-semibold text-sm">{h.symbol}</td>
+                    <td className="px-4 py-3 text-sm">{h.quantity}</td>
+                    <td className="px-4 py-3 text-sm">{h.avgPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm">{h.lastPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-sm font-semibold ${h.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                        {h.pnl >= 0 ? '+' : ''}
+                        {h.pnl.toFixed(2)}
+                      </span>
+                    </td>
+                  </motion.tr>
+                ))}
+                {filteredHoldings.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      {loadingData ? 'Loading holdings...' : 'No holdings found'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
           {activeTab === 'Orders' && (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['Id', 'Symbol', 'Trans', 'Product', 'Type', 'Qty', 'Price', 'Time', 'Order Id', 'Status'].map((h) => (
+                  {['Id', 'Symbol', 'Trans', 'Product', 'Type', 'Qty', 'Price', 'Time', 'Order Id', 'Status', 'Action'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
@@ -477,11 +667,29 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
                     <td className="px-4 py-3">
                       <StatusBadge status={ord.status} />
                     </td>
+                    <td className="px-4 py-3">
+                      {(ord.status === 'PENDING' || ord.status === 'OPEN' || ord.raw?.status === 'TRIGGER PENDING') && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await brokerService.cancelOrder(accountId, ord.id);
+                              setOrders((prev) => prev.filter((o) => o.id !== ord.id));
+                              addToast(`Order ${ord.id} cancelled`, 'success');
+                            } catch (e) {
+                              addToast(e.message || 'Cancel failed', 'error');
+                            }
+                          }}
+                          className="px-3 py-1 rounded text-xs font-bold bg-danger hover:bg-danger/90 text-white transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </td>
                   </motion.tr>
                 ))}
                 {filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={11} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No orders found
                     </td>
                   </tr>
@@ -537,6 +745,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           <span>
             Rows per page: 10 &nbsp;|&nbsp;
             {activeTab === 'Positions' && `1-${filteredPositions.length} of ${filteredPositions.length}`}
+            {activeTab === 'Holdings' && `1-${holdings.length} of ${holdings.length}`}
             {activeTab === 'Orders' && `1-${filteredOrders.length} of ${filteredOrders.length}`}
             {activeTab === 'Trades' && `1-${filteredTrades.length} of ${filteredTrades.length}`}
           </span>
@@ -579,7 +788,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
               </button>
               <button
                 onClick={confirmSquareOff}
-                className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors"
+                className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Confirm Square Off
               </button>

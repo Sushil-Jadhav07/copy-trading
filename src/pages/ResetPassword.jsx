@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Lock } from 'lucide-react';
@@ -15,7 +15,14 @@ const ResetPassword = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const token = searchParams.get('token') || '';
+  const [token, setToken] = useState(searchParams.get('token') || '');
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem('pw_reset_token');
+    if (saved) {
+      setToken(saved);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,6 +46,7 @@ const ResetPassword = () => {
         newPassword: password,
       });
 
+      sessionStorage.removeItem('pw_reset_token');
       navigate('/login', {
         replace: true,
         state: {

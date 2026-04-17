@@ -132,7 +132,7 @@ const PendingVerification = () => {
                   <div className="flex flex-col sm:flex-row gap-3 lg:w-auto">
                     <button
                       onClick={() => openActionModal(request, 'approve')}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-success hover:bg-success/90 text-foreground text-sm font-medium transition-colors"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-success hover:bg-success/90 text-white text-sm font-medium transition-colors"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       Approve
@@ -181,8 +181,8 @@ const PendingVerification = () => {
               onClick={handleAction}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                 actionType === 'approve'
-                  ? 'bg-success hover:bg-success/90 text-foreground'
-                  : 'bg-danger hover:bg-danger/90 text-foreground'
+                  ? 'bg-success hover:bg-success/90 text-white'
+                  : 'bg-danger hover:bg-danger/90 text-white'
               }`}
             >
               {actionType === 'approve' ? 'Approve' : 'Reject'}

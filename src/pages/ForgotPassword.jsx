@@ -29,11 +29,19 @@ const ForgotPassword = () => {
 
     try {
       if (method === 'email') {
-        await authService.forgotPassword(email);
+        const res = await authService.forgotPassword(email);
+        const data = res?.data || res;
+        if (data?.resetToken) {
+          sessionStorage.setItem('pw_reset_token', data.resetToken);
+        }
         setSuccess("If this email exists, you'll receive a reset link shortly.");
       } else {
         const fullPhone = `${countryCode}${phone}`;
-        await authService.forgotPassword(fullPhone);
+        const res = await authService.forgotPassword(fullPhone);
+        const data = res?.data || res;
+        if (data?.resetToken) {
+          sessionStorage.setItem('pw_reset_token', data.resetToken);
+        }
         setSuccess("If this phone number is registered, you'll receive an OTP shortly.");
       }
     } catch (err) {

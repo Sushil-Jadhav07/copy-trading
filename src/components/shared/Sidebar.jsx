@@ -14,6 +14,7 @@ import {
   Users,
   UserPlus,
   DollarSign,
+  Zap,
   Clock,
   ArrowLeftRight,
   PieChart,
@@ -48,7 +49,6 @@ import { useTheme } from '@/context/ThemeContext';
 const whitelogo = '/asset/whitelogo.png';
 const singlelogo = '/asset/singlelogo.png';
 const logomain = '/asset/logomain.png';
-const logo = '/asset/logo.png';
 
 const SidebarItem = ({ to, icon: Icon, label, collapsed, badge }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -149,6 +149,9 @@ const masterSidebarItems = [
         { to: '/master/user-management', icon: LayoutGrid, label: 'Demat Accounts' },
         { to: '/master/copy-trading', icon: Copy, label: 'Copy Trading' },
         { to: '/master/logs', icon: FileText, label: 'Logs' },
+        { to: '/master/trade-executor', icon: Zap, label: 'Execute Trade' },
+        { to: '/master/risk-dashboard', icon: Shield, label: 'Risk Monitor' },
+        { to: '/master/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
     },
     {
@@ -193,6 +196,7 @@ const childSidebarItems = [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
         { to: '/child/pnl-dashboard', icon: BarChart2, label: 'P&L Dashboard' },
+        { to: '/child/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
     },
     {
@@ -232,6 +236,8 @@ const childSidebarItems = [
         { to: '/admin/broker-status', icon: Server, label: 'Broker Status' },
         { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
         { to: '/admin/system-logs', icon: FileText, label: 'System Logs' },
+        { to: '/admin/pnl', icon: DollarSign, label: 'Platform P&L' },
+        { to: '/admin/risk-rules', icon: Shield, label: 'Risk Rules' },
       ],
     },
   ];
@@ -247,9 +253,9 @@ const childSidebarItems = [
       {/* Logo */}
       <div className={`h-20 flex items-center border-b border-slate-100/50 dark:border-white/5 relative transition-all duration-300 ${collapsed && !isMobile ? 'justify-center px-2' : 'justify-between px-6'}`}>
         <div className={`flex items-center gap-3 overflow-hidden ${collapsed && !isMobile ? 'justify-center' : ''}`}>
-          <div className={`${collapsed && !isMobile ? 'w-10 h-10 rounded-xl bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center shadow-lg shadow-brand-purple/20' : 'w-40 h-12'} flex-shrink-0 transition-all duration-500`}>
+          <div className={`${collapsed && !isMobile ? 'w-14 h-14 flex items-center justify-center' : 'w-40 h-12'} flex-shrink-0 transition-all duration-500`}>
             {collapsed && !isMobile ? (
-              <img src="/asset/whitelogo.png" alt="Logo" className="w-6 h-6 object-contain" />
+              <img src={singlelogo} alt="Logo" className="w-12 h-12 object-contain" />
             ) : (
               <img 
                 src={isDark ? whitelogo : logomain}

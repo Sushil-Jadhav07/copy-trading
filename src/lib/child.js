@@ -14,7 +14,19 @@ const extractList = (data) => {
   return candidates[0] || [];
 };
 
-const SUBSCRIPTION_ALLOCATION_CACHE_KEY = 'tradepilot_child_subscription_allocations';
+const normalizeMaster = (raw = {}, index = 0) => ({
+  id: raw.masterId || raw.userId || raw.id || `master-${index}`,
+  masterId: raw.masterId || raw.userId || raw.id || `master-${index}`,
+  name: raw.name || raw.masterName || raw.fullName || 'Unknown',
+  email: raw.email || '',
+  winRate: Number(raw.winRate ?? raw.win_rate ?? 0),
+  totalTrades: Number(raw.totalTrades ?? raw.tradeCount ?? 0),
+  avgPnl: Number(raw.avgPnl ?? raw.averagePnl ?? raw.avgPnL ?? 0),
+  subscribers: Number(raw.subscribers ?? raw.subscriberCount ?? raw.childCount ?? 0),
+  raw,
+});
+
+const SUBSCRIPTION_ALLOCATION_CACHE_KEY = 'Ascentra Capital_child_subscription_allocations';
 
 const readAllocationCache = () => {
   if (typeof window === 'undefined') return {};
@@ -105,7 +117,11 @@ export const childService = {
   async getMasters() {
     try {
       const res = await api.get('/api/v1/child/masters');
-      return extractList(res.data);
+      const list =
+        Array.isArray(res.data?.masters) ? res.data.masters :
+        Array.isArray(res.data?.data?.masters) ? res.data.data.masters :
+        extractList(res.data);
+      return list.map(normalizeMaster);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load masters'));
     }
@@ -125,14 +141,9 @@ export const childService = {
       const payload = {
         masterId: body?.masterId,
         brokerAccountId: body?.brokerAccountId,
+        scalingFactor: body?.scalingFactor ?? 1.0,
       };
       const res = await api.post('/api/v1/child/subscriptions', payload);
-      if (body?.scalingFactor != null && Number(body.scalingFactor) !== 1 && body?.masterId) {
-        await this.updateScaling({
-          masterId: body.masterId,
-          scalingFactor: body.scalingFactor,
-        });
-      }
       cacheSubscriptionAllocation(body?.masterId, body?.allocationAmount || body?.allocation);
       return normalizeSubscription(res.data?.data || res.data || body);
     } catch (error) {
@@ -142,7 +153,7 @@ export const childService = {
 
   async bulkSubscribe(masters) {
     try {
-      const res = await api.post('/child/subscriptions/bulk', {
+      const res = await api.post('/api/v1/child/subscriptions/bulk', {
         masters,
       });
       masters.forEach((master) => {
@@ -159,9 +170,8 @@ export const childService = {
 
   async bulkUnsubscribe(masterIds) {
     try {
-      const res = await api.post('/child/subscriptions/bulk-unsubscribe', {
+      const res = await api.post('/api/v1/child/subscriptions/bulk-unsubscribe', {
         masterIds,
-        masters: (masterIds || []).map((masterId) => ({ masterId })),
       });
       (masterIds || []).forEach(removeSubscriptionAllocation);
       return res.data?.data || res.data || {};
@@ -226,7 +236,11 @@ export const childService = {
   async getCopiedTrades() {
     try {
       const res = await api.get('/api/v1/child/copied-trades');
-      return extractList(res.data).map(normalizeCopiedTrade);
+      const list =
+        Array.isArray(res.data?.trades) ? res.data.trades :
+        Array.isArray(res.data?.data?.trades) ? res.data.data.trades :
+        extractList(res.data);
+      return list.map(normalizeCopiedTrade);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load copied trades'));
     }
@@ -238,6 +252,15 @@ export const childService = {
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load analytics'));
+    }
+  },
+
+  async getCopyLogs() {
+    try {
+      const res = await api.get('/api/v1/child/copy/logs');
+      return res.data?.logs || res.data || [];
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
     }
   },
 };

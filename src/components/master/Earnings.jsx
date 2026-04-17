@@ -1,19 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, Download } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
-import { useMasterAnalytics } from '@/hooks/useMaster';
+import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const Earnings = () => {
   const { addToast } = useToast();
-  const { analytics } = useMasterAnalytics();
-  const earningsData = analytics.earnings || analytics.subscriptionRevenue || [];
-  const payoutHistory = analytics.payoutHistory || [];
-  const totalEarnings = earningsData.reduce((sum, e) => sum + e.total, 0);
-  const currentMonth = earningsData[earningsData.length - 1] || { total: 0, subscribers: 0 };
+  const [earnings, setEarnings] = useState(null);
+  const [payouts, setPayouts] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [earningsData, payoutsData] = await Promise.all([
+          masterService.getEarnings(),
+          masterService.getPayouts(),
+        ]);
+        setEarnings(earningsData);
+        setPayouts(payoutsData);
+      } catch (error) {
+        addToast(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [addToast]);
+
+  const earningsData = earnings?.monthlyBreakdown || [];
+  const payoutHistory = payouts?.payouts || [];
+  const totalEarnings = earnings?.totalEarnings || 0;
+  const currentMonth = earnings?.thisMonth || 0;
+  const pendingPayout = earnings?.pendingPayout || 0;
 
   const columns = [
     { header: 'Month', accessor: 'month' },
@@ -50,6 +73,14 @@ const Earnings = () => {
     addToast('Earnings report exported', 'success');
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-purple"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -82,12 +113,12 @@ const Earnings = () => {
 
         <GlassCard>
           <p className="text-sm text-muted-foreground">This Month</p>
-          <p className="text-2xl font-bold">{formatCurrency(currentMonth.total)}</p>
+          <p className="text-2xl font-bold">{formatCurrency(currentMonth)}</p>
         </GlassCard>
 
         <GlassCard>
-          <p className="text-sm text-muted-foreground">Active Subscribers</p>
-          <p className="text-2xl font-bold">{currentMonth.subscribers}</p>
+          <p className="text-sm text-muted-foreground">Pending Payout</p>
+          <p className="text-2xl font-bold">{formatCurrency(pendingPayout)}</p>
         </GlassCard>
       </div>
 

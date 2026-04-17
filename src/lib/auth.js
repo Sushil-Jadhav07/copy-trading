@@ -7,7 +7,7 @@ import api, {
   setRefreshToken,
 } from '@/lib/api';
 
-const ROLE_STORAGE_KEY = 'tradepilot_impersonated_role';
+const ROLE_STORAGE_KEY = 'Ascentra Capital_impersonated_role';
 
 const pickRole = (rawRole) => {
   if (!rawRole) {
@@ -213,16 +213,16 @@ export const authService = {
   },
 
   async sendOtp(phone, purpose = 'login') {
-    try {
-      return await api.post('/api/v1/auth/send-otp', { phone, purpose }, { skipAuthRefresh: true });
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Failed to send OTP'));
-    }
+    return await api.post('/api/v1/auth/send-otp', { phone, purpose }, { skipAuthRefresh: true });
   },
 
   async verifyOtp(phone, otp, purpose = 'login') {
     try {
       const response = await api.post('/api/v1/auth/verify-otp', { phone, otp, purpose }, { skipAuthRefresh: true });
+      const payload = response?.data || {};
+      if (payload?.success === false) {
+        throw new Error(payload?.message || payload?.error || 'OTP verification failed');
+      }
       const token = extractAccessToken(response.data);
       const refreshToken = response.data?.refreshToken || response.data?.data?.refreshToken || null;
       if (token) setAccessToken(token);
@@ -317,5 +317,25 @@ export const authService = {
       clearRefreshToken();
       authStorage.clearImpersonatedRole();
     }
+  },
+
+  restoreSession: async function() {
+    try {
+      const token = getAccessToken();
+      if (!token) return null;
+      return await this.getMe();
+    } catch {
+      return null;
+    }
+  },
+
+  clearSession: function() {
+    clearAccessToken();
+    clearRefreshToken();
+    authStorage.clearImpersonatedRole();
+  },
+
+  changePassword: async function({ currentPassword, newPassword }) {
+    return await this.updateMe({ currentPassword, newPassword });
   },
 };

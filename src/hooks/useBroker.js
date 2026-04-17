@@ -52,3 +52,29 @@ export const useBrokerList = () => {
 
   return { brokers, loading, load };
 };
+
+export const useBrokerDashboard = (accountId) => {
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!accountId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await brokerService.getDashboard(accountId);
+      setDashboard(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { dashboard, loading, error, refetch: load };
+};

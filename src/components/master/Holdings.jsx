@@ -30,18 +30,18 @@ const Holdings = () => {
     if (!selectedAccountId) return;
     let isMounted = true;
     setLoading(true);
-    brokerService.getPositions(selectedAccountId).then((data) => {
+    brokerService.getHoldings(selectedAccountId).then((data) => {
       if (!isMounted) return;
       setHoldings(data.map((item) => ({
         id: item.id,
         symbol: item.symbol,
-        name: item.instrument,
-        qty: item.qty,
+        name: item.symbol,
+        qty: item.quantity,
         avgBuyPrice: item.avgPrice,
-        currentPrice: item.ltp,
-        currentValue: item.ltp * item.qty,
-        totalReturn: item.unrealizedPnl,
-        dayChange: item.change,
+        currentPrice: item.lastPrice,
+        currentValue: item.lastPrice * item.quantity,
+        totalReturn: item.pnl,
+        dayChange: 0,
       })));
     }).catch((error) => addToast(error.message, 'error')).finally(() => {
       if (isMounted) setLoading(false);

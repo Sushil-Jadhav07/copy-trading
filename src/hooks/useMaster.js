@@ -136,8 +136,12 @@ export const usePendingFollowCount = () => {
     const fetch = async () => {
       try {
         const res = await api.get('/api/v1/master/children/pending');
-        const data = res.data?.data || res.data || [];
-        setCount(Array.isArray(data) ? data.length : 0);
+        const raw = res.data?.data || res.data || {};
+        const list =
+          Array.isArray(raw.pendingApprovals) ? raw.pendingApprovals :
+          Array.isArray(raw) ? raw :
+          [];
+        setCount(list.length);
       } catch {
         // silently fail — don't break the sidebar
       }

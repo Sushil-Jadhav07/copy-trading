@@ -193,7 +193,17 @@ const UserManagement = ({
       }
       if (loginMethod === 'token') {
         if (form.growwOption === 'accessToken') {
-          await brokerService.addAccount({ brokerId: 'groww', accessToken: form.accessToken, accountNickname: form.nickname });
+          const newAcc = await brokerService.addAccount({ brokerId: 'groww', accessToken: form.accessToken, accountNickname: form.nickname });
+          // Activate the session so the backend stores and uses the accessToken
+          // for subsequent Groww API calls (margins, positions, orders, etc.)
+          const newAccId = newAcc?.accountId || newAcc?.id;
+          if (newAccId && form.accessToken?.trim()) {
+            try {
+              await brokerService.loginAccount(newAccId, { accessToken: form.accessToken.trim() });
+            } catch (_) {
+              // Non-fatal: token was already saved during addAccount
+            }
+          }
           addToast('Groww account connected successfully', 'success');
           refetch(); setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null);
           return;
@@ -448,7 +458,7 @@ const UserManagement = ({
             {testing._new ? 'Testing…' : 'Test Connection'}
           </button>
           <button onClick={handleAdd} disabled={addLoading}
-            className="px-4 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
+            className="px-4 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
             {addLoading ? 'Adding...' : 'Add Account'}
           </button>
         </div>
@@ -552,7 +562,7 @@ const UserManagement = ({
           </p>
           <div className="flex gap-3">
             <button onClick={() => setDeleteModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={confirmDelete} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Remove</button>
+            <button onClick={confirmDelete} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Remove</button>
           </div>
         </div>
       </Modal>
@@ -569,7 +579,7 @@ const UserManagement = ({
             <div className="space-y-3">
               {loginConfig?.oauthUrl ? (
                 <button onClick={() => openOauthWindow(loginConfig?.oauthUrl)}
-                  className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors">
+                  className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors">
                   {oauthOpened ? `Open ${loginConfig?.broker || 'Broker'} Login Again` : `Login with ${loginConfig?.broker || 'Broker'}`}
                 </button>
               ) : (
@@ -596,7 +606,7 @@ const UserManagement = ({
           <div className="flex gap-3">
             <button onClick={closeLoginModal} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
             <button onClick={handleBrokerLogin} disabled={loginLoading || (isOAuthModal && !loginConfig?.oauthUrl)}
-              className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
+              className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
               {loginLoading ? 'Verifying…' : isOAuthModal ? 'Confirm' : 'Submit'}
             </button>
           </div>

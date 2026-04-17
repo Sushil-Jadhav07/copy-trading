@@ -40,7 +40,7 @@ const CopiedTrades = () => {
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {['All', 'BUY', 'SELL'].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground'}`}>{f}</button>
+          <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground'}`}>{f}</button>
         ))}
       </div>
 

@@ -197,7 +197,7 @@ const FindMasters = () => {
           <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           {['All', 'Low', 'Medium', 'High'].map((r) => (
             <button key={r} onClick={() => setRiskFilter(r)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm transition-colors ${riskFilter === r ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/8'}`}>
+              className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm transition-colors ${riskFilter === r ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/8'}`}>
               {r}
             </button>
           ))}

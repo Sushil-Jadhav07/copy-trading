@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Link, Link2Off, Trash2, ChevronDown, CheckSquare } from 'lucide-react';
+import { RefreshCw, Eye, Link, Link2Off, Trash2, ChevronDown, CheckSquare, Zap, Activity, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -9,15 +9,20 @@ import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
 import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
+import { engineService } from '@/lib/engine';
 import { formatCurrency } from '@/lib/utils';
+
+const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
 
 const normalizeChildRow = (child) => ({
   id: child.id || child.childId,
-  accountId: child.accountId || child.id || child.childId,
+  accountId: child.brokerAccountId || child.accountId || '',
+  brokerAccountId: child.brokerAccountId || child.accountId || '',
   userId: child.clientId || child.userId || child.childId,
   nickname: child.nickname || child.name || child.childName || 'Unknown',
   broker: child.broker || child.brokerName || 'Broker',
   multiplier: child.multiplier || child.scalingFactor || 1,
+  status: String(child.status || '').toUpperCase(),
   tradingEnabled: child.status === 'ACTIVE' || child.enabled || false,
   pnlToday: Number(child.pnlToday || child.pnl || 0),
   tradesCopied: Number(child.tradesCopied || child.tradeCount || 0),
@@ -38,6 +43,8 @@ const CopyTrading = () => {
   const [masterInfo, setMasterInfo] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(true);
   const [placeRejected, setPlaceRejected] = useState(false);
+  const [activeAccountInfo, setActiveAccountInfo] = useState(null);
+  const [settingActive, setSettingActive] = useState(false);
   const [selectedChild, setSelectedChild] = useState('');
   const [childMultiplier, setChildMultiplier] = useState('1');
   const [refreshing, setRefreshing] = useState({});
@@ -46,6 +53,16 @@ const CopyTrading = () => {
   const [search, setSearch] = useState('');
   const [scalingMap, setScalingMap] = useState({});
   const [selectedBulkChildren, setSelectedBulkChildren] = useState([]);
+
+  // ── Trade Copy Engine state ────────────────────────────────────────────────
+  const [pollingEnabled, setPollingEnabled] = useState(false);
+  const [engineStatus, setEngineStatus] = useState(null);
+  const [copyTradeModal, setCopyTradeModal] = useState(false);
+  const [copyTradeForm, setCopyTradeForm] = useState({ symbol: '', qty: '', side: 'BUY', product: 'MIS', orderType: 'MARKET', price: '0' });
+  const [copyTradeResult, setCopyTradeResult] = useState(null);
+  const [copyingTrade, setCopyingTrade] = useState(false);
+  const [togglingPolling, setTogglingPolling] = useState(false);
+  const [resettingCache, setResettingCache] = useState(false);
 
   useEffect(() => {
     const onFocus = () => {
@@ -59,6 +76,61 @@ const CopyTrading = () => {
     };
   }, [refetch, refetchSubscriptions]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadActive = async () => {
+      try {
+        const res = await masterService.getActiveAccount();
+        const activeId = res?.brokerAccountId || res?.accountId || '';
+        const resolvedId = activeId || window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY) || '';
+        if (!resolvedId) return;
+        const acc = accounts.find((a) => a.accountId === resolvedId);
+        if (isMounted) {
+          setMasterAccountId(resolvedId);
+          if (acc) {
+            setMasterInfo(acc);
+            setMasterConnected(true);
+          }
+        }
+        if (!activeId && resolvedId) {
+          masterService.setActiveAccount(resolvedId).catch(() => {});
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadActive();
+  }, [accounts]);
+
+  // ── Fetch engine status on mount ───────────────────────────────────────────
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStatus = async () => {
+      try {
+        const status = await engineService.getStatus();
+        if (isMounted) {
+          setEngineStatus(status);
+          setPollingEnabled(Boolean(status?.pollingEnabled ?? status?.isPolling));
+        }
+      } catch (err) {
+        // fail silently for status, keep defaults
+      }
+    };
+    fetchStatus();
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    masterService.getActiveAccount()
+      .then((data) => {
+        if (data?.brokerAccountId) {
+          setActiveAccountInfo(data);
+          setMasterAccountId(data.brokerAccountId);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const masterOptions = accounts.map((a) => ({
     value: a.accountId,
     label: `${a.broker}-${a.userId}-${a.nickname}`,
@@ -66,7 +138,26 @@ const CopyTrading = () => {
 
   const connectedRows = useMemo(() => children.map(normalizeChildRow), [children]);
   const subscribedRows = useMemo(() => subscriptions.map(normalizeChildRow), [subscriptions]);
-  const childRows = connectedRows;
+  const linkedRows = useMemo(
+    () => connectedRows.filter((row) => ['ACTIVE', 'PAUSED'].includes(row.status)),
+    [connectedRows],
+  );
+  const childRows = linkedRows;
+  const availableChildRows = useMemo(() => {
+    const map = new Map();
+
+    [...connectedRows, ...subscribedRows].forEach((child) => {
+      const key = String(child.id || child.accountId || child.userId);
+      if (!key) return;
+
+      map.set(key, {
+        ...map.get(key),
+        ...child,
+      });
+    });
+
+    return Array.from(map.values());
+  }, [connectedRows, subscribedRows]);
 
   useEffect(() => {
     let isMounted = true;
@@ -80,10 +171,10 @@ const CopyTrading = () => {
     return () => { isMounted = false; };
   }, [connectedRows]);
 
-  const childOptions = subscribedRows.filter(
+  const childOptions = availableChildRows.filter(
     (child) =>
-      child.id !== masterAccountId &&
-      !connectedRows.some((row) => String(row.id) === String(child.id))
+      String(child.id) !== String(masterAccountId) &&
+      !linkedRows.some((row) => String(row.id) === String(child.id))
   );
 
   const toggleBulkChild = (childId) => {
@@ -95,6 +186,8 @@ const CopyTrading = () => {
   const handleConnectMaster = () => {
     if (!masterAccountId) { addToast('Please select a master account', 'error'); return; }
     if (masterConnected) {
+      masterService.clearActiveAccount().catch(() => {});
+      window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY);
       setMasterConnected(false);
       setMasterInfo(null);
       addToast('Master disconnected', 'warning');
@@ -102,7 +195,23 @@ const CopyTrading = () => {
       const acc = accounts.find((a) => a.accountId === masterAccountId);
       setMasterInfo(acc);
       setMasterConnected(true);
+      masterService.setActiveAccount(masterAccountId).catch(() => {});
+      window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, masterAccountId);
       addToast('Master connected successfully', 'success');
+    }
+  };
+
+  const handleSetActiveAccount = async (accountId) => {
+    if (!accountId) return;
+    setSettingActive(true);
+    try {
+      await masterService.setActiveAccount(accountId);
+      setActiveAccountInfo({ brokerAccountId: accountId });
+      addToast('Active trading account updated', 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to set active account', 'error');
+    } finally {
+      setSettingActive(false);
     }
   };
 
@@ -143,7 +252,13 @@ const CopyTrading = () => {
       addToast('Child linked successfully', 'success');
       await Promise.all([refetch(), refetchSubscriptions()]);
     } catch (error) {
-      addToast(error.message, 'error');
+      const message = error.message || 'Unable to link child';
+      if (message.toLowerCase().includes('already linked')) {
+        addToast('Child already linked', 'warning');
+        await Promise.all([refetch(), refetchSubscriptions()]);
+      } else {
+        addToast(message, 'error');
+      }
     }
   };
 
@@ -173,13 +288,13 @@ const CopyTrading = () => {
   };
 
   const handleBulkUnlink = async () => {
-    if (!connectedRows.length) {
+    if (!linkedRows.length) {
       addToast('No linked child accounts to disconnect', 'warning');
       return;
     }
 
     try {
-      await masterService.bulkUnlinkChildren(connectedRows.map((child) => ({ childId: child.id })));
+      await masterService.bulkUnlinkChildren(linkedRows.map((child) => ({ childId: child.id })));
       addToast('All linked children disconnected', 'success');
       await Promise.all([refetch(), refetchSubscriptions()]);
     } catch (error) {
@@ -189,7 +304,17 @@ const CopyTrading = () => {
 
   const handleToggleTrading = async (id) => {
     const child = connectedRows.find((item) => item.id === id);
+    if (!child) return;
+    const statusValue = String(child.status || '').toUpperCase();
     const next = !child.tradingEnabled;
+    if (next && statusValue !== 'PAUSED') {
+      addToast('Can only resume PAUSED subscriptions', 'warning');
+      return;
+    }
+    if (!next && statusValue !== 'ACTIVE') {
+      addToast('Can only pause ACTIVE subscriptions', 'warning');
+      return;
+    }
     setChildren((prev) => prev.map((item) => (item.id || item.childId) === id ? { ...item, status: next ? 'ACTIVE' : 'PAUSED', enabled: next } : item));
     try {
       if (next) {
@@ -227,13 +352,144 @@ const CopyTrading = () => {
     }
   };
 
-  const filtered = connectedRows.filter((c) => !search || `${c.broker} ${c.userId} ${c.nickname}`.toLowerCase().includes(search.toLowerCase()));
+
+  // ── Engine handlers ────────────────────────────────────────────────────────
+  const handleCopyTrade = async () => {
+    const { symbol, qty, side, product, orderType, price } = copyTradeForm;
+    if (!symbol.trim()) { addToast('Symbol is required', 'error'); return; }
+    if (!qty || Number(qty) <= 0) { addToast('Enter a valid quantity', 'error'); return; }
+    setCopyingTrade(true);
+    setCopyTradeResult(null);
+    try {
+      const result = await engineService.manualCopyTrade({
+        symbol: symbol.trim().toUpperCase(),
+        qty: Number(qty),
+        side,
+        product,
+        orderType,
+        price: Number(price) || 0,
+      });
+      setCopyTradeResult(result);
+      addToast(`Trade copied: ${result.success || 0} success, ${result.failed || 0} failed`, result.failed ? 'warning' : 'success');
+    } catch (error) {
+      addToast(error.message || 'Trade copy failed', 'error');
+    } finally {
+      setCopyingTrade(false);
+    }
+  };
+
+  const handleTogglePolling = async () => {
+    setTogglingPolling(true);
+    try {
+      await engineService.togglePolling(!pollingEnabled);
+      setPollingEnabled((p) => !p);
+      addToast(`Auto-polling ${!pollingEnabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to toggle polling', 'error');
+    } finally {
+      setTogglingPolling(false);
+    }
+  };
+
+  const handleResetPollingCache = async () => {
+    if (!window.confirm('Reset the polling cache now?')) {
+      return;
+    }
+    setResettingCache(true);
+    try {
+      await engineService.resetPollingCache();
+      addToast('Polling cache reset — engine will re-scan all orders', 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to reset cache', 'error');
+    } finally {
+      setResettingCache(false);
+    }
+  };
+
+  const filtered = linkedRows.filter((c) => !search || `${c.broker} ${c.userId} ${c.nickname}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold sm:text-2xl">Copy Trading</h1>
       </div>
+
+      <GlassCard
+        title="Engine Status"
+        subtitle="Current trade engine state"
+        action={
+          <button
+            onClick={handleResetPollingCache}
+            disabled={resettingCache}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-60"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${resettingCache ? 'animate-spin' : ''}`} />
+            Reset Polling Cache
+          </button>
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
+            <p className="text-xs text-muted-foreground">Engine Status</p>
+            <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${String(engineStatus?.engineStatus || engineStatus?.status || 'INACTIVE').toUpperCase() === 'ACTIVE' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'}`}>
+              {engineStatus?.engineStatus || engineStatus?.status || 'UNKNOWN'}
+            </span>
+          </div>
+          <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
+            <p className="text-xs text-muted-foreground">Polling</p>
+            <div className="mt-2 flex items-center gap-3">
+              <button onClick={handleTogglePolling} disabled={togglingPolling} className={`relative h-6 w-11 rounded-full transition-colors ${pollingEnabled ? 'bg-brand-purple' : 'bg-white/20'} ${togglingPolling ? 'opacity-60' : ''}`}>
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${pollingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+              <span className="text-sm font-medium">{pollingEnabled ? 'Enabled' : 'Disabled'}</span>
+            </div>
+          </div>
+          <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
+            <p className="text-xs text-muted-foreground">Supported Brokers</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(engineStatus?.supportedBrokers || []).map((broker) => (
+                <span key={broker} className="rounded-full bg-brand-blue/10 px-2 py-1 text-xs font-semibold text-brand-blue">
+                  {broker}
+                </span>
+              ))}
+              {!(engineStatus?.supportedBrokers || []).length && <span className="text-sm text-muted-foreground">No broker list</span>}
+            </div>
+          </div>
+          <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
+            <p className="text-xs text-muted-foreground">Modes</p>
+            <p className="mt-2 text-sm font-medium">{Array.isArray(engineStatus?.modes) ? engineStatus.modes.join(', ') : engineStatus?.modes || 'N/A'}</p>
+          </div>
+        </div>
+      </GlassCard>
+
+      {masterAccountId && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-brand-purple/8 border border-brand-purple/20 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse" />
+            <div>
+              <p className="text-xs text-muted-foreground">Active trading account</p>
+              <p className="text-sm font-semibold">
+                {accounts.find((a) => a.accountId === masterAccountId)?.broker || 'Unknown'} —{' '}
+                {accounts.find((a) => a.accountId === masterAccountId)?.userId || masterAccountId}
+              </p>
+            </div>
+          </div>
+          {accounts.length > 1 && (
+            <select
+              value={masterAccountId}
+              onChange={(e) => handleSetActiveAccount(e.target.value)}
+              disabled={settingActive}
+              className="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-brand-purple disabled:opacity-50"
+            >
+              {accounts.map((a) => (
+                <option key={a.accountId} value={a.accountId}>
+                  {a.broker} — {a.userId} {a.nickname ? `(${a.nickname})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <GlassCard>
@@ -248,7 +504,7 @@ const CopyTrading = () => {
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               </div>
-              <button onClick={handleConnectMaster} className="w-full sm:w-auto px-6 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
+              <button onClick={handleConnectMaster} className="w-full sm:w-auto px-6 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg text-sm font-medium transition-colors">Connect</button>
             </div>
           </div>
         ) : (
@@ -258,7 +514,7 @@ const CopyTrading = () => {
               <span className="font-bold text-base sm:text-lg uppercase break-all">{masterInfo?.broker?.toUpperCase()}-{masterInfo?.userId}-{masterInfo?.nickname?.toUpperCase()}</span>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <button onClick={handleConnectMaster} className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Disconnect</button>
+              <button onClick={handleConnectMaster} className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Disconnect</button>
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <div onClick={() => setTradingEnabled((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${tradingEnabled ? 'bg-brand-purple' : 'bg-white/20'}`}>
@@ -292,12 +548,12 @@ const CopyTrading = () => {
             <input type="number" value={childMultiplier} onChange={(e) => setChildMultiplier(e.target.value)} placeholder="Multiplier" min="0.1" step="0.1" className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple" />
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <button onClick={handleAddChild} className="flex-1 sm:flex-none px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-foreground rounded-lg text-sm font-medium transition-colors">Connect</button>
-            <button onClick={handleBulkLink} className="flex-1 sm:flex-none px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-foreground rounded-lg text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+            <button onClick={handleAddChild} className="flex-1 sm:flex-none px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg text-sm font-medium transition-colors">Connect</button>
+            <button onClick={handleBulkLink} className="flex-1 sm:flex-none px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
               <CheckSquare className="w-4 h-4" />
               Bulk Connect
             </button>
-            <button onClick={handleBulkUnlink} className="w-full sm:w-auto px-5 py-2.5 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">
+            <button onClick={handleBulkUnlink} className="w-full sm:w-auto px-5 py-2.5 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">
               Disconnect All
             </button>
           </div>
@@ -333,6 +589,58 @@ const CopyTrading = () => {
       </GlassCard>
     </div>
 
+
+      {/* ── Trade Copy Engine ──────────────────────────────────────────────── */}
+      {masterConnected && (
+        <GlassCard>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Trade Copy Engine</p>
+              <p className="text-xs text-muted-foreground">Manual copy or auto-poll master orders every 10 sec</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Auto-polling toggle */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <div
+                  onClick={handleTogglePolling}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${pollingEnabled ? 'bg-brand-purple' : 'bg-white/20'} ${togglingPolling ? 'opacity-60 pointer-events-none' : ''}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${pollingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
+                <span className="text-xs font-medium flex items-center gap-1">
+                  <Activity className="w-3.5 h-3.5" />
+                  Auto-poll
+                </span>
+              </label>
+              {/* Reset cache */}
+              <button
+                onClick={handleResetPollingCache}
+                disabled={resettingCache}
+                title="Reset polling cache (use at start of trading day)"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-black/5 dark:bg-white/5 hover:bg-black/10 text-xs font-medium transition-colors disabled:opacity-60"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${resettingCache ? 'animate-spin' : ''}`} />
+                Reset Cache
+              </button>
+              {/* Manual copy trade */}
+              <button
+                onClick={() => { setCopyTradeModal(true); setCopyTradeResult(null); }}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-brand-blue hover:bg-brand-blue/90 text-white text-xs font-semibold transition-colors"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Copy Trade
+              </button>
+            </div>
+          </div>
+          {pollingEnabled && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-purple/10 border border-brand-purple/20 text-xs text-brand-purple font-medium">
+              <span className="w-2 h-2 rounded-full bg-brand-purple animate-pulse" />
+              Auto-polling active — syncing master orders every 10 seconds
+            </div>
+          )}
+        </GlassCard>
+      )}
+
     <GlassCard noPadding>
         <div className="p-4 border-b border-border/50 flex justify-end">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="w-56 bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
@@ -365,7 +673,16 @@ const CopyTrading = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div onClick={() => handleToggleTrading(child.id)} className="cursor-pointer">
+                      <div
+                        onClick={() => {
+                          if (!['ACTIVE', 'PAUSED'].includes(String(child.status || '').toUpperCase())) {
+                            addToast('Only ACTIVE/PAUSED subscriptions can be toggled', 'warning');
+                            return;
+                          }
+                          handleToggleTrading(child.id);
+                        }}
+                        className={`cursor-pointer ${['ACTIVE', 'PAUSED'].includes(String(child.status || '').toUpperCase()) ? '' : 'opacity-50 pointer-events-none'}`}
+                      >
                         <div className={`relative w-11 h-6 rounded-full transition-colors ${child.tradingEnabled ? 'bg-brand-purple' : 'bg-white/20'}`}>
                           <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${child.tradingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
                         </div>
@@ -377,8 +694,17 @@ const CopyTrading = () => {
                       </button>
                     </td>
                     <td className="px-3 py-3">
-                      <button onClick={() => navigate(`/master/demat/${child.accountId || child.id}`)} className="w-8 h-8 bg-brand-blue/80 hover:bg-brand-blue rounded-lg flex items-center justify-center transition-colors">
-                        <Eye className="w-3.5 h-3.5 text-foreground" />
+                      <button
+                        onClick={() => {
+                          if (!child.brokerAccountId && !child.accountId) {
+                            addToast('Broker account details are not available for this child account yet', 'warning');
+                            return;
+                          }
+                          navigate(`/master/demat/${child.brokerAccountId || child.accountId}`);
+                        }}
+                        className="w-8 h-8 bg-brand-blue/80 hover:bg-brand-blue rounded-lg flex items-center justify-center transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-white" />
                       </button>
                     </td>
                     <td className="px-3 py-3">
@@ -397,7 +723,7 @@ const CopyTrading = () => {
                           className="w-8 h-8 bg-warning/80 hover:bg-warning rounded-lg flex items-center justify-center transition-colors"
                           title="Disconnect"
                         >
-                          <Link2Off className="w-3.5 h-3.5 text-foreground" />
+                          <Link2Off className="w-3.5 h-3.5 text-white" />
                         </button>
                         <button
                           onClick={async () => {
@@ -413,13 +739,13 @@ const CopyTrading = () => {
                           className="w-8 h-8 bg-success/80 hover:bg-success rounded-lg flex items-center justify-center transition-colors"
                           title="Connect"
                         >
-                          <Link className="w-3.5 h-3.5 text-foreground" />
+                          <Link className="w-3.5 h-3.5 text-white" />
                         </button>
                       </div>
                     </td>
                     <td className="px-3 py-3">
                       <button onClick={() => { setSelectedRow(child); setDeleteModal(true); }} className="w-8 h-8 bg-danger/80 hover:bg-danger rounded-lg flex items-center justify-center transition-colors">
-                        <Trash2 className="w-3.5 h-3.5 text-foreground" />
+                        <Trash2 className="w-3.5 h-3.5 text-white" />
                       </button>
                     </td>
                   </motion.tr>
@@ -430,6 +756,109 @@ const CopyTrading = () => {
           </div>
         )}
       </GlassCard>
+
+
+      {/* Copy Trade Modal */}
+      <Modal isOpen={copyTradeModal} onClose={() => { setCopyTradeModal(false); setCopyTradeResult(null); }} title="Manual Copy Trade" size="sm">
+        <div className="space-y-4">
+          {!copyTradeResult ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs text-muted-foreground mb-1">Symbol</label>
+                  <input
+                    value={copyTradeForm.symbol}
+                    onChange={(e) => setCopyTradeForm((p) => ({ ...p, symbol: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. RELIANCE"
+                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Quantity</label>
+                  <input
+                    type="number" min="1"
+                    value={copyTradeForm.qty}
+                    onChange={(e) => setCopyTradeForm((p) => ({ ...p, qty: e.target.value }))}
+                    placeholder="Qty"
+                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Side</label>
+                  <select value={copyTradeForm.side} onChange={(e) => setCopyTradeForm((p) => ({ ...p, side: e.target.value }))} className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple">
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Product</label>
+                  <select value={copyTradeForm.product} onChange={(e) => setCopyTradeForm((p) => ({ ...p, product: e.target.value }))} className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple">
+                    <option value="MIS">MIS</option>
+                    <option value="CNC">CNC</option>
+                    <option value="NRML">NRML</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Order Type</label>
+                  <select value={copyTradeForm.orderType} onChange={(e) => setCopyTradeForm((p) => ({ ...p, orderType: e.target.value }))} className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple">
+                    <option value="MARKET">MARKET</option>
+                    <option value="LIMIT">LIMIT</option>
+                  </select>
+                </div>
+                {copyTradeForm.orderType === 'LIMIT' && (
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Price</label>
+                    <input
+                      type="number" min="0" step="0.05"
+                      value={copyTradeForm.price}
+                      onChange={(e) => setCopyTradeForm((p) => ({ ...p, price: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setCopyTradeModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 rounded-lg text-sm transition-colors">Cancel</button>
+                <button
+                  onClick={handleCopyTrade}
+                  disabled={copyingTrade}
+                  className="flex-1 py-2 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {copyingTrade ? <><RefreshCw className="w-4 h-4 animate-spin" /> Copying...</> : <><Zap className="w-4 h-4" /> Copy Trade</>}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Symbol</span>
+                <span className="font-semibold">{copyTradeResult.symbol} {copyTradeResult.side}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Master Qty</span>
+                <span>{copyTradeResult.masterQty}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Children</span>
+                <span className="text-success font-semibold">{copyTradeResult.success} success</span>
+                {copyTradeResult.failed > 0 && <span className="text-danger font-semibold">{copyTradeResult.failed} failed</span>}
+              </div>
+              {Array.isArray(copyTradeResult.results) && copyTradeResult.results.length > 0 && (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {copyTradeResult.results.map((r, i) => (
+                    <div key={i} className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs ${r.status === 'SUCCESS' ? 'bg-success/10 border border-success/20' : 'bg-danger/10 border border-danger/20'}`}>
+                      <span className="font-medium">{r.broker} · qty {r.scaledQty}</span>
+                      <span className={r.status === 'SUCCESS' ? 'text-success' : 'text-danger'}>{r.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => { setCopyTradeModal(false); setCopyTradeResult(null); }} className="w-full py-2 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg text-sm font-medium transition-colors">Done</button>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <Modal isOpen={deleteModal} onClose={() => setDeleteModal(false)} title="Remove Child Account" size="sm">
         <div className="space-y-4">
@@ -445,7 +874,7 @@ const CopyTrading = () => {
                 addToast(error.message, 'error');
               }
               setDeleteModal(false);
-            }} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-foreground rounded-lg text-sm font-medium transition-colors">Remove</button>
+            }} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Remove</button>
           </div>
         </div>
       </Modal>

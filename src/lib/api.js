@@ -5,10 +5,10 @@ const configuredBaseURL = import.meta.env.VITE_API_BASE_URL || '';
 
 const baseURL = (configuredBaseURL || FALLBACK_API_BASE_URL).replace(/\/$/, '');
 
-const ACCESS_TOKEN_KEY = 'tradepilot_access_token';
+const ACCESS_TOKEN_KEY = 'Ascentra Capital_access_token';
 let accessToken = null;
 let refreshRequest = null;
-const REFRESH_TOKEN_KEY = 'tradepilot_refresh_token';
+const REFRESH_TOKEN_KEY = 'Ascentra Capital_refresh_token';
 
 const getStorageTargets = () => {
   if (typeof window === 'undefined') {

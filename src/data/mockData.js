@@ -1,4 +1,4 @@
-// TradePilot Mock Data
+// Ascentra Capital Mock Data
 // Indian Stock Market Copy Trading Platform
 
 // Format currency in Indian numbering system
@@ -531,6 +531,16 @@ export const brokerAccounts = [
     orders: 3,
     status: 'connected',
     lastSync: '2 min ago',
+    signal: {
+      bars: 4,
+      maxBars: 4,
+      quality: 'Excellent',
+      color: 'green',
+    },
+    balanceAlert: {
+      level: 'OK',
+      message: 'Balance is healthy',
+    },
   },
   {
     id: 2,
@@ -548,6 +558,16 @@ export const brokerAccounts = [
     orders: 6,
     status: 'connected',
     lastSync: '5 min ago',
+    signal: {
+      bars: 3,
+      maxBars: 4,
+      quality: 'Good',
+      color: 'yellow',
+    },
+    balanceAlert: {
+      level: 'WARNING',
+      message: 'Margin utilization is high',
+    },
   },
   {
     id: 3,
@@ -565,6 +585,16 @@ export const brokerAccounts = [
     orders: 1,
     status: 'disconnected',
     lastSync: '2 hours ago',
+    signal: {
+      bars: 0,
+      maxBars: 4,
+      quality: 'Disconnected',
+      color: 'red',
+    },
+    balanceAlert: {
+      level: 'CRITICAL',
+      message: 'Account disconnected',
+    },
   },
   {
     id: 4,
@@ -582,6 +612,16 @@ export const brokerAccounts = [
     orders: 2,
     status: 'connected',
     lastSync: '1 min ago',
+    signal: {
+      bars: 4,
+      maxBars: 4,
+      quality: 'Excellent',
+      color: 'green',
+    },
+    balanceAlert: {
+      level: 'OK',
+      message: 'Balance is healthy',
+    },
   },
   {
     id: 5,
@@ -599,6 +639,16 @@ export const brokerAccounts = [
     orders: 0,
     status: 'disconnected',
     lastSync: 'Never',
+    signal: {
+      bars: 1,
+      maxBars: 4,
+      quality: 'Poor',
+      color: 'red',
+    },
+    balanceAlert: {
+      level: 'LOW',
+      message: 'Low balance detected',
+    },
   },
 ];
 
@@ -685,7 +735,7 @@ export const dematTrades = {
 
 // Copy Trading Config
 export const copyTradingConfig = {
-  masterAccount: { id: 1, label: 'ZR1234 — Main Account (Zerodha)' },
+  masterAccount: { id: 1, label: 'ZR1234 ï¿½ Main Account (Zerodha)' },
   children: [
     { id: 1, userId: 'AN5678', nickname: 'F&O Account', broker: 'Angel One', multiplier: 1.0, tradingEnabled: true, placeRejected: false, pnlToday: 8450, tradesCopied: 12 },
     { id: 2, userId: 'AB9012', nickname: 'Commodity Acc', broker: 'Alice Blue', multiplier: 0.5, tradingEnabled: false, placeRejected: false, pnlToday: -1200, tradesCopied: 4 },

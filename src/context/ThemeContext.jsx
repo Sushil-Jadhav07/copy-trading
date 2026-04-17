@@ -14,23 +14,23 @@ export const ThemeProvider = ({ children }) => {
   const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem('tradepilot_theme');
+    const storedTheme = localStorage.getItem('Ascentra Capital_theme');
     if (storedTheme) {
       setIsDark(storedTheme === 'dark');
     } else {
       // Default to dark mode
       setIsDark(true);
-      localStorage.setItem('tradepilot_theme', 'dark');
+      localStorage.setItem('Ascentra Capital_theme', 'dark');
     }
   }, []);
 
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('tradepilot_theme', 'dark');
+      localStorage.setItem('Ascentra Capital_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('tradepilot_theme', 'light');
+      localStorage.setItem('Ascentra Capital_theme', 'light');
     }
   }, [isDark]);
 

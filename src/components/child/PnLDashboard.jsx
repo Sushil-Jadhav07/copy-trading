@@ -52,7 +52,7 @@ const PnLDashboard = () => {
         <PnLCard label="Master P&L (Original)" value={masterPnL} isPositive={masterPnL >= 0} icon={TrendingUp} subLabel="What master earned" />
       </div>
 
-      <GlassCard title="P&L Comparison" subtitle="Personal vs Copied trades over time" action={<div className="flex flex-wrap gap-1">{['1W', '1M'].map((r) => <button key={r} onClick={() => setTimeRange(r)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${timeRange === r ? 'bg-brand-purple text-foreground' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'}`}>{r}</button>)}</div>}>
+      <GlassCard title="P&L Comparison" subtitle="Personal vs Copied trades over time" action={<div className="flex flex-wrap gap-1">{['1W', '1M'].map((r) => <button key={r} onClick={() => setTimeRange(r)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${timeRange === r ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10'}`}>{r}</button>)}</div>}>
         {loading ? <SkeletonLoader type="chart" /> : <LineChart data={Array.isArray(chartData[timeRange]) ? chartData[timeRange] : chartData} xKey="time" yKey="copied" height={260} />}
       </GlassCard>
 

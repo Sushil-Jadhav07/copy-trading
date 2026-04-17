@@ -53,6 +53,7 @@ const normalizeChild = (raw = {}, index = 0) => {
     id: childId,
     childId,
     userId: raw.userId || source.userId || source.id || childId,
+    brokerAccountId: raw.brokerAccountId || source.brokerAccountId || '',
     clientId: raw.clientId || source.clientId || source.username || '',
     name,
     childName: name,
@@ -113,7 +114,7 @@ export const masterService = {
 
   async getSubscriptionsByMaster(masterId) {
     try {
-      const res = await api.get(`/api/subscriptions/master/${masterId}`);
+      const res = await api.get('/api/v1/master/children');
       return extractList(res.data).map((raw, index) => ({
         ...normalizeChild(raw, index),
         id: raw.childId || raw.id || `child-${index}`,
@@ -170,7 +171,7 @@ export const masterService = {
 
   async bulkLinkChildren(children) {
     try {
-      const res = await api.post('/master/children/bulk-link', {
+      const res = await api.post('/api/v1/master/children/bulk-link', {
         children: (children || []).map((child) => ({
           childId: child.childId || child.id,
           ...(child.scalingFactor != null ? { scalingFactor: child.scalingFactor } : {}),
@@ -184,11 +185,8 @@ export const masterService = {
 
   async bulkUnlinkChildren(children) {
     try {
-      const res = await api.post('/master/children/bulk-unlink', {
-        children: (children || []).map((child) => ({
-          childId: child.childId || child.id || child,
-        })),
-      });
+      const childIds = (children || []).map((child) => child.childId || child.id || child);
+      const res = await api.post('/api/v1/master/children/bulk-unlink', { childIds });
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to bulk unlink children'));
@@ -217,7 +215,7 @@ export const masterService = {
 
   async pauseChild(childId) {
     try {
-      const res = await api.post(`/master/children/${childId}/pause`);
+      const res = await api.post(`/api/v1/master/children/${childId}/pause`);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to pause child'));
@@ -226,7 +224,7 @@ export const masterService = {
 
   async resumeChild(childId) {
     try {
-      const res = await api.post(`/master/children/${childId}/resume`);
+      const res = await api.post(`/api/v1/master/children/${childId}/resume`);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to resume child'));
@@ -245,7 +243,11 @@ export const masterService = {
   async getTradeHistory() {
     try {
       const res = await api.get('/api/v1/master/trade-history');
-      return extractList(res.data).map(normalizeTrade);
+      const list =
+        Array.isArray(res.data?.trades) ? res.data.trades :
+        Array.isArray(res.data?.data?.trades) ? res.data.data.trades :
+        extractList(res.data);
+      return list.map(normalizeTrade);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load trade history'));
     }
@@ -253,8 +255,8 @@ export const masterService = {
 
   async subscribeToChild(childId, scalingFactor) {
     try {
-      const body = scalingFactor == null ? undefined : { scalingFactor };
-      const res = await api.post(`/master/subscribe/${childId}`, body);
+      const body = scalingFactor == null ? {} : { scalingFactor };
+      const res = await api.post(`/api/v1/master/children/${childId}/link`, body);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to subscribe to child'));
@@ -285,6 +287,145 @@ export const masterService = {
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to reject child'));
+    }
+  },
+
+  async getActiveAccount() {
+    try {
+      const res = await api.get('/api/v1/master/active-account');
+      return res.data?.data || res.data;
+    } catch (error) {
+      if (error?.response?.status === 500) {
+        return { brokerAccountId: '' };
+      }
+      throw new Error(getErrorMessage(error, 'Unable to get active account'));
+    }
+  },
+
+  async setActiveAccount(brokerAccountId) {
+    try {
+      const res = await api.post('/api/v1/master/active-account', { brokerAccountId });
+      return res.data?.data || res.data;
+    } catch (error) {
+      if (error?.response?.status === 500) {
+        return { brokerAccountId };
+      }
+      throw new Error(getErrorMessage(error, 'Unable to set active account'));
+    }
+  },
+
+  async clearActiveAccount() {
+    try {
+      const res = await api.delete('/api/v1/master/active-account');
+      return res.data?.data || res.data;
+    } catch (error) {
+      if (error?.response?.status === 500) {
+        return { brokerAccountId: '' };
+      }
+      throw new Error(getErrorMessage(error, 'Unable to clear active account'));
+    }
+  },
+
+  async getEarnings() {
+    try {
+      const res = await api.get('/api/v1/master/earnings');
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load earnings'));
+    }
+  },
+
+  async getPayouts() {
+    try {
+      const res = await api.get('/api/v1/master/payouts');
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load payouts'));
+    }
+  },
+
+  async getCopyLogs() {
+    try {
+      const res = await api.get('/api/v1/master/copy/logs');
+      return res.data?.logs || res.data || [];
+    } catch (error) {
+      if (error?.response?.status === 500) {
+        try {
+          const res = await api.get('/api/v1/copy/logs');
+          return res.data?.logs || res.data || [];
+        } catch (fallbackError) {
+          throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
+        }
+      }
+      throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
+    }
+  },
+};
+
+// ─── Trade Copy Engine Service ────────────────────────────────────────────────
+// Separate export for engine-specific operations
+export const engineService = {
+  // GET /api/v1/engine/status
+  // Returns current engine state (running, polling enabled, last run, etc.)
+  async getStatus() {
+    try {
+      const res = await api.get('/api/v1/engine/status');
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(
+        error?.response?.data?.message || error?.message || 'Unable to get engine status'
+      );
+    }
+  },
+
+  // POST /api/v1/engine/copy-trade
+  // Master manually triggers trade copy to all active children.
+  // Payload: { symbol, qty, side, product?, orderType?, price? }
+  // Returns: { message, symbol, side, masterQty, childrenTotal, success, failed, results[] }
+  async copyTrade({ symbol, qty, side, product = 'MIS', orderType = 'MARKET', price = 0 } = {}) {
+    try {
+      const res = await api.post('/api/v1/engine/copy-trade', {
+        symbol,
+        qty,
+        side,
+        product,
+        orderType,
+        price,
+      });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(
+        error?.response?.data?.message || error?.message || 'Trade copy failed'
+      );
+    }
+  },
+
+  // POST /api/v1/engine/polling
+  // Enable or disable auto-polling. When enabled, engine polls master's broker
+  // orders every 10 seconds and auto-copies new COMPLETE orders to children.
+  // Payload: { enabled: boolean }
+  async setPolling(enabled) {
+    try {
+      const res = await api.post('/api/v1/engine/polling', { enabled: Boolean(enabled) });
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(
+        error?.response?.data?.message || error?.message || 'Unable to update polling state'
+      );
+    }
+  },
+
+  // POST /api/v1/engine/polling/reset
+  // Clears the known-orders cache. Call this at the start of each trading day
+  // so the engine doesn't skip orders it saw yesterday.
+  async resetPollingCache() {
+    try {
+      const res = await api.post('/api/v1/engine/polling/reset');
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(
+        error?.response?.data?.message || error?.message || 'Unable to reset polling cache'
+      );
     }
   },
 };
