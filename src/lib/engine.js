@@ -25,6 +25,17 @@ export const engineService = {
     }
   },
 
+  // NEW — GET /api/v1/engine/polling/status
+  async getPollingStatus() {
+    try {
+      const res = await api.get('/api/v1/engine/polling/status');
+      return res.data?.data || res.data;
+    } catch (error) {
+      // fail silently — not critical
+      return null;
+    }
+  },
+
   async togglePolling(enabled) {
     try {
       const res = await api.post('/api/v1/engine/polling', { enabled });
