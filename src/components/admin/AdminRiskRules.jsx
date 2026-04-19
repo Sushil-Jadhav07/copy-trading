@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
+import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import { riskService } from '@/lib/risk';
 import { useToast } from '@/components/shared/Toast';
 
@@ -61,10 +62,14 @@ const AdminRiskRules = () => {
             <input type="number" min="0" max="100" value={form.maxCapitalExposure} onChange={(event) => setForm((current) => ({ ...current, maxCapitalExposure: event.target.value }))} className={inputClass} required />
           </div>
           <div className="flex items-center gap-3 pt-6">
-            <button type="button" onClick={() => setForm((current) => ({ ...current, marginCheckEnabled: !current.marginCheckEnabled }))} className={`relative h-6 w-11 rounded-full transition-colors ${form.marginCheckEnabled ? 'bg-brand-purple' : 'bg-black/15 dark:bg-white/15'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${form.marginCheckEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
-            <span className="text-sm font-medium">Margin check enabled</span>
+            <ToggleSwitch
+              checked={form.marginCheckEnabled}
+              onChange={() => setForm((current) => ({ ...current, marginCheckEnabled: !current.marginCheckEnabled }))}
+              label="Margin check"
+              showStateText
+              onText="enabled"
+              offText="disabled"
+            />
           </div>
           <div className="md:col-span-2">
             <button type="submit" disabled={loading} className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue/90 disabled:opacity-60">

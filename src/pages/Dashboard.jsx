@@ -3,7 +3,6 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
-import Ticker from '@/components/shared/Ticker';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
@@ -80,13 +79,8 @@ const Dashboard = () => {
           onMenuClick={() => setMobileSidebarOpen(true)}
         />
 
-        {/* Ticker */}
-        <div className="pt-16">
-          <Ticker />
-        </div>
-
         {/* Page Content */}
-        <main className="p-4 sm:p-6">
+        <main className="p-4 pt-20 sm:p-6 sm:pt-20">
           {isLoading ? (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

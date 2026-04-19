@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,7 +14,6 @@ import {
   Users,
   UserPlus,
   DollarSign,
-  Zap,
   Clock,
   ArrowLeftRight,
   PieChart,
@@ -46,6 +45,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { usePendingFollowCount } from '@/hooks/useMaster';
 import { useTheme } from '@/context/ThemeContext';
+import { adminService } from '@/lib/admin';
 const whitelogo = '/asset/whitelogo.png';
 const singlelogo = '/asset/singlelogo.png';
 const logomain = '/asset/logomain.png';
@@ -127,8 +127,41 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile = false, isOpen = false, on
   const { isDark } = useTheme();
   const role = getEffectiveRole();
   const pendingFollowCount = usePendingFollowCount();
+  const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
   const pendingFollowCountBadge =
     role === 'Master' && pendingFollowCount > 0 ? String(pendingFollowCount) : undefined;
+  const pendingVerificationBadge =
+    role === 'Admin' && pendingVerificationCount > 0 ? String(pendingVerificationCount) : undefined;
+
+  useEffect(() => {
+    if (role !== 'Admin') {
+      setPendingVerificationCount(0);
+      return undefined;
+    }
+
+    let active = true;
+
+    const fetchPendingCount = async () => {
+      try {
+        const response = await adminService.getUsers({ status: 'PENDING' });
+        if (active) {
+          setPendingVerificationCount(response.meta?.total ?? response.users.length);
+        }
+      } catch {
+        if (active) {
+          setPendingVerificationCount(0);
+        }
+      }
+    };
+
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 60000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [role]);
 
   const handleLogout = async () => {
     try {
@@ -149,7 +182,6 @@ const masterSidebarItems = [
         { to: '/master/user-management', icon: LayoutGrid, label: 'Demat Accounts' },
         { to: '/master/copy-trading', icon: Copy, label: 'Copy Trading' },
         { to: '/master/logs', icon: FileText, label: 'Logs' },
-        { to: '/master/trade-executor', icon: Zap, label: 'Execute Trade' },
         { to: '/master/risk-dashboard', icon: Shield, label: 'Risk Monitor' },
         { to: '/master/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
@@ -166,13 +198,11 @@ const masterSidebarItems = [
       section: 'Portfolio',
       items: [
         { to: '/master/holdings', icon: Briefcase, label: 'Holdings' },
-        { to: '/master/pnl', icon: BarChart2, label: 'P&L Summary' },
       ],
     },
     {
       section: 'Child Accounts',
       items: [
-        { to: '/master/followers', icon: Users, label: 'Child Accounts' },
         { to: '/master/follow-requests', icon: UserPlus, label: 'Follow Requests', badge: pendingFollowCountBadge },
         { to: '/master/earnings', icon: DollarSign, label: 'Earnings' },
       ],
@@ -225,13 +255,12 @@ const childSidebarItems = [
         { to: '/admin/users', icon: Users, label: 'All Users' },
         { to: '/admin/masters', icon: TrendingUp, label: 'Masters' },
         { to: '/admin/children', icon: UserCheck, label: 'Children' },
-        { to: '/admin/verification', icon: UserPlus, label: 'Pending Verification', badge: '2' },
+        { to: '/admin/verification', icon: UserPlus, label: 'Pending Verification', badge: pendingVerificationBadge },
       ],
     },
     {
       section: 'Trade Monitor',
       items: [
-        { to: '/admin/live-trades', icon: Activity, label: 'Live Trades' },
         { to: '/admin/order-feed', icon: List, label: 'Order Feed' },
         { to: '/admin/broker-status', icon: Server, label: 'Broker Status' },
         { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },

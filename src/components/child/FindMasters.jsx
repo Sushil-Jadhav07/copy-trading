@@ -39,7 +39,6 @@ const FindMasters = () => {
   const { accounts: brokerAccounts, loading: accountsLoading } = useBrokerAccounts();
 
   const [searchQuery, setSearchQuery]   = useState('');
-  const [riskFilter, setRiskFilter]     = useState('All');
   const [selectedMaster, setSelectedMaster]   = useState(null);
   const [slideOverOpen, setSlideOverOpen]     = useState(false);
   const [subscribeModal, setSubscribeModal]   = useState(false);
@@ -64,17 +63,19 @@ const FindMasters = () => {
       name: m.name || m.masterName || 'Unknown',
       initials: (m.name || m.masterName || 'UN').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
       winRate: m.winRate || m.win_rate || 0,
-      return30d: m.return30d || m.monthlyReturn || 0,
-      returnYTD: m.returnYTD || m.yearlyReturn || 0,
-      followers: m.followers || m.followerCount || m.subscribers || 0,
-      riskLevel: m.riskLevel || m.risk || 'Medium',
-      markets: Array.isArray(m.markets) ? m.markets : [m.market || 'Equity'],
-      description: m.description || m.bio || '',
-      equityCurve: m.equityCurve || m.performanceChart || [],
-      verified: Boolean(m.verified),
       totalTrades: m.totalTrades || m.tradeCount || 0,
+      avgPnl: m.avgPnl || 0,
+      subscribers: m.subscribers || m.followerCount || 0,
+      followers: m.subscribers || m.followers || m.followerCount || 0,
+      return30d: m.return30d || 0,
+      returnYTD: m.returnYTD || 0,
+      riskLevel: m.riskLevel || 'Medium',
       bestTrade: m.bestTrade || 'N/A',
       worstTrade: m.worstTrade || 'N/A',
+      verified: Boolean(m.verified),
+      description: m.description || '',
+      markets: Array.isArray(m.markets) ? m.markets : ['Equity'],
+      equityCurve: Array.isArray(m.equityCurve) ? m.equityCurve : [],
       ...m,
     })),
     [masters]
@@ -87,7 +88,6 @@ const FindMasters = () => {
 
   const filteredMasters = normalizedMasters.filter((m) => {
     if (searchQuery && !m.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (riskFilter !== 'All' && m.riskLevel !== riskFilter) return false;
     return true;
   });
 
@@ -193,14 +193,9 @@ const FindMasters = () => {
             <CheckSquare className="w-4 h-4" /> Bulk Subscribe {selectedMasters.length > 0 && `(${selectedMasters.length})`}
           </button>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          {['All', 'Low', 'Medium', 'High'].map((r) => (
-            <button key={r} onClick={() => setRiskFilter(r)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm transition-colors ${riskFilter === r ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/8'}`}>
-              {r}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide text-xs text-muted-foreground">
+          <Filter className="w-4 h-4 flex-shrink-0" />
+          Showing fields backed by the current masters API.
         </div>
       </div>
 
@@ -243,14 +238,11 @@ const FindMasters = () => {
                         <p className="text-xs text-muted-foreground">{formatNumber(master.followers)} followers</p>
                       </div>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${master.riskLevel === 'Low' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : master.riskLevel === 'Medium' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-red-500/12 text-red-600 dark:text-red-400'}`}>
-                      {master.riskLevel}
-                    </span>
                   </div>
 
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-1.5 mb-3">
-                    {[['30D Return', `+${master.return30d}%`, 'text-emerald-500'], ['Win Rate', `${master.winRate}%`, ''], ['YTD', `+${master.returnYTD}%`, 'text-emerald-500']].map(([k, v, c]) => (
+                    {[['30D Return', `${master.return30d > 0 ? '+' : ''}${master.return30d}%`, master.return30d >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Win Rate', `${master.winRate}%`, ''], ['YTD', `${master.returnYTD > 0 ? '+' : ''}${master.returnYTD}%`, master.returnYTD >= 0 ? 'text-emerald-500' : 'text-red-500']].map(([k, v, c]) => (
                       <div key={k} className="p-2 bg-black/4 dark:bg-white/4 rounded-lg text-center">
                         <p className="text-[10px] text-muted-foreground">{k}</p>
                         <p className={`text-xs font-bold mt-0.5 ${c}`}>{v}</p>
@@ -303,7 +295,7 @@ const FindMasters = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {[['30D Return', `+${selectedMaster.return30d}%`, 'text-emerald-500'], ['Win Rate', `${selectedMaster.winRate}%`, ''], ['Total Trades', formatNumber(selectedMaster.totalTrades), ''], ['Followers', formatNumber(selectedMaster.followers), ''], ['Best Trade', selectedMaster.bestTrade, 'text-emerald-500'], ['Worst Trade', selectedMaster.worstTrade, 'text-red-500']].map(([k, v, c]) => (
+              {[['30D Return', `${selectedMaster.return30d > 0 ? '+' : ''}${selectedMaster.return30d}%`, selectedMaster.return30d >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Win Rate', `${selectedMaster.winRate}%`, ''], ['YTD', `${selectedMaster.returnYTD > 0 ? '+' : ''}${selectedMaster.returnYTD}%`, selectedMaster.returnYTD >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Total Trades', formatNumber(selectedMaster.totalTrades), ''], ['Best Trade', selectedMaster.bestTrade, 'text-emerald-500'], ['Worst Trade', selectedMaster.worstTrade, 'text-red-500']].map(([k, v, c]) => (
                 <div key={k} className="p-3 bg-black/4 dark:bg-white/4 rounded-lg border border-border/30">
                   <p className="text-xs text-muted-foreground">{k}</p>
                   <p className={`font-bold mt-0.5 text-sm ${c}`}>{v}</p>

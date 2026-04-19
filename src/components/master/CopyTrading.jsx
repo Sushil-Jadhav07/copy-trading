@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Link, Link2Off, Trash2, ChevronDown, CheckSquare, Zap, Activity, RotateCcw } from 'lucide-react';
+import { RefreshCw, Eye, Link, Link2Off, Trash2, ChevronDown, CheckSquare, Zap, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
 import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
@@ -15,23 +16,28 @@ import { formatCurrency } from '@/lib/utils';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
 
-const normalizeChildRow = (child) => ({
-  id: child.id || child.childId,
-  accountId: child.brokerAccountId || child.accountId || '',
-  brokerAccountId: child.brokerAccountId || child.accountId || '',
-  userId: child.clientId || child.userId || child.childId,
-  nickname: child.nickname || child.name || child.childName || 'Unknown',
-  broker: child.broker || child.brokerName || 'Broker',
-  multiplier: child.multiplier || child.scalingFactor || 1,
-  status: String(child.status || '').toUpperCase(),
-  tradingEnabled: child.status === 'ACTIVE' || child.enabled || false,
-  pnlToday: Number(child.pnlToday || child.pnl || 0),
-  tradesCopied: Number(child.tradesCopied || child.tradeCount || 0),
-  margin: Number(child.margin || child.availableMargin || 0),
-  positions: Number(child.positions || child.positionCount || 0),
-  isLinked: Boolean(child.isLinked),
-  isSubscribedOnly: Boolean(child.isSubscribedOnly),
-});
+const normalizeChildRow = (child) => {
+  const hasStatus = child.status != null && String(child.status).trim() !== '';
+  const status = String(child.status || '').toUpperCase();
+
+  return {
+    id: child.id || child.childId,
+    accountId: child.brokerAccountId || child.accountId || '',
+    brokerAccountId: child.brokerAccountId || child.accountId || '',
+    userId: child.clientId || child.userId || child.childId,
+    nickname: child.nickname || child.name || child.childName || 'Unknown',
+    broker: child.broker || child.brokerName || 'Broker',
+    multiplier: child.multiplier || child.scalingFactor || 1,
+    status,
+    tradingEnabled: hasStatus ? status === 'ACTIVE' : Boolean(child.enabled || child.tradingEnabled),
+    pnlToday: Number(child.pnlToday || child.pnl || 0),
+    tradesCopied: Number(child.tradesCopied || child.tradeCount || 0),
+    margin: Number(child.margin || child.availableMargin || 0),
+    positions: Number(child.positions || child.positionCount || 0),
+    isLinked: Boolean(child.isLinked),
+    isSubscribedOnly: Boolean(child.isSubscribedOnly),
+  };
+};
 
 const CopyTrading = () => {
   const { addToast } = useToast();
@@ -63,6 +69,7 @@ const CopyTrading = () => {
   const [copyTradeResult, setCopyTradeResult] = useState(null);
   const [copyingTrade, setCopyingTrade] = useState(false);
   const [togglingPolling, setTogglingPolling] = useState(false);
+  const [togglingChildren, setTogglingChildren] = useState({});
   const [resettingCache, setResettingCache] = useState(false);
 
   useEffect(() => {
@@ -323,6 +330,8 @@ const CopyTrading = () => {
   };
 
   const handleToggleTrading = async (id) => {
+    if (togglingChildren[id]) return;
+
     const child = connectedRows.find((item) => item.id === id);
     if (!child) return;
     const statusValue = String(child.status || '').toUpperCase();
@@ -335,6 +344,7 @@ const CopyTrading = () => {
       addToast('Can only pause ACTIVE subscriptions', 'warning');
       return;
     }
+    setTogglingChildren((prev) => ({ ...prev, [id]: true }));
     setChildren((prev) => prev.map((item) => (item.id || item.childId) === id ? { ...item, status: next ? 'ACTIVE' : 'PAUSED', enabled: next } : item));
     try {
       if (next) {
@@ -346,6 +356,8 @@ const CopyTrading = () => {
     } catch (error) {
       addToast(error.message, 'error');
       refetch();
+    } finally {
+      setTogglingChildren((prev) => ({ ...prev, [id]: false }));
     }
   };
 
@@ -458,9 +470,11 @@ const CopyTrading = () => {
           <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
             <p className="text-xs text-muted-foreground">Polling</p>
             <div className="mt-2 flex items-center gap-3">
-              <button onClick={handleTogglePolling} disabled={togglingPolling} className={`relative h-6 w-11 rounded-full transition-colors ${pollingEnabled ? 'bg-brand-purple' : 'bg-white/20'} ${togglingPolling ? 'opacity-60' : ''}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${pollingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
+              <ToggleSwitch
+                checked={pollingEnabled}
+                disabled={togglingPolling}
+                onChange={handleTogglePolling}
+              />
               <span className="text-sm font-medium">{pollingEnabled ? 'Enabled' : 'Disabled'}</span>
             </div>
           </div>
@@ -536,18 +550,17 @@ const CopyTrading = () => {
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <button onClick={handleConnectMaster} className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Disconnect</button>
               <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div onClick={() => setTradingEnabled((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${tradingEnabled ? 'bg-brand-purple' : 'bg-white/20'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${tradingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </div>
-                  <span className="text-xs sm:text-sm font-medium">Trading ON / OFF</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div onClick={() => setPlaceRejected((p) => !p)} className={`relative w-11 h-6 rounded-full transition-colors ${placeRejected ? 'bg-brand-purple' : 'bg-white/20'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${placeRejected ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </div>
-                  <span className="text-xs sm:text-sm font-medium">Place Rejected Order</span>
-                </label>
+                <ToggleSwitch
+                  checked={tradingEnabled}
+                  onChange={() => setTradingEnabled((p) => !p)}
+                  label="Trading"
+                  showStateText
+                />
+                <ToggleSwitch
+                  checked={placeRejected}
+                  onChange={() => setPlaceRejected((p) => !p)}
+                  label="Place Rejected Order"
+                />
               </div>
             </div>
           </div>
@@ -620,18 +633,13 @@ const CopyTrading = () => {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {/* Auto-polling toggle */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div
-                  onClick={handleTogglePolling}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${pollingEnabled ? 'bg-brand-purple' : 'bg-white/20'} ${togglingPolling ? 'opacity-60 pointer-events-none' : ''}`}
-                >
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${pollingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                </div>
-                <span className="text-xs font-medium flex items-center gap-1">
-                  <Activity className="w-3.5 h-3.5" />
-                  Auto-poll
-                </span>
-              </label>
+              <ToggleSwitch
+                checked={pollingEnabled}
+                disabled={togglingPolling}
+                onChange={handleTogglePolling}
+                label="Auto-poll"
+                showStateText
+              />
               {/* Reset cache */}
               <button
                 onClick={handleResetPollingCache}
@@ -693,20 +701,20 @@ const CopyTrading = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div
-                        onClick={() => {
+                      <ToggleSwitch
+                        checked={child.tradingEnabled}
+                        disabled={
+                          Boolean(togglingChildren[child.id]) ||
+                          !['ACTIVE', 'PAUSED'].includes(String(child.status || '').toUpperCase())
+                        }
+                        onChange={() => {
                           if (!['ACTIVE', 'PAUSED'].includes(String(child.status || '').toUpperCase())) {
                             addToast('Only ACTIVE/PAUSED subscriptions can be toggled', 'warning');
                             return;
                           }
                           handleToggleTrading(child.id);
                         }}
-                        className={`cursor-pointer ${['ACTIVE', 'PAUSED'].includes(String(child.status || '').toUpperCase()) ? '' : 'opacity-50 pointer-events-none'}`}
-                      >
-                        <div className={`relative w-11 h-6 rounded-full transition-colors ${child.tradingEnabled ? 'bg-brand-purple' : 'bg-white/20'}`}>
-                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${child.tradingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </div>
-                      </div>
+                      />
                     </td>
                     <td className="px-3 py-3">
                       <button onClick={() => handleRefresh(child.id)} className="w-8 h-8 bg-brand-purple/80 hover:bg-brand-purple rounded-lg flex items-center justify-center transition-colors">

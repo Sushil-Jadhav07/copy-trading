@@ -23,6 +23,15 @@ const normalizeMaster = (raw = {}, index = 0) => ({
   totalTrades: Number(raw.totalTrades ?? raw.tradeCount ?? 0),
   avgPnl: Number(raw.avgPnl ?? raw.averagePnl ?? raw.avgPnL ?? 0),
   subscribers: Number(raw.subscribers ?? raw.subscriberCount ?? raw.childCount ?? 0),
+  return30d: Number(raw.return30d ?? raw.monthlyReturn ?? 0),
+  returnYTD: Number(raw.returnYTD ?? raw.yearlyReturn ?? 0),
+  riskLevel: raw.riskLevel || raw.risk || 'Medium',
+  bestTrade: raw.bestTrade || 'N/A',
+  worstTrade: raw.worstTrade || 'N/A',
+  verified: Boolean(raw.verified),
+  description: raw.description || raw.bio || '',
+  markets: Array.isArray(raw.markets) ? raw.markets : [raw.market || 'Equity'],
+  equityCurve: Array.isArray(raw.equityCurve) ? raw.equityCurve : [],
   raw,
 });
 

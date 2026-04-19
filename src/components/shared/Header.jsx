@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu,
-  Search,
   Bell,
   Sun,
   Moon,
@@ -24,19 +23,13 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
     unreadCount,
     markAsRead,
     markAllAsRead,
-    deleteNotification,
     refetch,
   } = useNotifications();
-
-  const masters = [];
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const notificationRef = useRef(null);
   const userMenuRef = useRef(null);
-  const searchRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -45,9 +38,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
       }
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setShowUserMenu(false);
-      }
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setShowSearchResults(false);
       }
     };
 
@@ -73,30 +63,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
     await markAsRead(id);
   };
 
-  const searchResults = searchQuery
-    ? masters.filter(
-        (m) =>
-          m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.markets.some((market) =>
-            market.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-      )
-    : [];
-
   const effectiveRole = getEffectiveRole();
-
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'Master':
-        return 'bg-brand-purple';
-      case 'Child':
-        return 'bg-brand-blue';
-      case 'Admin':
-        return 'bg-brand-teal';
-      default:
-        return 'bg-gray-500';
-    }
-  };
 
   return (
     <header
@@ -116,68 +83,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
               <Menu className="w-5 h-5" />
             </button>
           )}
-
-          {/* Search */}
-          <div className="relative min-w-0 flex-1 sm:flex-none" ref={searchRef}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search masters, instruments..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setShowSearchResults(e.target.value.length > 0);
-                }}
-                className="w-full min-w-0 sm:w-56 md:w-64 pl-10 pr-4 py-2 bg-slate-100/50 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 rounded-xl text-sm text-slate-900 dark:text-foreground placeholder:text-slate-400 dark:placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-purple/20 focus:bg-white dark:focus:bg-white/10 transition-all"
-              />
-            </div>
-
-            <AnimatePresence>
-              {showSearchResults && searchQuery && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full left-0 mt-2 w-[min(20rem,calc(100vw-2rem))] sm:w-80 bg-white dark:bg-popover border border-slate-200 dark:border-border rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden z-50"
-                >
-                  {searchResults.length > 0 ? (
-                    <div className="py-2">
-                      <p className="px-4 py-2 text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">
-                        Masters
-                      </p>
-                      {searchResults.map((master) => (
-                        <button
-                          key={master.id}
-                          onClick={() => {
-                            setSearchQuery('');
-                            setShowSearchResults(false);
-                          }}
-                          className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors text-left text-foreground"
-                        >
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center shadow-sm">
-                            <span className="text-xs font-bold text-white uppercase">
-                              {master.initials}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800 dark:text-foreground">{master.name}</p>
-                            <p className="text-xs text-slate-500 dark:text-muted-foreground">
-                              {master.return30d}% return (30d)
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-4 py-4 text-sm text-slate-500 dark:text-muted-foreground text-center">
-                      No results found
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
         </div>
 
         {/* Right Actions */}

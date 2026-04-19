@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { TrendingUp, Users, Percent, IndianRupee, Check, X } from 'lucide-react';
+import { TrendingUp, Users, Percent, IndianRupee } from 'lucide-react';
 import StatCard from '@/components/shared/StatCard';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
@@ -11,16 +10,12 @@ import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren } from '@/hooks/useMaster';
 import { connectChannel } from '@/lib/websocket';
+import { useAuth } from '@/context/AuthContext';
 
 const Overview = () => {
   const { addToast } = useToast();
+  const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('1D');
-  const [onboardingSteps, setOnboardingSteps] = useState([
-    { id: 1, label: 'Connect Broker API', completed: true },
-    { id: 2, label: 'Set Risk Limits', completed: true },
-    { id: 3, label: 'Go Live', completed: false },
-  ]);
-  const [showOnboarding, setShowOnboarding] = useState(true);
   const [liveConnected, setLiveConnected] = useState(false);
   const [liveEvents, setLiveEvents] = useState([]);
   const { analytics, loading: analyticsLoading, error: analyticsError } = useMasterAnalytics();
@@ -56,10 +51,6 @@ const Overview = () => {
     };
   }, []);
 
-  const toggleOnboardingStep = (id) => {
-    setOnboardingSteps((prev) => prev.map((step) => (step.id === id ? { ...step, completed: !step.completed } : step)));
-  };
-
   const performanceChart = analytics.performanceChart || analytics.equityCurve || analytics.chartData || [];
   const chartData = Array.isArray(performanceChart[timeRange]) ? performanceChart[timeRange] : performanceChart;
   const followers = children.map((child, index) => ({
@@ -89,7 +80,7 @@ const Overview = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
-        <p className="text-sm text-muted-foreground">Welcome back, Rahul!</p>
+        <p className="text-sm text-muted-foreground">Welcome back, {user?.name || 'there'}!</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -211,29 +202,6 @@ const Overview = () => {
         </div>
       </GlassCard>
 
-      {showOnboarding && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <h3 className="font-semibold">Getting Started</h3>
-              <p className="text-sm text-muted-foreground">Complete these steps to get the most out of Ascentra Capital</p>
-            </div>
-            <button onClick={() => setShowOnboarding(false)} className="p-1.5 rounded-lg hover:bg-black/10 dark:bg-white/10 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="space-y-2">
-            {onboardingSteps.map((step) => (
-              <div key={step.id} onClick={() => toggleOnboardingStep(step.id)} className="flex items-center gap-3 p-3 bg-black/5 dark:bg-white/5 rounded-lg cursor-pointer hover:bg-black/10 dark:bg-white/10 transition-colors">
-                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${step.completed ? 'bg-brand-purple border-brand-purple' : 'border-muted-foreground'}`}>
-                  {step.completed && <Check className="w-3 h-3 text-white" />}
-                </div>
-                <span className={`text-sm ${step.completed ? 'line-through text-muted-foreground' : ''}`}>{step.label}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 };

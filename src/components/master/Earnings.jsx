@@ -10,33 +10,32 @@ import { useToast } from '@/components/shared/Toast';
 const Earnings = () => {
   const { addToast } = useToast();
   const [earnings, setEarnings] = useState(null);
-  const [payouts, setPayouts] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [earningsData, payoutsData] = await Promise.all([
-          masterService.getEarnings(),
-          masterService.getPayouts(),
-        ]);
+        const earningsData = await masterService.getEarnings();
         setEarnings(earningsData);
-        setPayouts(payoutsData);
       } catch (error) {
         addToast(error.message, 'error');
       } finally {
         setLoading(false);
       }
     };
+
     fetchData();
   }, [addToast]);
 
-  const earningsData = earnings?.monthlyBreakdown || [];
-  const payoutHistory = payouts?.payouts || [];
+  const earningsData = Array.isArray(earnings?.monthlyBreakdown) ? earnings.monthlyBreakdown : [];
+  const payoutHistory = Array.isArray(earnings?.payouts) ? earnings.payouts : [];
   const totalEarnings = earnings?.totalEarnings || 0;
   const currentMonth = earnings?.thisMonth || 0;
   const pendingPayout = earnings?.pendingPayout || 0;
+  const hasDetailedBreakdown = earningsData.some(
+    (entry) => 'subscriptionFee' in entry || 'performanceBonus' in entry
+  );
 
   const columns = [
     { header: 'Month', accessor: 'month' },
@@ -97,7 +96,6 @@ const Earnings = () => {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         <GlassCard>
           <div className="flex items-center gap-3">
@@ -122,28 +120,37 @@ const Earnings = () => {
         </GlassCard>
       </div>
 
-      {/* Monthly Chart */}
-      <GlassCard title="Monthly Earnings">
-        <BarChart
-          data={earningsData}
-          yKeys={['subscriptionFee', 'performanceBonus']}
-          stacked
-          height={300}
-          yAxisFormatter={(val) => `₹${val / 1000}K`}
-        />
-      </GlassCard>
+      {hasDetailedBreakdown ? (
+        <>
+          <GlassCard title="Monthly Earnings">
+            <BarChart
+              data={earningsData}
+              yKeys={['subscriptionFee', 'performanceBonus']}
+              stacked
+              height={300}
+              yAxisFormatter={(val) => `₹${val / 1000}K`}
+            />
+          </GlassCard>
 
-      {/* Breakdown Table */}
-      <GlassCard title="Earnings Breakdown">
-        <DataTable
-          columns={columns}
-          data={earningsData}
-          pageSize={12}
-          pagination={false}
-        />
-      </GlassCard>
+          <GlassCard title="Earnings Breakdown">
+            <DataTable
+              columns={columns}
+              data={earningsData}
+              pageSize={12}
+              pagination={false}
+            />
+          </GlassCard>
+        </>
+      ) : (
+        <GlassCard title="Earnings Breakdown">
+          <div className="py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Detailed subscription and performance bonus fields are not available in the current earnings API response.
+            </p>
+          </div>
+        </GlassCard>
+      )}
 
-      {/* Payout History */}
       <GlassCard title="Payout History">
         <DataTable
           columns={payoutColumns}

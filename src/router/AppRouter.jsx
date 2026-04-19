@@ -30,7 +30,6 @@ import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
 import FollowRequests from '@/components/master/FollowRequests';
-import TradeExecutor from '@/components/master/TradeExecutor';
 import RiskDashboard from '@/components/master/RiskDashboard';
 import PnLAnalytics from '@/components/master/PnLAnalytics';
 // ──────────────────────────────────────────────────────────
@@ -151,7 +150,6 @@ const AppRouter = () => {
                 <Route path="master/copy-trading" element={<CopyTrading />} />
                 <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/logs" element={<Logs />} />
-                <Route path="master/trade-executor" element={<TradeExecutor />} />
                 <Route path="master/risk-dashboard" element={<RiskDashboard />} />
                 <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
                 {/* ───────────────────── */}

@@ -256,7 +256,7 @@ export const masterService = {
   async subscribeToChild(childId, scalingFactor) {
     try {
       const body = scalingFactor == null ? {} : { scalingFactor };
-      const res = await api.post(`/api/v1/master/children/${childId}/link`, body);
+      const res = await api.post(`/api/v1/master/subscribe/${childId}`, body);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to subscribe to child'));
@@ -349,83 +349,7 @@ export const masterService = {
       const res = await api.get('/api/v1/master/copy/logs');
       return res.data?.logs || res.data || [];
     } catch (error) {
-      if (error?.response?.status === 500) {
-        try {
-          const res = await api.get('/api/v1/copy/logs');
-          return res.data?.logs || res.data || [];
-        } catch (fallbackError) {
-          throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
-        }
-      }
       throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
-    }
-  },
-};
-
-// ─── Trade Copy Engine Service ────────────────────────────────────────────────
-// Separate export for engine-specific operations
-export const engineService = {
-  // GET /api/v1/engine/status
-  // Returns current engine state (running, polling enabled, last run, etc.)
-  async getStatus() {
-    try {
-      const res = await api.get('/api/v1/engine/status');
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(
-        error?.response?.data?.message || error?.message || 'Unable to get engine status'
-      );
-    }
-  },
-
-  // POST /api/v1/engine/copy-trade
-  // Master manually triggers trade copy to all active children.
-  // Payload: { symbol, qty, side, product?, orderType?, price? }
-  // Returns: { message, symbol, side, masterQty, childrenTotal, success, failed, results[] }
-  async copyTrade({ symbol, qty, side, product = 'MIS', orderType = 'MARKET', price = 0 } = {}) {
-    try {
-      const res = await api.post('/api/v1/engine/copy-trade', {
-        symbol,
-        qty,
-        side,
-        product,
-        orderType,
-        price,
-      });
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(
-        error?.response?.data?.message || error?.message || 'Trade copy failed'
-      );
-    }
-  },
-
-  // POST /api/v1/engine/polling
-  // Enable or disable auto-polling. When enabled, engine polls master's broker
-  // orders every 10 seconds and auto-copies new COMPLETE orders to children.
-  // Payload: { enabled: boolean }
-  async setPolling(enabled) {
-    try {
-      const res = await api.post('/api/v1/engine/polling', { enabled: Boolean(enabled) });
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(
-        error?.response?.data?.message || error?.message || 'Unable to update polling state'
-      );
-    }
-  },
-
-  // POST /api/v1/engine/polling/reset
-  // Clears the known-orders cache. Call this at the start of each trading day
-  // so the engine doesn't skip orders it saw yesterday.
-  async resetPollingCache() {
-    try {
-      const res = await api.post('/api/v1/engine/polling/reset');
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(
-        error?.response?.data?.message || error?.message || 'Unable to reset polling cache'
-      );
     }
   },
 };

@@ -11,6 +11,7 @@ const PendingVerification = () => {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionType, setActionType] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -51,15 +52,28 @@ const PendingVerification = () => {
     setActionType(null);
   };
 
-  const handleAction = () => {
-    if (!selectedRequest || !actionType) return;
+  const handleAction = async () => {
+    if (!selectedRequest || !actionType || submitting) return;
 
-    setRequests((prev) => prev.filter((request) => request.id !== selectedRequest.id));
-    addToast(
-      `${selectedRequest.name} ${actionType === 'approve' ? 'approved' : 'rejected'}`,
-      actionType === 'approve' ? 'success' : 'warning'
-    );
-    closeModal();
+    setSubmitting(true);
+    try {
+      if (actionType === 'approve') {
+        await adminService.activateUser(selectedRequest.id);
+      } else {
+        await adminService.deactivateUser(selectedRequest.id);
+      }
+
+      setRequests((prev) => prev.filter((request) => request.id !== selectedRequest.id));
+      addToast(
+        `${selectedRequest.name} ${actionType === 'approve' ? 'approved' : 'rejected'}`,
+        actionType === 'approve' ? 'success' : 'warning'
+      );
+      closeModal();
+    } catch (error) {
+      addToast(error.message || 'Unable to update verification status', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const stats = [
@@ -173,19 +187,21 @@ const PendingVerification = () => {
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={closeModal}
+              disabled={submitting}
               className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleAction}
+              disabled={submitting}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                 actionType === 'approve'
                   ? 'bg-success hover:bg-success/90 text-white'
                   : 'bg-danger hover:bg-danger/90 text-white'
-              }`}
+              } disabled:opacity-60`}
             >
-              {actionType === 'approve' ? 'Approve' : 'Reject'}
+              {submitting ? 'Saving...' : actionType === 'approve' ? 'Approve' : 'Reject'}
             </button>
           </div>
         </div>

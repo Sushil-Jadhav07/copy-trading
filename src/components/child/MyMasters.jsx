@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ToggleLeft, ToggleRight, UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee } from 'lucide-react';
+import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import { useChildSubscriptions } from '@/hooks/useChild';
 import { childService } from '@/lib/child';
 import { formatCurrency } from '@/lib/utils';
@@ -35,6 +36,7 @@ const MyMasters = () => {
   const [masters, setMasters] = useState([]);
   const [unfollowModal, setUnfollowModal] = useState(false);
   const [selectedMaster, setSelectedMaster] = useState(null);
+  const [togglingMasters, setTogglingMasters] = useState({});
 
   const handleBulkUnfollow = async () => {
     if (!masters.length) {
@@ -60,17 +62,22 @@ const MyMasters = () => {
 
   useEffect(() => {
     setMasters(
-      subscriptions.map((s) => ({
-        id: s.id || s.masterId,
-        name: s.masterName || s.name,
-        multiplier: clampMultiplier(s.multiplier || s.scalingFactor || 1.0),
-        tradingEnabled: normalizeStatus(s.status) === 'ACTIVE',
-        totalPnL: s.pnl || s.totalPnL || 0,
-        tradesCopiedToday: s.tradestoday || s.tradesCopiedToday || 0,
-        allocation: s.allocation || s.allocationAmount || 0,
-        status: normalizeStatus(s.status),
-        ...s,
-      }))
+      subscriptions.map((s) => {
+        const status = normalizeStatus(s.status);
+
+        return {
+          ...s,
+          id: s.id || s.masterId,
+          name: s.masterName || s.name,
+          multiplier: clampMultiplier(s.multiplier || s.scalingFactor || 1.0),
+          tradingEnabled: status === 'ACTIVE',
+          totalPnL: s.pnl || s.totalPnL || 0,
+          tradesCopiedToday: s.tradestoday || s.tradesCopiedToday || 0,
+          allocation: s.allocation || s.allocationAmount || 0,
+          status,
+          copyingStatus: status,
+        };
+      })
     );
   }, [subscriptions]);
 
@@ -79,8 +86,22 @@ const MyMasters = () => {
   }, [error, addToast]);
 
   const handleToggle = async (master) => {
+    if (togglingMasters[master.id]) return;
+
     const newEnabled = !master.tradingEnabled;
-    setMasters((prev) => prev.map((m) => m.id === master.id ? { ...m, tradingEnabled: newEnabled } : m));
+    const nextStatus = newEnabled ? 'ACTIVE' : 'PAUSED';
+    const previousStatus = master.status;
+
+    setTogglingMasters((prev) => ({ ...prev, [master.id]: true }));
+    setMasters((prev) => prev.map((m) => (
+      m.id === master.id ? { ...m, tradingEnabled: newEnabled, status: nextStatus, copyingStatus: nextStatus } : m
+    )));
+    setSubscriptions((prev) => prev.map((item) => (
+      (item.id || item.masterId) === master.id
+        ? { ...item, tradingEnabled: newEnabled, status: nextStatus, copyingStatus: nextStatus }
+        : item
+    )));
+
     try {
       if (newEnabled) {
         await childService.resumeCopying({ masterId: master.id });
@@ -90,8 +111,19 @@ const MyMasters = () => {
       addToast(newEnabled ? 'Copying resumed' : 'Copying paused', 'success');
       refetch();
     } catch (e) {
-      setMasters((prev) => prev.map((m) => m.id === master.id ? { ...m, tradingEnabled: master.tradingEnabled } : m));
+      setMasters((prev) => prev.map((m) => (
+        m.id === master.id
+          ? { ...m, tradingEnabled: master.tradingEnabled, status: previousStatus, copyingStatus: previousStatus }
+          : m
+      )));
+      setSubscriptions((prev) => prev.map((item) => (
+        (item.id || item.masterId) === master.id
+          ? { ...item, tradingEnabled: master.tradingEnabled, status: previousStatus, copyingStatus: previousStatus }
+          : item
+      )));
       addToast(e.message || 'Failed to update copy status', 'error');
+    } finally {
+      setTogglingMasters((prev) => ({ ...prev, [master.id]: false }));
     }
   };
 
@@ -176,6 +208,7 @@ const MyMasters = () => {
             const canToggle = ['ACTIVE', 'PAUSED'].includes(normalizeStatus(master.status));
             const canScale = normalizeStatus(master.status) === 'ACTIVE';
             const isPending = normalizeStatus(master.status) === 'PENDING_APPROVAL';
+            const isToggling = Boolean(togglingMasters[master.id]);
 
             return (
               <motion.div
@@ -263,19 +296,14 @@ const MyMasters = () => {
 
                 <div className="flex items-center justify-between pt-3 border-t border-border/40">
                   <span className="text-sm text-muted-foreground">Copy Trading</span>
-                  <button
-                    onClick={() => canToggle && handleToggle(master)}
-                    className={`flex items-center gap-2 ${!canToggle || isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    {master.tradingEnabled ? (
-                      <ToggleRight className="w-8 h-8 text-success" />
-                    ) : (
-                      <ToggleLeft className="w-8 h-8 text-muted-foreground" />
-                    )}
-                    <span className={`text-sm font-medium ${master.tradingEnabled ? 'text-success' : 'text-muted-foreground'}`}>
-                      {canToggle ? (master.tradingEnabled ? 'ON' : 'OFF') : statusMeta.label}
-                    </span>
-                  </button>
+                  <ToggleSwitch
+                    checked={master.tradingEnabled}
+                    disabled={!canToggle || isPending || isToggling}
+                    onChange={() => handleToggle(master)}
+                    label={canToggle ? '' : statusMeta.label}
+                    showStateText={canToggle}
+                    activeClassName="bg-success"
+                  />
                 </div>
               </motion.div>
             );
