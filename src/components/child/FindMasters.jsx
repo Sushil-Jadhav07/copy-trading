@@ -35,7 +35,7 @@ const SubStatusPill = ({ status }) => {
 const FindMasters = () => {
   const { addToast } = useToast();
   const { masters, loading, refetch, error } = useChildMasters();
-  const { subscriptions }                    = useChildSubscriptions();
+  const { subscriptions, refetch: refetchSubscriptions } = useChildSubscriptions();
   const { accounts: brokerAccounts, loading: accountsLoading } = useBrokerAccounts();
 
   const [searchQuery, setSearchQuery]   = useState('');
@@ -122,6 +122,7 @@ const FindMasters = () => {
         brokerAccountId: selectedBrokerAccountId,
         scalingFactor: multiplier,
       });
+      await refetchSubscriptions();
       setSubscribeSuccess(true);
       refetch();
       setTimeout(() => setSubscribeModal(false), 2200);
@@ -137,6 +138,7 @@ const FindMasters = () => {
     setSubscribing(true);
     try {
       await childService.bulkSubscribe(selectedMasters.map((masterId) => ({ masterId, brokerAccountId: selectedBrokerAccountId, scalingFactor: multiplier })));
+      await refetchSubscriptions();
       setBulkSubscribeModal(false);
       setSelectedMasters([]);
       addToast(`${selectedMasters.length} subscription request${selectedMasters.length > 1 ? 's' : ''} sent — awaiting master approval`, 'success');

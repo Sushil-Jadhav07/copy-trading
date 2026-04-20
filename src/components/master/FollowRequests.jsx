@@ -5,7 +5,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
-import api from '@/lib/api';
+import { masterService } from '@/lib/master';
 
 const getErrorMessage = (err) =>
   err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Something went wrong';
@@ -19,9 +19,7 @@ const FollowRequests = () => {
   const loadPending = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/v1/master/children/pending');
-      const data = res.data?.data || res.data || [];
-      const list = Array.isArray(data) ? data : [];
+      const list = await masterService.getPendingChildren();
       setRequests(list.map((r) => ({
         id: r.childId || r.id || r.userId || r._id,
         name: r.childName || r.name || r.fullName || r.username || 'Unknown User',
@@ -44,7 +42,15 @@ const FollowRequests = () => {
   const handleAction = async (id, action) => {
     setActionLoading((p) => ({ ...p, [id]: action }));
     try {
-      await api.post(`/api/v1/master/children/${id}/${action}`, {});
+      if (action === 'approve') {
+        await masterService.approveChild(id);
+      } else {
+        try {
+          await masterService.declineChild(id);
+        } catch (error) {
+          await masterService.rejectChild(id);
+        }
+      }
       setRequests((prev) => prev.filter((r) => r.id !== id));
       addToast(
         action === 'approve' ? 'Subscription approved successfully' : 'Request declined',
