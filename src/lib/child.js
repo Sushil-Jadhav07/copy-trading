@@ -146,6 +146,9 @@ export const childService = {
   },
 
   async subscribe(body) {
+    if (!body?.brokerAccountId) {
+      throw new Error('Please select a broker account before subscribing. Go to Demat Accounts and connect your broker first.');
+    }
     try {
       const payload = {
         masterId: body?.masterId,

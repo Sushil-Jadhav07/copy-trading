@@ -6,7 +6,6 @@ import {
   TrendingUp,
   Activity,
   BookOpen,
-  Briefcase,
   BarChart2,
   Shield,
   Star,
@@ -182,22 +181,14 @@ const masterSidebarItems = [
         { to: '/master/user-management', icon: LayoutGrid, label: 'Demat Accounts' },
         { to: '/master/copy-trading', icon: Copy, label: 'Copy Trading' },
         { to: '/master/logs', icon: FileText, label: 'Logs' },
-        { to: '/master/risk-dashboard', icon: Shield, label: 'Risk Monitor' },
         { to: '/master/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
     },
     {
       section: 'Trading',
       items: [
-        { to: '/master/trades', icon: TrendingUp, label: 'My Trades' },
         { to: '/master/positions', icon: Activity, label: 'Open Positions' },
         { to: '/master/orders', icon: BookOpen, label: 'Order Book' },
-      ],
-    },
-    {
-      section: 'Portfolio',
-      items: [
-        { to: '/master/holdings', icon: Briefcase, label: 'Holdings' },
       ],
     },
     {
@@ -233,13 +224,6 @@ const childSidebarItems = [
       section: 'Discover',
       items: [
         { to: '/child/find-masters', icon: Search, label: 'Find Masters' },
-      ],
-    },
-    {
-      section: 'Portfolio',
-      items: [
-        { to: '/child/holdings', icon: Briefcase, label: 'My Holdings' },
-        { to: '/child/unrealized-pnl', icon: TrendingUp, label: 'Unrealised P&L' },
       ],
     },
   ];

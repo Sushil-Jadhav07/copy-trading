@@ -140,25 +140,20 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           linkedAt: data.account.linkedAt || null,
         });
 
-        if (isChildScope) {
-          setPositions([]);
-          setPositionsError('Live positions are not available for child demat accounts with the current API.');
-        } else if (data.errors.positions) {
+        if (data.errors?.positions) {
           setPositionsError(data.errors.positions);
           setPositions([]);
           addToast(data.errors.positions, 'error');
         } else {
-          setPositions(data.positions);
+          setPositions(data.positions || []);
         }
 
-        if (isChildScope) {
-          setMarginError('Live margin is not exposed for child demat accounts with the current API.');
-        } else if (data.errors.margin) {
+        if (data.errors?.margin) {
           setMarginError(data.errors.margin);
           addToast(data.errors.margin, 'error');
         }
 
-        if (!isChildScope && (data.errors.margin || !data.margin)) {
+        if (data.errors.margin || !data.margin) {
           try {
             const marginData = await brokerService.getMargin(accountId);
             const marginValue = getMarginValue(marginData, data.account?.margin ?? 0);
@@ -230,25 +225,19 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
         linkedAt: data.account.linkedAt || prev?.linkedAt || null,
       }));
 
-      if (isChildScope) {
+      if (data.errors?.positions) {
+        setPositionsError(data.errors.positions);
         setPositions([]);
-        setPositionsError('Live positions are not available for child demat accounts with the current API.');
-        setMarginError('Live margin is not exposed for child demat accounts with the current API.');
+        addToast(data.errors.positions, 'error');
       } else {
-        if (data.errors.positions) {
-          setPositionsError(data.errors.positions);
-          setPositions([]);
-          addToast(data.errors.positions, 'error');
-        } else {
-          setPositions(data.positions);
-        }
-        if (data.errors.margin) {
-          setMarginError(data.errors.margin);
-          addToast(data.errors.margin, 'error');
-        }
+        setPositions(data.positions || []);
+      }
+      if (data.errors?.margin) {
+        setMarginError(data.errors.margin);
+        addToast(data.errors.margin, 'error');
       }
 
-      if (!isChildScope && (data.errors.margin || !data.margin)) {
+      if (data.errors.margin || !data.margin) {
         try {
           const marginData = await brokerService.getMargin(accountId);
           const marginValue = getMarginValue(marginData, data.account?.margin ?? 0);

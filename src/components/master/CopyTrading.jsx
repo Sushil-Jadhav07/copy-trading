@@ -126,7 +126,6 @@ const CopyTrading = () => {
   const [masterConnected, setMasterConnected] = useState(false);
   const [masterInfo, setMasterInfo] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(true);
-  const [placeRejected, setPlaceRejected] = useState(false);
   const [settingActive, setSettingActive] = useState(false);
   const [selectedChild, setSelectedChild] = useState('');
   const [childMultiplier, setChildMultiplier] = useState('1');
@@ -140,17 +139,6 @@ const CopyTrading = () => {
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const [engineStatus, setEngineStatus] = useState(null);
   const [pollingStatus, setPollingStatus] = useState(null);
-  const [copyTradeModal, setCopyTradeModal] = useState(false);
-  const [copyTradeForm, setCopyTradeForm] = useState({
-    symbol: '',
-    qty: '',
-    side: 'BUY',
-    product: 'MIS',
-    orderType: 'MARKET',
-    price: '0',
-  });
-  const [copyTradeResult, setCopyTradeResult] = useState(null);
-  const [copyingTrade, setCopyingTrade] = useState(false);
   const [togglingPolling, setTogglingPolling] = useState(false);
   const [togglingChildren, setTogglingChildren] = useState({});
   const [resettingCache, setResettingCache] = useState(false);
@@ -201,14 +189,6 @@ const CopyTrading = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  useEffect(() => {
-    masterService.getActiveAccount().then((data) => {
-      if (data?.brokerAccountId) {
-        setMasterAccountId(data.brokerAccountId);
-      }
-    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -461,38 +441,6 @@ const CopyTrading = () => {
     }
   };
 
-  const handleCopyTrade = async () => {
-    const { symbol, qty, side, product, orderType, price } = copyTradeForm;
-    if (!symbol.trim()) {
-      addToast('Symbol is required', 'error');
-      return;
-    }
-    if (!qty || Number(qty) <= 0) {
-      addToast('Enter a valid quantity', 'error');
-      return;
-    }
-
-    setCopyingTrade(true);
-    setCopyTradeResult(null);
-
-    try {
-      const result = await engineService.manualCopyTrade({
-        symbol: symbol.trim().toUpperCase(),
-        qty: Number(qty),
-        side,
-        product,
-        orderType,
-        price: Number(price) || 0,
-      });
-      setCopyTradeResult(result);
-      addToast(`Trade copied: ${result.success || 0} success, ${result.failed || 0} failed`, result.failed ? 'warning' : 'success');
-    } catch (error) {
-      addToast(error.message || 'Trade copy failed', 'error');
-    } finally {
-      setCopyingTrade(false);
-    }
-  };
-
   const handleTogglePolling = async () => {
     setTogglingPolling(true);
     try {
@@ -533,12 +481,6 @@ const CopyTrading = () => {
   const lastResetLabel = pollingStatus?.lastResetAt
     ? new Date(pollingStatus.lastResetAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
     : 'Not reset yet';
-  const copyResultSummary = {
-    success: copyTradeResult?.success || 0,
-    skipped: copyTradeResult?.skipped || 0,
-    failed: copyTradeResult?.failed || 0,
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -722,7 +664,6 @@ const CopyTrading = () => {
                 </button>
                 <div className="flex flex-wrap items-center gap-4">
                   <ToggleSwitch checked={tradingEnabled} onChange={() => setTradingEnabled((prev) => !prev)} label="Trading" showStateText />
-                  <ToggleSwitch checked={placeRejected} onChange={() => setPlaceRejected((prev) => !prev)} label="Place Rejected Order" />
                 </div>
               </div>
             </div>
@@ -833,16 +774,6 @@ const CopyTrading = () => {
               >
                 <RotateCcw className={`h-3.5 w-3.5 ${resettingCache ? 'animate-spin text-brand-purple' : ''}`} />
                 Reset Cache
-              </button>
-              <button
-                onClick={() => {
-                  setCopyTradeModal(true);
-                  setCopyTradeResult(null);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-blue px-4 py-1.5 text-xs font-black text-white transition-colors hover:bg-brand-blue/90"
-              >
-                <Zap className="h-3.5 w-3.5" />
-                Copy Trade
               </button>
             </div>
           </div>
@@ -1078,154 +1009,6 @@ const CopyTrading = () => {
         )}
       </GlassCard>
 
-      <Modal isOpen={copyTradeModal} onClose={() => { setCopyTradeModal(false); setCopyTradeResult(null); }} title="Manual Copy Trade" size="sm">
-        <div className="space-y-4">
-          {!copyTradeResult ? (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Symbol</label>
-                  <input
-                    value={copyTradeForm.symbol}
-                    onChange={(event) => setCopyTradeForm((prev) => ({ ...prev, symbol: event.target.value.toUpperCase() }))}
-                    placeholder="e.g. NIFTY25APR17500CE"
-                    className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 font-mono text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Quantity</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={copyTradeForm.qty}
-                    onChange={(event) => setCopyTradeForm((prev) => ({ ...prev, qty: event.target.value }))}
-                    placeholder="Qty"
-                    className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Side</label>
-                  <select
-                    value={copyTradeForm.side}
-                    onChange={(event) => setCopyTradeForm((prev) => ({ ...prev, side: event.target.value }))}
-                    className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  >
-                    <option value="BUY">BUY</option>
-                    <option value="SELL">SELL</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Product</label>
-                  <select
-                    value={copyTradeForm.product}
-                    onChange={(event) => setCopyTradeForm((prev) => ({ ...prev, product: event.target.value }))}
-                    className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  >
-                    <option value="MIS">MIS</option>
-                    <option value="CNC">CNC</option>
-                    <option value="NRML">NRML</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Order Type</label>
-                  <select
-                    value={copyTradeForm.orderType}
-                    onChange={(event) => setCopyTradeForm((prev) => ({ ...prev, orderType: event.target.value }))}
-                    className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  >
-                    <option value="MARKET">MARKET</option>
-                    <option value="LIMIT">LIMIT</option>
-                  </select>
-                </div>
-                {copyTradeForm.orderType === 'LIMIT' && (
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Price</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.05"
-                      value={copyTradeForm.price}
-                      onChange={(event) => setCopyTradeForm((prev) => ({ ...prev, price: event.target.value }))}
-                      placeholder="0.00"
-                      className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setCopyTradeModal(false)}
-                  className="flex-1 rounded-xl bg-black/5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCopyTrade}
-                  disabled={copyingTrade}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue py-2.5 text-sm font-black text-white transition-colors hover:bg-brand-blue/90 disabled:opacity-60"
-                >
-                  {copyingTrade ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Copying...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Copy Trade
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2 rounded-xl bg-black/4 p-3 dark:bg-white/4">
-                <span className="rounded-lg bg-emerald-500/12 px-2.5 py-1 text-xs font-black text-emerald-600 dark:text-emerald-400">
-                  {copyResultSummary.success} Success
-                </span>
-                <span className="rounded-lg bg-amber-500/12 px-2.5 py-1 text-xs font-black text-amber-600 dark:text-amber-400">
-                  {copyResultSummary.skipped} Skipped
-                </span>
-                <span className="rounded-lg bg-rose-500/12 px-2.5 py-1 text-xs font-black text-rose-600 dark:text-rose-400">
-                  {copyResultSummary.failed} Failed
-                </span>
-                <span className="ml-auto text-xs font-semibold text-muted-foreground">
-                  {copyTradeResult.symbol} {copyTradeResult.side} · {copyTradeResult.masterQty} lots
-                </span>
-              </div>
-              {Array.isArray(copyTradeResult.results) && copyTradeResult.results.length > 0 && (
-                <div className="max-h-56 space-y-1.5 overflow-y-auto scrollbar-hide">
-                  {copyTradeResult.results.map((result, index) => {
-                    const cfg = getResultCfg(result.status);
-                    const Icon = cfg.icon;
-                    return (
-                      <div key={`${result.broker || 'row'}-${index}`} className={`flex items-start gap-2.5 rounded-xl border-l-2 px-3 py-2.5 text-xs ${cfg.row}`}>
-                        <Icon className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${cfg.iconCls}`} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-black">{result.broker}</span>
-                            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${cfg.badge}`}>{cfg.label}</span>
-                          </div>
-                          <p className="mt-0.5 text-muted-foreground">{result.message || result.reason || 'No detail returned'}</p>
-                          {String(result.status || '').toUpperCase() === 'SKIPPED' && (
-                            <p className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                              Reason: {result.reason || result.message || 'Copy skipped by engine'}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <button onClick={() => { setCopyTradeModal(false); setCopyTradeResult(null); }} className="btn-primary-gradient w-full py-2.5">
-                Done
-              </button>
-            </div>
-          )}
-        </div>
-      </Modal>
 
       <Modal isOpen={deleteModal} onClose={() => setDeleteModal(false)} title="Remove Child Account" size="sm">
         <div className="space-y-4">

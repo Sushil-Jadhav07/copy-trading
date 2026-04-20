@@ -14,10 +14,8 @@ import DematConnected from '@/pages/DematConnected';
 
 // Master Components
 import MasterOverview from '@/components/master/Overview';
-import MyTrades from '@/components/master/MyTrades';
 import OpenPositions from '@/components/master/OpenPositions';
 import OrderBook from '@/components/master/OrderBook';
-import Holdings from '@/components/master/Holdings';
 import PnLSummary from '@/components/master/PnLSummary';
 import ActiveFollowers from '@/components/master/ActiveFollowers';
 import Earnings from '@/components/master/Earnings';
@@ -30,7 +28,6 @@ import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
 import FollowRequests from '@/components/master/FollowRequests';
-import RiskDashboard from '@/components/master/RiskDashboard';
 import PnLAnalytics from '@/components/master/PnLAnalytics';
 // ──────────────────────────────────────────────────────────
 
@@ -134,10 +131,8 @@ const AppRouter = () => {
 
                 {/* Master Routes */}
                 <Route path="master/overview" element={<MasterOverview />} />
-                <Route path="master/trades" element={<MyTrades />} />
                 <Route path="master/positions" element={<OpenPositions />} />
                 <Route path="master/orders" element={<OrderBook />} />
-                <Route path="master/holdings" element={<Holdings />} />
                 <Route path="master/pnl" element={<PnLSummary />} />
                 <Route path="master/followers" element={<ActiveFollowers />} />
                 <Route path="master/earnings" element={<Earnings />} />
@@ -150,7 +145,6 @@ const AppRouter = () => {
                 <Route path="master/copy-trading" element={<CopyTrading />} />
                 <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/logs" element={<Logs />} />
-                <Route path="master/risk-dashboard" element={<RiskDashboard />} />
                 <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
                 {/* ───────────────────── */}
 
@@ -162,8 +156,6 @@ const AppRouter = () => {
                 />
                 <Route path="child/demat/:accountId" element={<ChildDematDetailWrapper />} />
                 <Route path="child/find-masters" element={<FindMasters />} />
-                <Route path="child/holdings" element={<Holdings />} />
-                <Route path="child/unrealized-pnl" element={<OpenPositions />} />
                 <Route path="child/my-masters" element={<MyMasters />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
                 <Route path="child/profile" element={<Profile />} />

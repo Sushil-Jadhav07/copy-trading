@@ -6,7 +6,7 @@ import Modal from '@/components/shared/Modal';
 import LineChart from '@/components/charts/LineChart';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildMasters, useChildSubscriptions } from '@/hooks/useChild';
-import { useBrokerAccounts } from '@/hooks/useBroker';
+import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
 import { formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
@@ -36,7 +36,6 @@ const FindMasters = () => {
   const { addToast } = useToast();
   const { masters, loading, refetch, error } = useChildMasters();
   const { subscriptions, refetch: refetchSubscriptions } = useChildSubscriptions();
-  const { accounts: brokerAccounts, loading: accountsLoading } = useBrokerAccounts();
 
   const [searchQuery, setSearchQuery]   = useState('');
   const [selectedMaster, setSelectedMaster]   = useState(null);
@@ -44,7 +43,9 @@ const FindMasters = () => {
   const [subscribeModal, setSubscribeModal]   = useState(false);
   const [subscribeMaster, setSubscribeMaster] = useState(null);
   const [multiplier, setMultiplier]           = useState(1.0);
+  const [brokerAccounts, setBrokerAccounts] = useState([]);
   const [selectedBrokerAccountId, setSelectedBrokerAccountId] = useState('');
+  const [loadingBrokers, setLoadingBrokers] = useState(false);
   const [selectedMasters, setSelectedMasters] = useState([]);
   const [bulkSubscribeModal, setBulkSubscribeModal] = useState(false);
   const [subscribeSuccess, setSubscribeSuccess]     = useState(false);
@@ -81,11 +82,6 @@ const FindMasters = () => {
     [masters]
   );
 
-  const activeBrokerAccounts = useMemo(
-    () => brokerAccounts.filter((a) => a.accountId && a.sessionActive),
-    [brokerAccounts]
-  );
-
   const filteredMasters = normalizedMasters.filter((m) => {
     if (searchQuery && !m.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -95,20 +91,48 @@ const FindMasters = () => {
   const getSubStatus       = (id) => String(subscriptionMap[String(id)]?.copyingStatus || subscriptionMap[String(id)]?.status || '').toUpperCase();
   const toggleSelection    = (id) => setSelectedMasters((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
-  const openSubscribe = (e, master) => {
-    e?.stopPropagation();
+  const loadBrokerAccounts = async () => {
+    setLoadingBrokers(true);
+    try {
+      const accounts = await brokerService.getAccounts();
+      const activeAccounts = accounts.filter((a) =>
+        a.status === 'ACTIVE' || a.sessionActive
+      );
+      setBrokerAccounts(activeAccounts);
+      if (activeAccounts.length === 1) {
+        setSelectedBrokerAccountId(activeAccounts[0].accountId);
+      } else {
+        setSelectedBrokerAccountId('');
+      }
+      return activeAccounts;
+    } catch (e) {
+      setBrokerAccounts([]);
+      setSelectedBrokerAccountId('');
+      addToast('Could not load broker accounts', 'error');
+      return [];
+    } finally {
+      setLoadingBrokers(false);
+    }
+  };
+
+  const handleOpenSubscribeModal = async (master) => {
     if (isFollowing(master.id)) return;
     setSubscribeMaster(master);
     setMultiplier(1.0);
-    setSelectedBrokerAccountId(activeBrokerAccounts[0]?.accountId || '');
     setSubscribeSuccess(false);
+    await loadBrokerAccounts();
     setSubscribeModal(true);
   };
 
-  const openBulkSubscribe = () => {
+  const openSubscribe = async (e, master) => {
+    e?.stopPropagation();
+    await handleOpenSubscribeModal(master);
+  };
+
+  const openBulkSubscribe = async () => {
     if (!selectedMasters.length) { addToast('Select at least one master', 'error'); return; }
-    if (!activeBrokerAccounts.length) { addToast('Connect a broker account with an active session first', 'error'); return; }
-    setSelectedBrokerAccountId(activeBrokerAccounts[0]?.accountId || '');
+    const activeAccounts = await loadBrokerAccounts();
+    if (!activeAccounts.length) { addToast('Connect a broker account with an active session first', 'error'); return; }
     setMultiplier(1.0);
     setBulkSubscribeModal(true);
   };
@@ -346,18 +370,35 @@ const FindMasters = () => {
                   </div>
                 </div>
 
-                {/* Broker account */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">Broker Account <span className="text-red-500">*</span></label>
-                  <select value={selectedBrokerAccountId} onChange={(e) => setSelectedBrokerAccountId(e.target.value)}
-                    className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple text-foreground">
-                    <option value="">Select broker account</option>
-                    {activeBrokerAccounts.map((a) => (
-                      <option key={a.accountId} value={a.accountId}>{a.brokerName} — {a.clientId} — {a.nickname}</option>
-                    ))}
-                  </select>
-                  {!activeBrokerAccounts.length && !accountsLoading && (
-                    <p className="text-xs text-amber-500 mt-1.5">Connect and activate a broker account first before subscribing.</p>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Broker Account to copy trades into
+                  </label>
+                  {loadingBrokers ? (
+                    <div className="text-xs text-muted-foreground">Loading accounts...</div>
+                  ) : brokerAccounts.length === 0 ? (
+                    <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-3 py-2 text-xs text-rose-500">
+                      No active broker accounts found. Please connect a broker in Demat Accounts first.
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedBrokerAccountId}
+                      onChange={(e) => setSelectedBrokerAccountId(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+                    >
+                      <option value="">Select broker account...</option>
+                      {brokerAccounts.map((account) => (
+                        <option key={account.accountId} value={account.accountId}>
+                          {account.brokerName || account.broker} — {account.nickname || account.clientId}
+                          {!account.sessionActive ? ' (session expired)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {selectedBrokerAccountId && brokerAccounts.find((a) => a.accountId === selectedBrokerAccountId && !a.sessionActive) && (
+                    <p className="text-[11px] text-amber-500">
+                      This account's session is expired. Re-login before subscribing.
+                    </p>
                   )}
                 </div>
 
@@ -378,7 +419,7 @@ const FindMasters = () => {
 
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => setSubscribeModal(false)} className="flex-1 py-2.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-                  <button onClick={confirmSubscribe} disabled={subscribing || !selectedBrokerAccountId}
+                  <button onClick={confirmSubscribe} disabled={!selectedBrokerAccountId || loadingBrokers || brokerAccounts.length === 0 || subscribing}
                     className="flex-1 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {subscribing ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
                     {subscribing ? 'Sending…' : 'Send Request'}
@@ -402,7 +443,7 @@ const FindMasters = () => {
             <select value={selectedBrokerAccountId} onChange={(e) => setSelectedBrokerAccountId(e.target.value)}
               className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple text-foreground">
               <option value="">Select broker account</option>
-              {activeBrokerAccounts.map((a) => (
+              {brokerAccounts.map((a) => (
                 <option key={a.accountId} value={a.accountId}>{a.brokerName} — {a.clientId} — {a.nickname}</option>
               ))}
             </select>
@@ -410,7 +451,7 @@ const FindMasters = () => {
           <MultiplierControl />
           <div className="flex gap-3 pt-1">
             <button onClick={() => setBulkSubscribeModal(false)} className="flex-1 py-2.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-            <button onClick={confirmBulkSubscribe} disabled={subscribing || !selectedBrokerAccountId}
+            <button onClick={confirmBulkSubscribe} disabled={subscribing || loadingBrokers || !selectedBrokerAccountId || brokerAccounts.length === 0}
               className="flex-1 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {subscribing ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
               {subscribing ? 'Sending…' : 'Send Requests'}

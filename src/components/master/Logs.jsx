@@ -77,7 +77,10 @@ const Logs = () => {
           logsService.getUserTradeLogs().catch(() => []),
           brokerService.getAccounts().catch(() => []),
         ]);
-        setCopyLogs(Array.isArray(copyData) ? copyData : copyData.logs || []);
+        setCopyLogs((Array.isArray(copyData) ? copyData : copyData.logs || []).map((log) => ({
+          ...log,
+          errorCode: log.errorCode,
+        })));
         setTradeLogs(Array.isArray(tradeData) ? tradeData : []);
         setBrokerAccounts(accounts);
         setSelectedBrokerAccountId(accounts[0]?.accountId || '');
@@ -171,7 +174,23 @@ const Logs = () => {
                     {log.skipReason ? String(log.skipReason).replace(/_/g, ' ') : '-'}
                   </td>
                   <td className="px-4 py-3 text-[10px] text-muted-foreground font-mono">{log.masterTradeId ? log.masterTradeId.slice(0, 8) + '...' : '-'}</td>
-                  <td className="px-4 py-3 text-xs text-rose-500 max-w-[160px] truncate" title={log.errorMessage || ''}>{log.errorMessage || '-'}</td>
+                  <td className="px-4 py-3 text-xs max-w-[180px]">
+                    {log.errorCode === 'SESSION_EXPIRED' ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-amber-500 font-medium">Session expired</span>
+                        <button
+                          onClick={() => window.location.href = '/master/demat-accounts'}
+                          className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full hover:bg-amber-500/25 transition-colors"
+                        >
+                          Re-connect
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="text-rose-500 truncate block" title={log.errorMessage || ''}>
+                        {log.errorMessage || '-'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
                 </motion.tr>
               );
