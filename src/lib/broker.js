@@ -7,8 +7,39 @@ const getErrorMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
+const parseBooleanLike = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return null;
+};
+
+const deriveSessionActive = (raw = {}) => {
+  const explicit =
+    parseBooleanLike(raw.sessionActive) ??
+    parseBooleanLike(raw.isSessionActive) ??
+    parseBooleanLike(raw.connected);
+  if (explicit !== null) return explicit;
+
+  const statusHints = [raw.status, raw.sessionStatus, raw.loginStatus]
+    .filter((value) => value != null)
+    .map((value) => String(value).toUpperCase());
+
+  if (statusHints.some((status) => ['ACTIVE', 'SESSION_ACTIVE', 'CONNECTED', 'LOGGED_IN', 'AUTHORIZED'].includes(status))) {
+    return true;
+  }
+  if (statusHints.some((status) => ['INACTIVE', 'SESSION_EXPIRED', 'EXPIRED', 'DISCONNECTED', 'FAILED', 'LOGGED_OUT'].includes(status))) {
+    return false;
+  }
+
+  return false;
+};
+
 const normalizeBrokerAccount = (raw = {}) => {
-  const sessionActive = Boolean(raw.sessionActive);
+  const sessionActive = deriveSessionActive(raw);
   const status = String(raw.status || (sessionActive ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
 
   return {
@@ -67,7 +98,7 @@ const normalizeSignal = (raw = {}) => ({
   quality: raw.quality || 'disconnected',
   color: raw.color || 'red',
   message: raw.message || '',
-  sessionActive: Boolean(raw.sessionActive),
+  sessionActive: deriveSessionActive(raw),
   latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : null,
   marginAvailable: Number(raw.marginAvailable ?? 0),
 });

@@ -54,11 +54,28 @@ const normalizeUser = (payload = {}) => {
 
 const extractAccessToken = (payload = {}) =>
   payload?.accessToken ||
+  payload?.access_token ||
   payload?.token ||
   payload?.data?.accessToken ||
+  payload?.data?.access_token ||
   payload?.data?.token ||
   payload?.tokens?.accessToken ||
+  payload?.tokens?.access_token ||
   payload?.data?.tokens?.accessToken ||
+  payload?.data?.tokens?.access_token ||
+  payload?.data?.jwt ||
+  payload?.jwt ||
+  null;
+
+const extractRefreshToken = (payload = {}) =>
+  payload?.refreshToken ||
+  payload?.refresh_token ||
+  payload?.data?.refreshToken ||
+  payload?.data?.refresh_token ||
+  payload?.tokens?.refreshToken ||
+  payload?.tokens?.refresh_token ||
+  payload?.data?.tokens?.refreshToken ||
+  payload?.data?.tokens?.refresh_token ||
   null;
 
 const getErrorMessage = (error, fallback) =>
@@ -86,6 +103,24 @@ const extractTwoFactorState = (payload = {}) => {
         null,
     },
   };
+};
+
+const parseJwtPayload = (token) => {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
+
+const isJwtExpired = (token) => {
+  const exp = Number(parseJwtPayload(token)?.exp);
+  if (!exp) return false;
+  return exp * 1000 <= Date.now();
 };
 
 export const authStorage = {
@@ -121,11 +156,7 @@ export const authService = {
       );
 
       const token = extractAccessToken(response.data);
-      const refreshToken =
-        response.data?.refreshToken ||
-        response.data?.data?.refreshToken ||
-        response.data?.tokens?.refreshToken ||
-        null;
+      const refreshToken = extractRefreshToken(response.data);
       const twoFactorState = extractTwoFactorState(response.data);
 
       if (token) {
@@ -151,11 +182,7 @@ export const authService = {
     } catch (error) {
       if (error.response?.status === 202) {
         const token = extractAccessToken(error.response?.data || {});
-        const refreshToken =
-          error.response?.data?.refreshToken ||
-          error.response?.data?.data?.refreshToken ||
-          error.response?.data?.tokens?.refreshToken ||
-          null;
+        const refreshToken = extractRefreshToken(error.response?.data || {});
 
         if (token) {
           setAccessToken(token);
@@ -191,11 +218,7 @@ export const authService = {
     }
 
     const token = extractAccessToken(response.data);
-    const refreshToken =
-      response.data?.refreshToken ||
-      response.data?.data?.refreshToken ||
-      response.data?.tokens?.refreshToken ||
-      null;
+    const refreshToken = extractRefreshToken(response.data);
     if (token) {
       setAccessToken(token);
     }
@@ -224,7 +247,7 @@ export const authService = {
         throw new Error(payload?.message || payload?.error || 'OTP verification failed');
       }
       const token = extractAccessToken(response.data);
-      const refreshToken = response.data?.refreshToken || response.data?.data?.refreshToken || null;
+      const refreshToken = extractRefreshToken(response.data);
       if (token) setAccessToken(token);
       if (refreshToken) setRefreshToken(refreshToken);
       const user = response.data?.user ? normalizeUser(response.data) : await this.getMe();
@@ -323,8 +346,16 @@ export const authService = {
     try {
       const token = getAccessToken();
       if (!token) return null;
+      const refreshToken = getRefreshToken();
+
+      if (isJwtExpired(token) && !refreshToken) {
+        this.clearSession();
+        return null;
+      }
+
       return await this.getMe();
     } catch {
+      this.clearSession();
       return null;
     }
   },

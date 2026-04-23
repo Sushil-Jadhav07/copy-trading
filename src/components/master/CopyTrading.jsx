@@ -7,7 +7,6 @@ import {
   Link,
   Link2Off,
   Trash2,
-  ChevronDown,
   CheckSquare,
   Zap,
   RotateCcw,
@@ -23,6 +22,7 @@ import {
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import DivSelect from '@/components/shared/DivSelect';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
@@ -605,18 +605,17 @@ const CopyTrading = () => {
             </div>
           </div>
           {accounts.length > 1 && (
-            <select
+            <DivSelect
               value={masterAccountId}
-              onChange={(event) => handleSetActiveAccount(event.target.value)}
+              onChange={handleSetActiveAccount}
               disabled={settingActive}
-              className="rounded-xl border border-border bg-black/5 px-3 py-1.5 text-xs focus:outline-none focus:border-brand-purple disabled:opacity-50 dark:bg-white/5"
-            >
-              {accounts.map((account) => (
-                <option key={account.accountId} value={account.accountId}>
-                  {account.broker} - {account.userId} {account.nickname ? `(${account.nickname})` : ''}
-                </option>
-              ))}
-            </select>
+              includeEmptyOption={false}
+              options={accounts.map((account) => ({
+                value: account.accountId,
+                label: `${account.broker} - ${account.userId}${account.nickname ? ` (${account.nickname})` : ''}`,
+              }))}
+              triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-1.5 text-xs focus:border-brand-purple disabled:opacity-50 dark:bg-white/5"
+            />
           )}
         </div>
       )}
@@ -627,20 +626,17 @@ const CopyTrading = () => {
             <div>
               <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Master Account</p>
               <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="relative flex-1">
-                  <select
+                <div className="flex-1">
+                  <DivSelect
                     value={masterAccountId}
-                    onChange={(event) => setMasterAccountId(event.target.value)}
-                    className="w-full appearance-none rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  >
-                    <option value="">Select Master Account</option>
-                    {accounts.map((account) => (
-                      <option key={account.accountId} value={account.accountId}>
-                        {account.broker} - {account.userId} {account.nickname ? `(${account.nickname})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    onChange={setMasterAccountId}
+                    placeholder="Select Master Account"
+                    options={accounts.map((account) => ({
+                      value: account.accountId,
+                      label: `${account.broker} - ${account.userId}${account.nickname ? ` (${account.nickname})` : ''}`,
+                    }))}
+                    triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:border-brand-purple dark:bg-white/5"
+                  />
                 </div>
                 <button onClick={handleConnectMaster} className="btn-primary-gradient w-full px-6 sm:w-auto">
                   Connect
@@ -673,20 +669,17 @@ const CopyTrading = () => {
         <GlassCard>
           <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Child Accounts</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <div className="relative min-w-full flex-1 sm:min-w-[200px]">
-              <select
+            <div className="min-w-full flex-1 sm:min-w-[200px]">
+              <DivSelect
                 value={selectedChild}
-                onChange={(event) => setSelectedChild(event.target.value)}
-                className="w-full appearance-none rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-              >
-                <option value="">Select Child Account</option>
-                {childOptions.map((child) => (
-                  <option key={child.id} value={child.id}>
-                    {child.broker} - {child.userId} ({child.nickname})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                onChange={setSelectedChild}
+                placeholder="Select Child Account"
+                options={childOptions.map((child) => ({
+                  value: child.id,
+                  label: `${child.broker} - ${child.userId} (${child.nickname})`,
+                }))}
+                triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:border-brand-purple dark:bg-white/5"
+              />
             </div>
             <div className="w-full sm:w-28">
               <input
@@ -1047,3 +1040,4 @@ const CopyTrading = () => {
 };
 
 export default CopyTrading;
+

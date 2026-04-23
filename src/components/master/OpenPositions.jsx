@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { RefreshCw, WifiOff, Wifi } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import DivSelect from '@/components/shared/DivSelect';
 import { brokerService } from '@/lib/broker';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
@@ -10,54 +12,103 @@ import { connectChannel } from '@/lib/websocket';
 
 const OpenPositions = () => {
   const { addToast } = useToast();
-  const [accounts, setAccounts] = useState([]);
-  const [selectedAccountId, setSelectedAccountId] = useState('');
-  const [positions, setPositions] = useState([]);
-  const [closeModal, setCloseModal] = useState(false);
-  const [selectedPos, setSelectedPos] = useState(null);
-  const [childDetailModal, setChildDetailModal] = useState(false);
-  const [selectedChildren, setSelectedChildren] = useState([]);
-  const [selectedInstrument, setSelectedInstrument] = useState('');
-  const [loading, setLoading] = useState(true);
 
+  // Accounts
+  const [accounts, setAccounts]             = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+
+  // Session
+  const [sessionActive, setSessionActive]   = useState(null); // null = unknown, true/false
+  const [sessionLoading, setSessionLoading] = useState(false);
+
+  // Positions
+  const [positions, setPositions]           = useState([]);
+  const [loading, setLoading]               = useState(false);
+  const [refreshing, setRefreshing]         = useState(false);
+
+  // Modals
+  const [closeModal, setCloseModal]               = useState(false);
+  const [selectedPos, setSelectedPos]             = useState(null);
+  const [childDetailModal, setChildDetailModal]   = useState(false);
+  const [selectedChildren, setSelectedChildren]   = useState([]);
+  const [selectedInstrument, setSelectedInstrument] = useState('');
+
+  // ── 1. Load broker accounts on mount ────────────────────────────────────────
   useEffect(() => {
-    brokerService.getAccounts().then((data) => {
-      setAccounts(data);
-      setSelectedAccountId(data[0]?.accountId || '');
-    }).catch((error) => addToast(error.message, 'error'));
+    brokerService.getAccounts()
+      .then((data) => {
+        setAccounts(data);
+        if (data.length > 0) setSelectedAccountId(data[0]?.accountId || '');
+      })
+      .catch((e) => addToast(e.message, 'error'));
+  }, [addToast]);
+
+  // ── 2. Check session + load positions whenever account changes ───────────────
+  const loadPositions = useCallback(async (accountId, silent = false) => {
+    if (!accountId) return;
+    if (!silent) setLoading(true);
+    setSessionLoading(true);
+
+    try {
+      // First check if session is active
+      const statusData = await brokerService.getAccountStatus(accountId);
+      const isActive =
+        statusData?.sessionActive === true ||
+        String(statusData?.status || '').toUpperCase() === 'ACTIVE' ||
+        String(statusData?.sessionStatus || '').toUpperCase() === 'SESSION_ACTIVE';
+
+      setSessionActive(isActive);
+
+      if (!isActive) {
+        setPositions([]);
+        return;
+      }
+
+      // Session is active → fetch positions
+      const data = await brokerService.getPositions(accountId);
+      setPositions(data);
+    } catch (e) {
+      // If the error is a session error, mark session as inactive
+      const msg = e.message || '';
+      if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('login')) {
+        setSessionActive(false);
+      } else {
+        addToast(e.message, 'error');
+      }
+      setPositions([]);
+    } finally {
+      setLoading(false);
+      setSessionLoading(false);
+      setRefreshing(false);
+    }
   }, [addToast]);
 
   useEffect(() => {
-    if (!selectedAccountId) return;
-    let isMounted = true;
-    setLoading(true);
-    brokerService.getPositions(selectedAccountId).then((data) => {
-      if (isMounted) setPositions(data);
-    }).catch((error) => addToast(error.message, 'error')).finally(() => {
-      if (isMounted) setLoading(false);
-    });
-    return () => { isMounted = false; };
-  }, [selectedAccountId, addToast]);
+    if (selectedAccountId) {
+      setSessionActive(null);
+      setPositions([]);
+      loadPositions(selectedAccountId);
+    }
+  }, [selectedAccountId, loadPositions]);
 
+  // ── 3. WebSocket for real-time position updates ──────────────────────────────
   useEffect(() => {
     const sub = connectChannel(
       'positions',
       (event, data) => {
-        if (event === 'POSITION_UPDATE' || event === 'position_update' || event === 'MESSAGE') {
+        if (['POSITION_UPDATE', 'position_update', 'POSITION_UPDATED', 'MESSAGE'].includes(event)) {
           setPositions((prev) =>
-            prev.map((position) =>
-              position.symbol === data.symbol ? { ...position, ...data } : position
-            )
+            prev.map((p) => (p.symbol === data?.symbol ? { ...p, ...data } : p))
           );
         }
       },
       null,
       null,
     );
-
     return () => sub.close();
   }, []);
 
+  // ── 4. Close position ────────────────────────────────────────────────────────
   const confirmClose = async () => {
     if (!selectedPos) return;
     try {
@@ -76,67 +127,244 @@ const OpenPositions = () => {
     }
   };
 
-  const totalUnrealized = positions.reduce((s, p) => s + p.unrealizedPnl, 0);
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadPositions(selectedAccountId, true);
+  };
+
+  // ── Derived stats ─────────────────────────────────────────────────────────────
+  const totalUnrealized   = positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
+  const followersCount    = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
+  const selectedAccount   = accounts.find((a) => a.accountId === selectedAccountId);
+
+  // ── Render: No accounts ───────────────────────────────────────────────────────
+  if (accounts.length === 0 && !loading && !sessionLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
+          <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
+        </div>
+        <GlassCard>
+          <div className="py-16 text-center">
+            <WifiOff className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="text-sm font-medium">No broker accounts connected</p>
+            <p className="text-xs text-muted-foreground mt-1">Go to Demat Accounts and connect a broker first.</p>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  // ── Render: Session inactive ──────────────────────────────────────────────────
+  const showSessionWarning = sessionActive === false && !sessionLoading;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
           <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
         </div>
-        {accounts.length > 1 && (
-          <select 
-            value={selectedAccountId} 
-            onChange={(e) => setSelectedAccountId(e.target.value)} 
-            className="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
+        <div className="flex items-center gap-2">
+          {accounts.length > 1 && (
+                        <DivSelect
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              includeEmptyOption={false}
+              className="w-full sm:w-auto"
+              options={accounts.map((a) => ({
+                value: a.accountId,
+                label: `${a.broker} - ${a.nickname || a.clientId}`,
+              }))}
+              triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
+            />
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={loading || refreshing}
+            className="p-2 bg-black/5 dark:bg-white/5 rounded-lg hover:bg-black/10 transition-colors disabled:opacity-50"
+            title="Refresh"
           >
-            {accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.broker} - {account.nickname}</option>)}
-          </select>
-        )}
+            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
+      {/* Session expired banner */}
+      {showSessionWarning && (
+        <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+          <WifiOff className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-400">Broker session expired</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Your {selectedAccount?.broker || 'broker'} session has expired. Go to{' '}
+              <a href="/master/demat" className="underline text-brand-purple">Demat Accounts</a>{' '}
+              and click <strong>Connect</strong> to re-login and see live positions.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Session active indicator */}
+      {sessionActive === true && (
+        <div className="flex items-center gap-2 text-xs text-emerald-500">
+          <Wifi className="w-3.5 h-3.5" />
+          <span>Live — reading positions from {selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}</span>
+        </div>
+      )}
+
+      {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        {[{ label: 'Open Positions', value: positions.length }, { label: 'Unrealized P&L', value: formatCurrency(Math.abs(totalUnrealized)), color: totalUnrealized >= 0 ? 'text-success' : 'text-danger' }, { label: 'Followers Copying', value: positions.reduce((sum, pos) => sum + (Array.isArray(pos.children) ? pos.children.length : 0), 0), color: 'text-brand-purple' }, { label: 'Total Child Positions', value: positions.reduce((sum, pos) => sum + (Array.isArray(pos.children) ? pos.children.length : 0), 0), color: 'text-brand-blue' }].map((s) => <GlassCard key={s.label}><p className="text-xs text-muted-foreground">{s.label}</p><p className={`text-xl font-bold mt-1 ${s.color || ''}`}>{s.value}</p></GlassCard>)}
+        {[
+          { label: 'Open Positions',     value: positions.length },
+          {
+            label: 'Unrealized P&L',
+            value: formatCurrency(Math.abs(totalUnrealized)),
+            color: totalUnrealized >= 0 ? 'text-success' : 'text-danger',
+            prefix: totalUnrealized < 0 ? '-' : '',
+          },
+          { label: 'Followers Copying',    value: followersCount,  color: 'text-brand-purple' },
+          { label: 'Total Child Positions', value: followersCount,  color: 'text-brand-blue'   },
+        ].map((s) => (
+          <GlassCard key={s.label}>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+            <p className={`text-xl font-bold mt-1 ${s.color || ''}`}>
+              {s.prefix}{s.value}
+            </p>
+          </GlassCard>
+        ))}
       </div>
 
+      {/* Table */}
       <GlassCard noPadding>
-        {loading ? <div className="p-4"><SkeletonLoader type="table" rows={5} columns={10} /></div> : (
+        {(loading || sessionLoading) ? (
+          <div className="p-4"><SkeletonLoader type="table" rows={5} columns={10} /></div>
+        ) : showSessionWarning ? (
+          <div className="py-16 text-center">
+            <WifiOff className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="text-sm text-muted-foreground">Reconnect your broker to see positions</p>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="border-b border-border/50">{['#', 'Instrument', 'Type', 'Qty', 'Avg Price', 'LTP', 'Unrealized P&L', 'Change%', 'Children Copying', 'Action'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr></thead>
+              <thead>
+                <tr className="border-b border-border/50">
+                  {['#', 'Instrument', 'Type', 'Qty', 'Avg Price', 'LTP', 'Unrealized P&L', 'Change %', 'Children Copying', 'Action'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {positions.map((pos, idx) => {
                   const childList = Array.isArray(pos.children) ? pos.children : [];
                   return (
-                    <motion.tr key={pos.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="border-b border-border/30 hover:bg-white/3 transition-colors">
+                    <motion.tr
+                      key={pos.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="border-b border-border/30 hover:bg-white/3 transition-colors"
+                    >
                       <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                      <td className="px-4 py-3 font-semibold text-sm">{pos.instrument}</td>
-                      <td className="px-4 py-3"><span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${pos.type === 'BUY' ? 'bg-success/20 text-success border-success/30' : 'bg-danger/20 text-danger border-danger/30'}`}>{pos.type}</span></td>
+                      <td className="px-4 py-3 font-semibold text-sm">{pos.instrument || pos.symbol}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
+                          pos.type === 'BUY'
+                            ? 'bg-success/20 text-success border-success/30'
+                            : 'bg-danger/20 text-danger border-danger/30'
+                        }`}>
+                          {pos.type}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm">{pos.qty}</td>
-                      <td className="px-4 py-3 text-sm">₹{pos.avgPrice.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm font-mono font-medium">₹{pos.ltp.toFixed(2)}</td>
-                      <td className="px-4 py-3"><span className={`text-sm font-semibold ${pos.unrealizedPnl >= 0 ? 'text-success' : 'text-danger'}`}>{pos.unrealizedPnl >= 0 ? '+' : ''}{formatCurrency(pos.unrealizedPnl)}</span></td>
-                      <td className="px-4 py-3"><span className={`text-sm font-semibold ${pos.change >= 0 ? 'text-success' : 'text-danger'}`}>{pos.change >= 0 ? '+' : ''}{pos.change.toFixed(2)}%</span></td>
-                      <td className="px-4 py-3">{childList.length > 0 ? <button onClick={() => { setSelectedChildren(childList); setSelectedInstrument(pos.instrument); setChildDetailModal(true); }} className="text-xs text-brand-purple font-medium">{childList.length}</button> : <span className="text-xs text-muted-foreground">None</span>}</td>
-                      <td className="px-4 py-3"><button onClick={() => { setSelectedPos(pos); setCloseModal(true); }} className="px-3 py-1 bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger rounded text-xs font-bold transition-colors">Close</button></td>
+                      <td className="px-4 py-3 text-sm">₹{(pos.avgPrice || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm font-mono font-medium">₹{(pos.ltp || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm font-semibold ${(pos.unrealizedPnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+                          {(pos.unrealizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(pos.unrealizedPnl || 0)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm font-semibold ${(pos.change || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+                          {(pos.change || 0) >= 0 ? '+' : ''}{(pos.change || 0).toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {childList.length > 0 ? (
+                          <button
+                            onClick={() => { setSelectedChildren(childList); setSelectedInstrument(pos.instrument); setChildDetailModal(true); }}
+                            className="text-xs text-brand-purple font-medium hover:underline"
+                          >
+                            {childList.length}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => { setSelectedPos(pos); setCloseModal(true); }}
+                          className="px-3 py-1 bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger rounded text-xs font-bold transition-colors"
+                        >
+                          Close
+                        </button>
+                      </td>
                     </motion.tr>
                   );
                 })}
-                {positions.length === 0 && <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">No open positions</td></tr>}
+                {positions.length === 0 && !showSessionWarning && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      No open positions for this account
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
       </GlassCard>
 
+      {/* Close Position Modal */}
       <Modal isOpen={closeModal} onClose={() => setCloseModal(false)} title="Close Position" size="sm">
-        {selectedPos && <div className="space-y-4"><div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">{[['Instrument', selectedPos.instrument], ['Type', selectedPos.type], ['Qty', selectedPos.qty], ['LTP', `₹${selectedPos.ltp.toFixed(2)}`], ['Unrealized P&L', (selectedPos.unrealizedPnl >= 0 ? '+' : '') + formatCurrency(selectedPos.unrealizedPnl)]].map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{v}</span></div>)}</div><div className="flex gap-3"><button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button><button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Close Position</button></div></div>}
+        {selectedPos && (
+          <div className="space-y-4">
+            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
+              {[
+                ['Instrument', selectedPos.instrument],
+                ['Type', selectedPos.type],
+                ['Qty', selectedPos.qty],
+                ['LTP', `₹${(selectedPos.ltp || 0).toFixed(2)}`],
+                ['Unrealized P&L', ((selectedPos.unrealizedPnl || 0) >= 0 ? '+' : '') + formatCurrency(selectedPos.unrealizedPnl || 0)],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between">
+                  <span className="text-muted-foreground">{k}</span>
+                  <span className="font-medium">{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
+              <button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Close Position</button>
+            </div>
+          </div>
+        )}
       </Modal>
 
+      {/* Children Detail Modal */}
       <Modal isOpen={childDetailModal} onClose={() => setChildDetailModal(false)} title={`Children copying ${selectedInstrument}`} size="md">
         <div className="space-y-3">
-          {selectedChildren.map((c, idx) => <div key={idx} className="flex items-center justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg"><span className="text-sm font-medium">{c.name || c.childName || `Child ${idx + 1}`}</span><div className="text-right text-sm"><p className="text-amber-400 font-bold">{c.multiplier || 1}x multiplier</p><p className="text-muted-foreground text-xs">Qty: {c.qty || 0}</p></div></div>)}
+          {selectedChildren.map((c, idx) => (
+            <div key={idx} className="flex items-center justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg">
+              <span className="text-sm font-medium">{c.name || c.childName || `Child ${idx + 1}`}</span>
+              <div className="text-right text-sm">
+                <p className="text-amber-400 font-bold">{c.multiplier || 1}x multiplier</p>
+                <p className="text-muted-foreground text-xs">Qty: {c.qty || 0}</p>
+              </div>
+            </div>
+          ))}
           <button onClick={() => setChildDetailModal(false)} className="w-full py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors mt-2">Close</button>
         </div>
       </Modal>
@@ -145,3 +373,4 @@ const OpenPositions = () => {
 };
 
 export default OpenPositions;
+

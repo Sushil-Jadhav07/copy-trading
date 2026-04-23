@@ -31,6 +31,11 @@ const Overview = () => {
     }
   };
 
+  const chartData = Array.isArray(analytics.pnlHistory) ? analytics.pnlHistory.map((point) => ({
+    time: point.time,
+    value: Number(point.personal || 0) + Number(point.copied || 0),
+  })) : [];
+
   const tradeColumns = [
     { header: 'Master', accessor: 'master' },
     { header: 'Instrument', accessor: 'instrument' },
@@ -55,7 +60,7 @@ const Overview = () => {
       </div>
 
       <GlassCard title="Portfolio Performance">
-        {analyticsLoading ? <SkeletonLoader type="chart" /> : <LineChart data={analytics.performanceChart || analytics.equityCurve || []} height={300} />}
+        {analyticsLoading ? <SkeletonLoader type="chart" /> : <LineChart data={chartData} height={300} />}
       </GlassCard>
 
       <GlassCard title="My Masters">

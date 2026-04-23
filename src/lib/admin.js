@@ -107,22 +107,27 @@ const extractMeta = (payload = {}) => ({
 });
 
 const normalizeTradeLog = (log = {}, index = 0) => {
-  const type = String(log.type || log.eventType || log.status || 'EXECUTED').toUpperCase();
-  const action = String(log.action || log.side || log.orderSide || 'BUY').toUpperCase();
-  const status = String(log.status || log.executionStatus || '').toUpperCase();
+  // API returns: { id, masterId, childId, type, status, message, broker, reference, createdAt }
+  const type = String(log.type || log.eventType || 'REPLICATED').toUpperCase();
+  const status = String(log.status || log.executionStatus || 'EXECUTED').toUpperCase();
 
   return {
-    id: log.id || log.logId || `${type}-${index}`,
+    id: log.id || `log-${index}`,
     type,
-    master: log.masterName || log.master || log.userName || log.name || 'Unknown',
-    symbol: log.symbol || log.instrument || log.ticker || 'N/A',
-    action,
+    // API has masterId not masterName — show masterId as identifier
+    master: log.masterName || log.master || log.masterId || 'Unknown',
+    // API has reference for order/trade reference, no symbol field
+    symbol: log.symbol || log.instrument || log.reference || log.ticker || 'N/A',
+    // API has type field (REPLICATED/MANUAL), not action/side
+    action: log.action || log.side || log.orderSide || type,
     qty: log.qty || log.quantity || 0,
     price: log.price || log.entryPrice || log.avgPrice || 0,
     broker: log.broker || log.brokerName || 'N/A',
-    childName: log.childName || log.child || '',
+    childName: log.childName || log.child || log.childId || '',
     timestamp: log.timestamp || log.createdAt || log.time || '',
     children: log.children || log.followers || log.copiedAccounts || 0,
+    message: log.message || '',
+    reference: log.reference || '',
     error: log.error || log.reason || '',
     status:
       status === 'FAILED' || type === 'ERROR'
@@ -151,8 +156,38 @@ const normalizeSubscription = (subscription = {}, index = 0) => ({
 });
 
 const normalizeSystemHealthEntries = (payload = {}) => {
-  const entries = extractCollection(payload);
+  // API returns a flat object: { status, database, kafka, redis, uptime }
+  // NOT an array — handle the flat shape first, then fall back to array shape
+  const source = payload?.data || payload;
 
+  // Detect flat object shape (has a top-level "status" key that is a string like "UP")
+  const isFlatObject =
+    typeof source === 'object' &&
+    !Array.isArray(source) &&
+    typeof source.status === 'string' &&
+    ['UP', 'DOWN', 'DISABLED', 'UNKNOWN'].includes(String(source.status).toUpperCase());
+
+  if (isFlatObject) {
+    // Convert flat health response into display-friendly rows
+    const { uptime, status: overallStatus, ...services } = source;
+    return Object.entries(services).map(([key, value], index) => {
+      const serviceStatus = String(value || 'UNKNOWN').toUpperCase();
+      return {
+        id: key || `service-${index}`,
+        name: key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, (c) => c.toUpperCase()),
+        status: serviceStatus,
+        latency: 0,
+        uptime: uptime || 'N/A',
+        activeUsers: 0,
+        ordersToday: 0,
+        metric: serviceStatus,
+        raw: { key, value },
+      };
+    });
+  }
+
+  // Array shape fallback
+  const entries = extractCollection(source);
   if (entries.length) {
     return entries.map((entry, index) => ({
       id: entry.id || entry.name || `system-${index}`,
@@ -173,76 +208,26 @@ const normalizeSystemHealthEntries = (payload = {}) => {
     }));
   }
 
-  return Object.entries(payload || {}).map(([key, value], index) => ({
-    id: key || `system-${index}`,
-    name: key.replace(/([A-Z])/g, ' $1').trim() || `Service ${index + 1}`,
-    status:
-      value?.status ||
-      value?.health ||
-      (typeof value === 'string'
-        ? value
-        : typeof value === 'number' || typeof value === 'boolean'
-        ? 'HEALTHY'
-        : 'UNKNOWN'),
-    latency: Number(value?.latency || value?.responseTime || 0),
-    uptime: value?.uptime || value?.availability || 'N/A',
-    activeUsers: Number(value?.activeUsers || value?.connectedUsers || 0),
-    ordersToday: Number(value?.ordersToday || value?.requestsToday || 0),
-    metric:
-      typeof value === 'number'
-        ? String(value)
-        : typeof value === 'boolean'
-        ? (value ? 'Online' : 'Offline')
-        : typeof value === 'string'
-        ? value
-        : value?.metric ||
-          value?.value ||
-          value?.currentValue ||
-          (value?.latency || value?.responseTime
-            ? `${Number(value?.latency || value?.responseTime)}ms`
-            : value?.uptime || value?.availability || 'N/A'),
-    raw: value,
-  }));
+  return [];
 };
 
 const normalizeAnalytics = (payload = {}) => {
+  // API returns: { totalUsers, totalMasters, totalChildren, totalAdmins, activeSubscriptions, totalTrades }
   const source = payload?.data && !Array.isArray(payload.data) ? payload.data : payload;
-  const resolvedTotalUsers =
-    source.totalUsers ??
-    source.users ??
-    source.userCount ??
-    source.totalUser ??
-    source.total ??
-    source.total_count ??
-    source.totalUsersCount ??
-    0;
-  const resolvedActiveMasters =
-    source.activeMasters ??
-    source.masters ??
-    source.masterCount ??
-    source.activeMasterCount ??
-    source.totalMasters ??
-    0;
-  const resolvedVolumeToday =
-    source.volumeToday ??
-    source.todayVolume ??
-    source.tradeVolume ??
-    source.totalVolume ??
-    source.volume ??
-    0;
-  const resolvedRevenueMtd =
-    source.revenueMtd ??
-    source.monthlyRevenue ??
-    source.revenue ??
-    source.revenueMTD ??
-    source.totalRevenue ??
-    0;
 
   return {
-    totalUsers: Number(resolvedTotalUsers || 0),
-    activeMasters: Number(resolvedActiveMasters || 0),
-    volumeToday: Number(resolvedVolumeToday || 0),
-    revenueMtd: Number(resolvedRevenueMtd || 0),
+    totalUsers: Number(source.totalUsers ?? source.users ?? source.userCount ?? 0),
+    // API returns totalMasters, not activeMasters
+    activeMasters: Number(source.totalMasters ?? source.activeMasters ?? source.masters ?? source.masterCount ?? 0),
+    totalMasters: Number(source.totalMasters ?? source.activeMasters ?? 0),
+    totalChildren: Number(source.totalChildren ?? source.childCount ?? 0),
+    totalAdmins: Number(source.totalAdmins ?? 0),
+    // API returns totalTrades, not volumeToday
+    volumeToday: Number(source.totalTrades ?? source.volumeToday ?? source.todayVolume ?? source.tradeVolume ?? 0),
+    totalTrades: Number(source.totalTrades ?? 0),
+    // API returns activeSubscriptions, not revenueMtd
+    activeSubscriptions: Number(source.activeSubscriptions ?? 0),
+    revenueMtd: Number(source.revenueMtd ?? source.monthlyRevenue ?? source.revenue ?? 0),
     userGrowth: asArray(source.userGrowth || source.userGrowthData || source.growth),
     topMasters: asArray(source.topMasters || source.topPerformers || source.mastersByVolume),
     raw: source,

@@ -4,12 +4,26 @@ import { disconnectAll } from '@/lib/websocket';
 
 const AuthContext = createContext(null);
 
+const FALLBACK_AUTH_CONTEXT = {
+  user: null,
+  isAuthenticated: false,
+  loading: false,
+  login: async () => ({ success: false, error: 'Auth provider unavailable' }),
+  register: async () => ({ success: false, error: 'Auth provider unavailable' }),
+  logout: async () => {},
+  switchRole: () => {},
+  getEffectiveRole: () => null,
+  refreshUser: async () => null,
+  updateProfile: async () => null,
+  changePassword: async () => null,
+  verifyTwoFactor: async () => null,
+  sendOtp: async () => ({ success: false, error: 'Auth provider unavailable' }),
+  verifyOtp: async () => ({ success: false, error: 'Auth provider unavailable' }),
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return context || FALLBACK_AUTH_CONTEXT;
 };
 
 export const AuthProvider = ({ children }) => {

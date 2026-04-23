@@ -3,6 +3,7 @@ import { Search, Filter, UserPlus, Star, Sliders, CheckSquare, Clock, CheckCircl
 import GlassCard from '@/components/shared/GlassCard';
 import SlideOver from '@/components/shared/SlideOver';
 import Modal from '@/components/shared/Modal';
+import DivSelect from '@/components/shared/DivSelect';
 import LineChart from '@/components/charts/LineChart';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildMasters, useChildSubscriptions } from '@/hooks/useChild';
@@ -381,19 +382,16 @@ const FindMasters = () => {
                       No active broker accounts found. Please connect a broker in Demat Accounts first.
                     </div>
                   ) : (
-                    <select
+                                        <DivSelect
                       value={selectedBrokerAccountId}
-                      onChange={(e) => setSelectedBrokerAccountId(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple"
-                    >
-                      <option value="">Select broker account...</option>
-                      {brokerAccounts.map((account) => (
-                        <option key={account.accountId} value={account.accountId}>
-                          {account.brokerName || account.broker} — {account.nickname || account.clientId}
-                          {!account.sessionActive ? ' (session expired)' : ''}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setSelectedBrokerAccountId}
+                      placeholder="Select broker account..."
+                      options={brokerAccounts.map((account) => ({
+                        value: account.accountId,
+                        label: `${account.brokerName || account.broker} - ${account.nickname || account.clientId}${!account.sessionActive ? ' (session expired)' : ''}`,
+                      }))}
+                      triggerClassName="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple"
+                    />
                   )}
                   {selectedBrokerAccountId && brokerAccounts.find((a) => a.accountId === selectedBrokerAccountId && !a.sessionActive) && (
                     <p className="text-[11px] text-amber-500">
@@ -440,13 +438,16 @@ const FindMasters = () => {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1.5">Broker Account <span className="text-red-500">*</span></label>
-            <select value={selectedBrokerAccountId} onChange={(e) => setSelectedBrokerAccountId(e.target.value)}
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple text-foreground">
-              <option value="">Select broker account</option>
-              {brokerAccounts.map((a) => (
-                <option key={a.accountId} value={a.accountId}>{a.brokerName} — {a.clientId} — {a.nickname}</option>
-              ))}
-            </select>
+                        <DivSelect
+              value={selectedBrokerAccountId}
+              onChange={setSelectedBrokerAccountId}
+              placeholder="Select broker account"
+              options={brokerAccounts.map((a) => ({
+                value: a.accountId,
+                label: `${a.brokerName} - ${a.clientId} - ${a.nickname}`,
+              }))}
+              triggerClassName="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:border-brand-purple text-foreground"
+            />
           </div>
           <MultiplierControl />
           <div className="flex gap-3 pt-1">
@@ -464,3 +465,4 @@ const FindMasters = () => {
 };
 
 export default FindMasters;
+

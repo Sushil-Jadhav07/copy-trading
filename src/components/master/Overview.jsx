@@ -99,7 +99,7 @@ const Overview = () => {
               </button>
             ))}
           </div>
-          {analyticsLoading ? <SkeletonLoader type="chart" /> : <LineChart data={chartData || []} height={300} />}
+          {analyticsLoading ? <SkeletonLoader type="chart" /> : <LineChart data={chartData || []} xKey="date" yKey="value" height={300} />}
         </GlassCard>
 
         <GlassCard title="Earnings Breakdown">

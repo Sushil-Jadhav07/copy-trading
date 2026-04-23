@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { formatCurrency } from '@/lib/utils';
@@ -358,10 +359,14 @@ const UserManagement = ({
           {/* Broker Select */}
           <div className="space-y-1">
             <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Select Broker</label>
-            <select value={form.broker} onFocus={load} onChange={(e) => handleBrokerChange(e.target.value)} className={inputCls + ' appearance-none'}>
-              <option value="" className="bg-background">Select broker</option>
-              {brokerOptions.map((b) => (<option key={b.value} value={b.value} className="bg-background">{b.label}</option>))}
-            </select>
+            <DivSelect
+              value={form.broker}
+              onFocus={load}
+              onChange={handleBrokerChange}
+              placeholder="Select broker"
+              options={brokerOptions.map((b) => ({ value: b.value, label: b.label }))}
+              triggerClassName={inputCls}
+            />
             {formErrors.broker && <p className="text-danger text-xs mt-1">{formErrors.broker}</p>}
           </div>
 

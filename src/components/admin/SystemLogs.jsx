@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
+import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { logsService } from '@/lib/logs';
 
@@ -119,11 +120,13 @@ const SystemLogs = () => {
   const renderBrokerErrors = () => (
     <>
       <div className="border-b border-border/40 p-4">
-        <select value={brokerId} onChange={(event) => setBrokerId(event.target.value)} className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5">
-          {BROKERS.map((item) => (
-            <option key={item} value={item}>{item}</option>
-          ))}
-        </select>
+        <DivSelect
+          value={brokerId}
+          onChange={setBrokerId}
+          includeEmptyOption={false}
+          options={BROKERS.map((item) => ({ value: item, label: item }))}
+          triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
+        />
       </div>
       <table className="w-full">
         <thead>

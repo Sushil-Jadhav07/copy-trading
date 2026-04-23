@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Search, X, AlertCircle, CheckCircle2, Clock, SkipForward } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
+import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { masterService } from '@/lib/master';
 import { copyLogService } from '@/lib/copyLogs';
@@ -236,12 +237,16 @@ const Logs = () => {
   const renderBrokerErrors = () => (
     <>
       <div className="px-4 py-3 border-b border-border/30">
-        <select value={selectedBrokerAccountId} onChange={(e) => setSelectedBrokerAccountId(e.target.value)}
-          className="rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple">
-          {brokerAccounts.map((a) => (
-            <option key={a.accountId} value={a.accountId}>{a.broker} - {a.userId || a.accountId}</option>
-          ))}
-        </select>
+        <DivSelect
+          value={selectedBrokerAccountId}
+          onChange={setSelectedBrokerAccountId}
+          includeEmptyOption={false}
+          options={brokerAccounts.map((a) => ({
+            value: a.accountId,
+            label: `${a.broker} - ${a.userId || a.accountId}`,
+          }))}
+          triggerClassName="rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple"
+        />
       </div>
       {filteredBrokerErrors.length === 0 ? (
         <EmptyState title="No broker errors" sub="Broker API errors will appear here" />

@@ -25,11 +25,17 @@ export const engineService = {
     }
   },
 
-  // NEW — GET /api/v1/engine/polling/status
+  // getPollingStatus — reads pollingEnabled from the engine status response
+  // GET /api/v1/engine/status returns { engineStatus, pollingEnabled, pollingIntervalSeconds, ... }
   async getPollingStatus() {
     try {
-      const res = await api.get('/api/v1/engine/polling/status');
-      return res.data?.data || res.data;
+      const res = await api.get('/api/v1/engine/status');
+      const data = res.data?.data || res.data || {};
+      return {
+        enabled: Boolean(data.pollingEnabled),
+        intervalSeconds: Number(data.pollingIntervalSeconds || 3),
+        engineStatus: data.engineStatus || 'UNKNOWN',
+      };
     } catch (error) {
       // fail silently — not critical
       return null;

@@ -3,9 +3,15 @@ import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
-import { formatCurrency } from '@/lib/utils';
+import { normalizeCopiedTrade } from '@/lib/child';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
+
+// Format date string nicely
+const fmtTime = (raw) => {
+  if (!raw) return 'N/A';
+  try { return new Date(raw).toLocaleString('en-IN'); } catch { return raw; }
+};
 
 const CopiedTrades = () => {
   const { trades: copiedTrades, loading, error } = useChildCopiedTrades();
@@ -21,23 +27,32 @@ const CopiedTrades = () => {
     setTrades(copiedTrades);
   }, [copiedTrades]);
 
+  // Real-time WebSocket updates
   useEffect(() => {
     const sub = connectChannel(
       'trades',
       (event, data) => {
         if (event === 'TRADE_COPIED' || event === 'copy_trade' || event === 'MESSAGE') {
-          setTrades((prev) => [data, ...prev]);
+          setTrades((prev) => [normalizeCopiedTrade(data), ...prev]);
         }
       },
-      () => console.log('WS trades connected'),
-      (err) => console.error('WS trades error', err),
+      null,
+      null,
     );
-
     return () => sub.close();
   }, []);
 
-  const filtered = trades.filter((t) => filter === 'All' || t.type === filter);
-  const totalPnL = trades.reduce((s, t) => s + (Number(t.pnl) || 0), 0);
+  // API returns type = REPLICATED | MANUAL, not BUY/SELL — filter by status instead
+  const filtered = trades.filter((trade) => {
+    if (filter === 'All') return true;
+    if (filter === 'EXECUTED') return String(trade.status).toUpperCase() === 'EXECUTED';
+    if (filter === 'FAILED') return String(trade.status).toUpperCase() === 'FAILED';
+    return true;
+  });
+
+  const executedCount = trades.filter((t) => String(t.status).toUpperCase() === 'EXECUTED').length;
+  const failedCount   = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
+  const masterSet     = new Set(trades.map((t) => t.masterId).filter(Boolean));
 
   return (
     <div className="space-y-6">
@@ -46,52 +61,117 @@ const CopiedTrades = () => {
         <p className="text-sm text-muted-foreground">Live feed of trades copied from your masters</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[
-          { label: 'Total Trades', value: trades.length, color: 'text-brand-purple' },
-          { label: 'Total P&L', value: (totalPnL >= 0 ? '+' : '') + formatCurrency(Math.abs(totalPnL)), color: totalPnL >= 0 ? 'text-success' : 'text-danger' },
-          { label: 'Masters Active', value: [...new Set(trades.map((t) => t.master))].length, color: 'text-brand-blue' }
-        ].map((s) => (
-          <GlassCard key={s.label}>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
-            <p className={`text-lg font-bold mt-1 ${s.color}`}>{s.value}</p>
+          { label: 'Total Trades',    value: trades.length,  color: 'text-brand-purple' },
+          { label: 'Executed',        value: executedCount,  color: 'text-success' },
+          { label: 'Failed',          value: failedCount,    color: 'text-danger' },
+          { label: 'Masters Active',  value: masterSet.size, color: 'text-brand-blue' },
+        ].map((stat) => (
+          <GlassCard key={stat.label}>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+            <p className={`mt-1 text-lg font-bold ${stat.color}`}>{stat.value}</p>
           </GlassCard>
         ))}
       </div>
 
+      {/* Filter tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {['All', 'BUY', 'SELL'].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground'}`}>{f}</button>
+        {['All', 'EXECUTED', 'FAILED'].map((value) => (
+          <button
+            key={value}
+            onClick={() => setFilter(value)}
+            className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+              filter === value
+                ? 'bg-brand-purple text-white'
+                : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+            }`}
+          >
+            {value === 'All' ? 'All' : value === 'EXECUTED' ? 'Executed' : 'Failed'}
+          </button>
         ))}
       </div>
 
+      {/* Table */}
       <GlassCard noPadding>
         {loading ? (
-          <div className="p-4"><SkeletonLoader type="table" rows={6} columns={10} /></div>
+          <div className="p-4">
+            <SkeletonLoader type="table" rows={6} columns={7} />
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Master', 'Instrument', 'Type', 'Master Qty', 'My Qty', 'Entry', 'LTP', 'My P&L', 'Time'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>)}
+                  {['#', 'Type', 'Status', 'Broker', 'Reference / Order ID', 'Message', 'Time'].map((heading) => (
+                    <th
+                      key={heading}
+                      className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((trade, idx) => (
-                  <motion.tr key={trade.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className="border-b border-border/30 hover:bg-white/3 transition-colors">
+                  <motion.tr
+                    key={trade.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    className="border-b border-border/30 transition-colors hover:bg-white/3"
+                  >
                     <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                    <td className="px-4 py-3 text-sm font-medium">{trade.master}</td>
-                    <td className="px-4 py-3 font-semibold text-sm">{trade.instrument}</td>
-                    <td className="px-4 py-3"><span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${trade.type === 'BUY' ? 'bg-success/20 text-success border-success/30' : 'bg-danger/20 text-danger border-danger/30'}`}>{trade.type}</span></td>
-                    <td className="px-4 py-3 text-sm">{trade.masterQty}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-brand-purple">{trade.myQty}</td>
-                    <td className="px-4 py-3 text-sm">₹{trade.entry.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3 text-sm">₹{trade.current.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3"><span className={`text-sm font-semibold ${trade.pnl >= 0 ? 'text-success' : 'text-danger'}`}>{trade.pnl >= 0 ? '+' : ''}₹{trade.pnl.toFixed(2)}</span></td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{trade.time}</td>
+
+                    {/* Type: REPLICATED / MANUAL */}
+                    <td className="px-4 py-3">
+                      <span className="rounded border border-brand-purple/30 bg-brand-purple/15 px-2.5 py-0.5 text-xs font-bold text-brand-purple">
+                        {trade.type || 'REPLICATED'}
+                      </span>
+                    </td>
+
+                    {/* Status: EXECUTED / FAILED */}
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        String(trade.status).toUpperCase() === 'EXECUTED'
+                          ? 'bg-success/20 text-success'
+                          : String(trade.status).toUpperCase() === 'FAILED'
+                          ? 'bg-danger/20 text-danger'
+                          : 'bg-warning/20 text-warning'
+                      }`}>
+                        {trade.status || 'UNKNOWN'}
+                      </span>
+                    </td>
+
+                    {/* Broker */}
+                    <td className="px-4 py-3 text-sm font-medium">{trade.broker || '—'}</td>
+
+                    {/* Reference / Order ID */}
+                    <td className="px-4 py-3 text-sm font-mono text-muted-foreground">
+                      {trade.reference || trade.id || '—'}
+                    </td>
+
+                    {/* Message from broker */}
+                    <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px] truncate" title={trade.message}>
+                      {trade.message || '—'}
+                    </td>
+
+                    {/* Time */}
+                    <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                      {fmtTime(trade.time)}
+                    </td>
                   </motion.tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">No trades found</td></tr>}
+
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      No trades found
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CreditCard, TrendingUp, Users, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
+import DivSelect from '@/components/shared/DivSelect';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
@@ -69,16 +70,18 @@ const Subscriptions = () => {
           <h1 className="text-xl font-bold sm:text-2xl">Subscriptions</h1>
           <p className="text-sm text-muted-foreground">Live subscription data from the admin API</p>
         </div>
-        <select
+        <DivSelect
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
-        >
-          <option value="All">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Cancelled">Cancelled</option>
-          <option value="Expired">Expired</option>
-        </select>
+          onChange={setStatusFilter}
+          includeEmptyOption={false}
+          options={[
+            { value: 'All', label: 'All Status' },
+            { value: 'Active', label: 'Active' },
+            { value: 'Cancelled', label: 'Cancelled' },
+            { value: 'Expired', label: 'Expired' },
+          ]}
+          triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">

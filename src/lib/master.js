@@ -1,8 +1,8 @@
 import api from '@/lib/api';
 
 const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message ||
   error?.response?.data?.error ||
+  error?.response?.data?.message ||
   error?.message ||
   fallback;
 
@@ -16,6 +16,15 @@ const extractList = (data) => {
   if (Array.isArray(data?.content)) return data.content;
   const candidates = Object.values(data || {}).filter(Array.isArray);
   return candidates[0] || [];
+};
+
+const toNumber = (...values) => {
+  for (const value of values) {
+    if (value == null || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
 };
 
 const normalizeChild = (raw = {}, index = 0) => {
@@ -86,19 +95,89 @@ const normalizeChild = (raw = {}, index = 0) => {
 };
 
 const normalizeTrade = (raw = {}, index = 0) => ({
-  id: raw.id || raw.tradeId || `${raw.symbol || raw.instrument || 'trade'}-${index}`,
-  instrument: raw.instrument || raw.symbol || raw.tradingSymbol || 'N/A',
-  symbol: raw.symbol || raw.instrument || raw.tradingSymbol || 'N/A',
-  type: String(raw.type || raw.side || raw.action || 'BUY').toUpperCase(),
+  id: raw.id || raw.tradeId || `trade-${index}`,
+  // API returns type (REPLICATED/MANUAL), not instrument/symbol
+  instrument: raw.symbol || raw.instrument || raw.tradingSymbol || raw.reference || 'N/A',
+  symbol: raw.symbol || raw.instrument || raw.tradingSymbol || raw.reference || 'N/A',
+  type: String(raw.type || raw.side || raw.action || 'REPLICATED').toUpperCase(),
   qty: Number(raw.qty || raw.quantity || 0),
-  entryPrice: Number(raw.entryPrice || raw.entry || raw.avgEntryPrice || 0),
+  entryPrice: Number(raw.entryPrice || raw.entry || raw.avgEntryPrice || raw.price || 0),
   exitPrice: Number(raw.exitPrice || raw.exit || raw.currentPrice || raw.ltp || 0),
   pnl: Number(raw.pnl || raw.netPnL || raw.profitLoss || 0),
-  status: raw.status || raw.tradeStatus || 'Closed',
+  // API returns status (EXECUTED/FAILED), message, broker, reference, masterId, childId
+  status: raw.status || raw.tradeStatus || 'EXECUTED',
+  broker: raw.broker || raw.brokerName || '',
+  message: raw.message || '',
+  reference: raw.reference || raw.brokerOrderId || '',
+  masterId: raw.masterId || '',
+  childId: raw.childId || '',
   market: raw.segment || raw.market || '',
   date: raw.date || raw.tradeDate || raw.createdAt || '',
   copiedBy: raw.copiedBy || raw.children || [],
   children: raw.children || raw.copiedBy || [],
+  raw,
+});
+
+const normalizeMasterAnalytics = (raw = {}) => ({
+  // API returns: { totalPnl, winRate, totalTrades, totalReplications, childPerformance }
+  totalPnl: toNumber(raw.totalPnl, raw.totalPnL),
+  totalPnL: toNumber(raw.totalPnL, raw.totalPnl),
+  winRate: toNumber(raw.winRate),
+  totalTrades: toNumber(raw.totalTrades),
+  totalReplications: toNumber(raw.totalReplications),
+  // API does not return totalChildren directly — derive from childPerformance array length
+  totalChildren: toNumber(raw.totalChildren, raw.totalFollowers, Array.isArray(raw.childPerformance) ? raw.childPerformance.length : 0),
+  totalFollowers: toNumber(raw.totalFollowers, raw.totalChildren, Array.isArray(raw.childPerformance) ? raw.childPerformance.length : 0),
+  revenue: toNumber(raw.revenue, raw.totalEarnings),
+  totalEarnings: toNumber(raw.totalEarnings, raw.revenue),
+  subscriptionRevenue: toNumber(raw.subscriptionRevenue),
+  performanceBonus: toNumber(raw.performanceBonus),
+  portfolioValue: toNumber(raw.portfolioValue, raw.totalValue),
+  earningsBreakdown: Array.isArray(raw.earningsBreakdown)
+    ? raw.earningsBreakdown.map((item) => ({
+        name: item.name || 'Unknown',
+        value: toNumber(item.value),
+      }))
+    : [],
+  performanceChart: Array.isArray(raw.performanceChart)
+    ? raw.performanceChart.map((point, index) => ({
+        date: point.date || point.time || `Point ${index + 1}`,
+        value: toNumber(point.value),
+      }))
+    : [],
+  pnl: Array.isArray(raw.pnl) ? raw.pnl : [],
+  // API returns childPerformance: [{ childId, scalingFactor, copyingStatus }]
+  childPerformance: (Array.isArray(raw.childPerformance) ? raw.childPerformance : []).map((child, index) => ({
+    childId: child.childId || child.id || `child-${index}`,
+    scalingFactor: toNumber(child.scalingFactor, child.multiplier, 1),
+    copyingStatus: String(child.copyingStatus || child.status || 'ACTIVE').toUpperCase(),
+    pnl: toNumber(child.pnl, child.totalPnL),
+    tradesCopied: toNumber(child.tradesCopied, child.tradeCount),
+  })),
+  raw,
+});
+
+const normalizeEarnings = (raw = {}) => ({
+  totalEarnings: toNumber(raw.totalEarnings),
+  thisMonth: toNumber(raw.thisMonth),
+  lastMonth: toNumber(raw.lastMonth),
+  pendingPayout: toNumber(raw.pendingPayout),
+  currency: raw.currency || 'INR',
+  monthlyBreakdown: (Array.isArray(raw.monthlyBreakdown) ? raw.monthlyBreakdown : []).map((entry, index) => ({
+    id: entry.month || `month-${index}`,
+    month: entry.month || 'N/A',
+    subscribers: toNumber(entry.subscribers),
+    subscriptionFee: toNumber(entry.subscriptionFee),
+    performanceBonus: toNumber(entry.performanceBonus),
+    total: toNumber(entry.total, toNumber(entry.subscriptionFee) + toNumber(entry.performanceBonus)),
+  })),
+  payouts: (Array.isArray(raw.payouts) ? raw.payouts : []).map((payout, index) => ({
+    id: payout.id || `${payout.date || 'payout'}-${index}`,
+    date: payout.date || payout.createdAt || '',
+    amount: toNumber(payout.amount),
+    method: payout.method || payout.mode || 'N/A',
+    status: payout.status || 'Pending',
+  })),
   raw,
 });
 
@@ -234,7 +313,7 @@ export const masterService = {
   async getAnalytics() {
     try {
       const res = await api.get('/api/v1/master/analytics');
-      return res.data?.data || res.data || {};
+      return normalizeMasterAnalytics(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load analytics'));
     }
@@ -255,11 +334,11 @@ export const masterService = {
 
   async subscribeToChild(childId, scalingFactor) {
     try {
-      const body = scalingFactor == null ? {} : { scalingFactor };
-      const res = await api.post(`/api/v1/master/subscribe/${childId}`, body);
+      const body = scalingFactor == null ? undefined : { scalingFactor };
+      const res = await api.post(`/api/v1/master/children/${childId}/link`, body);
       return res.data?.data || res.data;
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to subscribe to child'));
+      throw new Error(getErrorMessage(error, 'Unable to link child'));
     }
   },
 
@@ -329,7 +408,7 @@ export const masterService = {
   async getEarnings() {
     try {
       const res = await api.get('/api/v1/master/earnings');
-      return res.data?.data || res.data;
+      return normalizeEarnings(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load earnings'));
     }

@@ -1,8 +1,8 @@
 import api from '@/lib/api';
 
 const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message ||
   error?.response?.data?.error ||
+  error?.response?.data?.message ||
   error?.message ||
   fallback;
 
@@ -10,8 +10,20 @@ const extractList = (data) => {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.data)) return data.data;
   if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.masters)) return data.masters;
+  if (Array.isArray(data?.subscriptions)) return data.subscriptions;
+  if (Array.isArray(data?.trades)) return data.trades;
   const candidates = Object.values(data || {}).filter(Array.isArray);
   return candidates[0] || [];
+};
+
+const toNumber = (...values) => {
+  for (const value of values) {
+    if (value == null || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
 };
 
 const normalizeMaster = (raw = {}, index = 0) => ({
@@ -93,34 +105,97 @@ const normalizeSubscription = (raw = {}) => {
     masterId,
     masterName: raw.masterName || raw.name || raw.master?.name || raw.master?.fullName || 'Unknown',
     name: raw.name || raw.masterName || raw.master?.name || raw.master?.fullName || 'Unknown',
-    multiplier: Number(raw.multiplier || raw.scalingFactor || raw.scale || 1),
-    scalingFactor: Number(raw.scalingFactor || raw.multiplier || raw.scale || 1),
-    allocation: Number(resolvedAllocation),
-    allocationAmount: Number(resolvedAllocation),
-    pnl: Number(raw.pnl || raw.totalPnL || raw.netPnL || raw.profitLoss || 0),
-    totalPnL: Number(raw.totalPnL || raw.pnl || raw.netPnL || raw.profitLoss || 0),
-    tradesCopiedToday: Number(raw.tradestoday || raw.tradesCopiedToday || raw.tradeCountToday || 0),
+    multiplier: toNumber(raw.multiplier, raw.scalingFactor, raw.scale, 1),
+    scalingFactor: toNumber(raw.scalingFactor, raw.multiplier, raw.scale, 1),
+    allocation: toNumber(resolvedAllocation),
+    allocationAmount: toNumber(resolvedAllocation),
+    pnl: toNumber(raw.pnl, raw.totalPnL, raw.netPnL, raw.profitLoss),
+    totalPnL: toNumber(raw.totalPnL, raw.totalPnl, raw.pnl, raw.netPnL, raw.profitLoss),
+    tradesCopiedToday: toNumber(raw.tradestoday, raw.tradesCopiedToday, raw.tradeCountToday),
     status,
     copyingStatus: status,
     tradingEnabled: status === 'ACTIVE',
     brokerAccountId: raw.brokerAccountId || '',
+    subscribedAt: raw.subscribedAt || raw.createdAt || null,
     raw,
   };
 };
 
-const normalizeCopiedTrade = (raw = {}, index = 0) => ({
-  id: raw.id || raw.tradeId || `${raw.masterName || raw.master || 'trade'}-${index}`,
-  master: raw.master || raw.masterName || raw.name || 'Unknown',
-  instrument: raw.instrument || raw.symbol || raw.tradingSymbol || 'N/A',
-  type: String(raw.type || raw.side || raw.action || 'BUY').toUpperCase(),
-  masterQty: Number(raw.masterQty || raw.quantity || raw.masterQuantity || 0),
-  myQty: Number(raw.myQty || raw.childQty || raw.quantityCopied || 0),
-  entry: Number(raw.entry || raw.entryPrice || raw.avgPrice || 0),
-  current: Number(raw.current || raw.ltp || raw.currentPrice || raw.exitPrice || 0),
-  pnl: Number(raw.pnl || raw.netPnL || raw.profitLoss || 0),
+export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
+  // API returns: { id, masterId, childId, type, status, message, broker, reference, createdAt }
+  id: raw.id || raw.tradeId || `trade-${index}`,
+  master: raw.master || raw.masterName || raw.masterId || 'Unknown',
+  // API has no instrument/symbol — use reference as identifier
+  instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.reference || 'N/A',
+  // API "type" = REPLICATED/MANUAL, not BUY/SELL
+  type: String(raw.type || raw.side || raw.action || 'REPLICATED').toUpperCase(),
+  masterQty: toNumber(raw.masterQty, raw.quantity, raw.masterQuantity),
+  myQty: toNumber(raw.myQty, raw.childQty, raw.quantityCopied),
+  entry: toNumber(raw.entry, raw.entryPrice, raw.avgPrice),
+  current: toNumber(raw.current, raw.ltp, raw.currentPrice, raw.exitPrice),
+  ltp: toNumber(raw.ltp, raw.current, raw.currentPrice, raw.exitPrice),
+  pnl: toNumber(raw.pnl, raw.netPnL, raw.profitLoss),
   time: raw.time || raw.timestamp || raw.createdAt || '',
+  status: String(raw.status || raw.tradeStatus || 'EXECUTED').toUpperCase(),
+  // Extra fields from actual API response
+  broker: raw.broker || raw.brokerName || '',
+  message: raw.message || '',
+  reference: raw.reference || '',
+  masterId: raw.masterId || '',
+  childId: raw.childId || '',
   raw,
 });
+
+const normalizeChartPoint = (point = {}, index = 0) => ({
+  time: point.time || point.date || point.label || `Point ${index + 1}`,
+  personal: toNumber(point.personal),
+  copied: toNumber(point.copied),
+});
+
+const normalizeTradeListItem = (trade = {}, index = 0) => ({
+  id: trade.id || trade.tradeId || `personal-trade-${index}`,
+  instrument: trade.instrument || trade.symbol || trade.tradingSymbol || 'N/A',
+  type: String(trade.type || trade.side || trade.action || 'BUY').toUpperCase(),
+  qty: toNumber(trade.qty, trade.quantity),
+  date: trade.date || trade.time || trade.createdAt || '',
+  pnl: toNumber(trade.pnl, trade.netPnL, trade.profitLoss),
+});
+
+const normalizeChildAnalytics = (raw = {}) => {
+  // API returns: { totalPnl, copiedTrades, failedReplications, masterPnlComparison: {} }
+  const masterComparison = raw.masterPnlComparison || raw.masterComparison || {};
+  const historySource = Array.isArray(raw.pnlHistory)
+    ? raw.pnlHistory
+    : Array.isArray(raw.chartData)
+      ? raw.chartData
+      : [];
+
+  return {
+    totalPnl: toNumber(raw.totalPnl, raw.totalPnL),
+    totalPnL: toNumber(raw.totalPnL, raw.totalPnl),
+    personalPnL: toNumber(raw.personalPnL),
+    copiedPnL: toNumber(raw.copiedPnL, raw.totalPnL, raw.totalPnl),
+    masterPnL: toNumber(raw.masterPnL, masterComparison.masterPnl),
+    personalTrades: toNumber(raw.personalTrades),
+    // API returns copiedTrades (not copiedCount)
+    copiedTrades: toNumber(raw.copiedTrades, raw.copiedCount),
+    // API returns failedReplications
+    failedReplications: toNumber(raw.failedReplications, raw.failedCount),
+    portfolioValue: toNumber(raw.portfolioValue),
+    winRate: toNumber(raw.winRate),
+    activeMasters: toNumber(raw.activeMasters),
+    pnlHistory: historySource.map(normalizeChartPoint),
+    personalTradesList: (Array.isArray(raw.personalTradesList) ? raw.personalTradesList : []).map(normalizeTradeListItem),
+    masterPnlComparison: {
+      // API returns masterPnlComparison as an object (may be empty {})
+      masterPnl: toNumber(masterComparison.masterPnl, raw.masterPnL),
+      childPnl: toNumber(masterComparison.childPnl, raw.copiedPnL, raw.totalPnL, raw.totalPnl),
+      replicationAccuracy: toNumber(masterComparison.replicationAccuracy),
+      failedReplications: toNumber(masterComparison.failedReplications, raw.failedReplications),
+    },
+    raw,
+  };
+};
 
 export const childService = {
   async getMasters() {
@@ -261,7 +336,7 @@ export const childService = {
   async getAnalytics() {
     try {
       const res = await api.get('/api/v1/child/analytics');
-      return res.data?.data || res.data || {};
+      return normalizeChildAnalytics(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load analytics'));
     }

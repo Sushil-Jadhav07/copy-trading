@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SlideOver from '@/components/shared/SlideOver';
+import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -291,31 +292,35 @@ const AllUsers = ({ scope = 'all' }) => {
           />
         </div>
         {scope === 'all' ? (
-          <select
+          <DivSelect
             value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-            className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
-          >
-            <option value="All">All Roles</option>
-            <option value="Master">Master</option>
-            <option value="Child">Child</option>
-            <option value="Admin">Admin</option>
-          </select>
+            onChange={setRoleFilter}
+            includeEmptyOption={false}
+            options={[
+              { value: 'All', label: 'All Roles' },
+              { value: 'Master', label: 'Master' },
+              { value: 'Child', label: 'Child' },
+              { value: 'Admin', label: 'Admin' },
+            ]}
+            triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
+          />
         ) : (
           <div className="flex items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-400">
             Showing: {viewConfig.defaultRoleFilter}
           </div>
         )}
-        <select
+        <DivSelect
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
-        >
-          <option value="All">All Status</option>
-          <option value="ACTIVE">Active</option>
-          <option value="INACTIVE">Inactive</option>
-          <option value="SUSPENDED">Suspended</option>
-        </select>
+          onChange={setStatusFilter}
+          includeEmptyOption={false}
+          options={[
+            { value: 'All', label: 'All Status' },
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'INACTIVE', label: 'Inactive' },
+            { value: 'SUSPENDED', label: 'Suspended' },
+          ]}
+          triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
+        />
       </div>
 
       <GlassCard noPadding>
@@ -505,18 +510,16 @@ const AllUsers = ({ scope = 'all' }) => {
           {createForm.role === 'Child' && (
             <div>
               <label className="mb-1.5 block text-xs text-muted-foreground">Assign Master *</label>
-              <select
+              <DivSelect
                 value={createForm.assignedMasterId}
-                onChange={(event) => setCreateForm((current) => ({ ...current, assignedMasterId: event.target.value }))}
-                className="w-full rounded-lg border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 dark:bg-white/5"
-              >
-                <option value="">Select master</option>
-                {masterOptions.map((master) => (
-                  <option key={master.userId} value={master.userId}>
-                    {master.name} ({master.email})
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setCreateForm((current) => ({ ...current, assignedMasterId: value }))}
+                placeholder="Select master"
+                options={masterOptions.map((master) => ({
+                  value: master.userId,
+                  label: `${master.name} (${master.email})`,
+                }))}
+                triggerClassName="w-full rounded-lg border border-border bg-black/5 px-3 py-2.5 text-sm focus:border-emerald-500 dark:bg-white/5"
+              />
               {createErrors.assignedMasterId && <p className="mt-1 text-xs text-red-400">{createErrors.assignedMasterId}</p>}
             </div>
           )}
