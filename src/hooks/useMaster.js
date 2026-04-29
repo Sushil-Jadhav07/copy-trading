@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import { masterService } from '@/lib/master';
-import { useAuth } from '@/context/AuthContext';
 
 export const useMasterChildren = () => {
   const [children, setChildren] = useState([]);
@@ -28,7 +27,6 @@ export const useMasterChildren = () => {
 };
 
 export const useMasterSubscriptions = () => {
-  const { user } = useAuth();
   const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,18 +35,13 @@ export const useMasterSubscriptions = () => {
     setLoading(true);
     setError(null);
     try {
-      const masterId = user?.userId || user?.id;
-      if (!masterId) {
-        setSubscriptions([]);
-        return;
-      }
-      setSubscriptions(await masterService.getSubscriptionsByMaster(masterId));
+      setSubscriptions(await masterService.getSubscriptionsByMaster());
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, user?.userId]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -137,13 +130,20 @@ export const usePendingFollowCount = () => {
       try {
         const res = await api.get('/api/v1/master/children/pending');
         const raw = res.data?.data || res.data || {};
-        const list =
-          Array.isArray(raw.pendingApprovals) ? raw.pendingApprovals :
-          Array.isArray(raw) ? raw :
-          [];
+        const list = Array.isArray(raw.pendingApprovals)
+          ? raw.pendingApprovals
+          : Array.isArray(raw.children)
+          ? raw.children
+          : Array.isArray(raw.requests)
+          ? raw.requests
+          : Array.isArray(raw.items)
+          ? raw.items
+          : Array.isArray(raw)
+          ? raw
+          : [];
         setCount(list.length);
       } catch {
-        // silently fail — don't break the sidebar
+        setCount(0);
       }
     };
 
@@ -154,3 +154,4 @@ export const usePendingFollowCount = () => {
 
   return count;
 };
+

@@ -236,7 +236,11 @@ export const brokerService = {
   async getPositions(accountId) {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/positions`);
-      return extractList(res.data).map(normalizePosition);
+      const data = res.data?.data || res.data;
+      const raw = Array.isArray(data?.positions) ? data.positions :
+                  Array.isArray(data?.items) ? data.items :
+                  Array.isArray(data) ? data : [];
+      return raw.map(normalizePosition);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load positions'));
     }
@@ -274,18 +278,22 @@ export const brokerService = {
   async getOrders(accountId) {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/orders`);
-      const raw = Array.isArray(res.data?.orders) ? res.data.orders :
-                  Array.isArray(res.data?.data?.orders) ? res.data.data.orders :
-                  extractList(res.data);
+      const data = res.data?.data || res.data;
+      const raw = Array.isArray(data?.orders) ? data.orders :
+                  Array.isArray(data?.items) ? data.items :
+                  Array.isArray(data) ? data : [];
+      
       return raw.map((o, index) => ({
         id: o.order_id || o.orderId || o.id || `order-${index}`,
         symbol: o.tradingsymbol || o.symbol || 'N/A',
-        type: String(o.transaction_type || o.transactionType || o.type || 'BUY').toUpperCase(),
+        exchange: o.exchange || 'NSE',
+        type: String(o.transaction_type || o.transactionType || o.type || o.side || 'BUY').toUpperCase(),
         qty: Number(o.quantity ?? o.qty ?? 0),
-        price: Number(o.price ?? o.averagePrice ?? 0),
-        status: o.status || 'UNKNOWN',
-        orderType: o.order_type || o.orderType || '',
-        time: o.order_timestamp || o.orderTimestamp || o.time || '',
+        price: Number(o.average_price ?? o.averagePrice ?? o.price ?? 0),
+        status: String(o.status || 'UNKNOWN').toUpperCase(),
+        orderType: o.order_type || o.orderType || 'MARKET',
+        product: o.product || 'MIS',
+        time: o.order_timestamp || o.orderTimestamp || o.time || o.placedAt || '',
         raw: o,
       }));
     } catch (error) {
@@ -296,17 +304,21 @@ export const brokerService = {
   async getTrades(accountId) {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/trades`);
-      const raw = Array.isArray(res.data?.trades) ? res.data.trades :
-                  Array.isArray(res.data?.data?.trades) ? res.data.data.trades :
-                  extractList(res.data);
+      const data = res.data?.data || res.data;
+      const raw = Array.isArray(data?.trades) ? data.trades :
+                  Array.isArray(data?.items) ? data.items :
+                  Array.isArray(data) ? data : [];
+
       return raw.map((t, index) => ({
         id: t.trade_id || t.tradeId || t.id || `trade-${index}`,
-        symbol: t.tradingsymbol || t.symbol || 'N/A',
         orderId: t.order_id || t.orderId || '',
-        type: String(t.transaction_type || t.transactionType || t.type || 'BUY').toUpperCase(),
+        symbol: t.tradingsymbol || t.symbol || 'N/A',
+        exchange: t.exchange || 'NSE',
+        type: String(t.transaction_type || t.transactionType || t.type || t.side || 'BUY').toUpperCase(),
         qty: Number(t.quantity ?? t.qty ?? 0),
         price: Number(t.average_price ?? t.averagePrice ?? t.price ?? 0),
-        time: t.trade_timestamp || t.tradeTimestamp || t.time || '',
+        time: t.trade_timestamp || t.tradeTimestamp || t.time || t.createdAt || '',
+        product: t.product || 'MIS',
         raw: t,
       }));
     } catch (error) {
@@ -317,16 +329,8 @@ export const brokerService = {
   async closePosition(accountId, { symbol, qty, type = 'SELL', product = 'MIS' } = {}) {
     try {
       const payload = { symbol, qty, type, product };
-      try {
-        const res = await api.post(`/api/v1/brokers/accounts/${accountId}/orders/close-position`, payload);
-        return res.data?.data || res.data;
-      } catch (error) {
-        if (error?.response?.status === 404) {
-          const res = await api.post(`/api/v1/brokers/accounts/${accountId}/orders/close`, payload);
-          return res.data?.data || res.data;
-        }
-        throw error;
-      }
+      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/orders/close-position`, payload);
+      return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to close position'));
     }
@@ -374,117 +378,61 @@ export const brokerService = {
   // Flow: POST /brokers/accounts → POST .../login (SESSION_ACTIVE) → GET .../dashboard
   async getDashboard(accountId) {
     try {
-      const accountRes = await api.get(`/api/v1/brokers/accounts/${accountId}`);
-      const account = normalizeBrokerAccount(accountRes.data?.data || accountRes.data);
-
-      if (!account.sessionActive) {
-        const message = 'No active broker session. Login first.';
-        return {
-          account,
-          ...emptyDashboardSections(message),
-          raw: account.raw || {},
-        };
-      }
-
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/dashboard`);
-      const raw = res.data?.data || res.data || {};
-
-      const sectionError = (section) =>
-        section && !Array.isArray(section) && typeof section === 'object' && section.error
-          ? section.error
-          : null;
-
-      const profile = raw.profile && !sectionError(raw.profile) ? raw.profile : null;
-
-      const marginRaw = raw.margin && !sectionError(raw.margin) ? raw.margin : null;
-      const margin = marginRaw
-        ? {
-            availableMargin: Number(marginRaw.availableMargin ?? marginRaw.available ?? marginRaw.net ?? 0),
-            usedMargin: Number(marginRaw.usedMargin ?? 0),
-            totalFunds: Number(marginRaw.totalFunds ?? 0),
-            collateral: Number(marginRaw.collateral ?? 0),
-          }
-        : null;
-
-      const positionsRaw = Array.isArray(raw.positions) ? raw.positions : [];
-      const positions = positionsRaw.map((p, index) =>
-        normalizePosition(
-          { ...p, symbol: p.tradingsymbol || p.symbol, quantity: p.quantity, average_price: p.average_price },
-          index,
-        ),
-      );
-
-      const holdingsRaw = Array.isArray(raw.holdings) ? raw.holdings : [];
-      const holdings = holdingsRaw.map((h, index) => ({
-        id: h.id || `holding-${index}`,
-        symbol: h.tradingsymbol || h.symbol || 'N/A',
-        quantity: Number(h.quantity ?? 0),
-        avgPrice: Number(h.average_price ?? h.averagePrice ?? 0),
-        lastPrice: Number(h.last_price ?? h.lastPrice ?? 0),
-        pnl: Number(((h.last_price ?? h.lastPrice ?? 0) - (h.average_price ?? h.averagePrice ?? 0)) * (h.quantity ?? 0)),
-        raw: h,
-      }));
-
-      const ordersRaw = Array.isArray(raw.orders) ? raw.orders : [];
-      const orders = ordersRaw.map((o, index) => ({
-        id: o.order_id || o.orderId || o.id || `order-${index}`,
-        symbol: o.tradingsymbol || o.symbol || 'N/A',
-        type: String(o.transaction_type || o.transactionType || o.type || 'BUY').toUpperCase(),
-        qty: Number(o.quantity ?? o.qty ?? 0),
-        price: Number(o.price ?? o.averagePrice ?? 0),
-        status: o.status || 'UNKNOWN',
-        orderType: o.order_type || o.orderType || '',
-        time: o.order_timestamp || o.orderTimestamp || o.time || '',
-        raw: o,
-      }));
-
-      // NEW: parse signal from dashboard response
-      const signal = raw.signal
-        ? {
-            bars: Number(raw.signal.bars ?? raw.signal.signal ?? 0),
-            maxBars: Number(raw.signal.maxBars ?? raw.signal.maxSignal ?? 4),
-            quality: raw.signal.quality || 'disconnected',
-            color: raw.signal.color || 'red',
-          }
-        : null;
-
-      // NEW: parse balanceAlert from dashboard response
-      const balanceAlert = raw.balanceAlert
-        ? normalizeBalanceAlert({ alertLevel: raw.balanceAlert.level || raw.balanceAlert.alertLevel, ...raw.balanceAlert })
-        : null;
-
-      const errors = {
-        profile: sectionError(raw.profile),
-        margin: sectionError(raw.margin),
-        positions: Array.isArray(raw.positions) ? null : sectionError(raw.positions),
-        holdings: Array.isArray(raw.holdings) ? null : sectionError(raw.holdings),
-        orders: Array.isArray(raw.orders) ? null : sectionError(raw.orders),
-      };
-
-      const dashboardAccount = normalizeBrokerAccount({
-        accountId: raw.accountId,
-        brokerId: raw.brokerId,
-        brokerName: raw.brokerName,
-        clientId: raw.clientId,
-        nickname: raw.nickname,
-        status: raw.status,
-        sessionActive: raw.sessionActive,
-      });
+      const data = res.data?.data || res.data;
+      
+      // Normalize everything from the dashboard response
+      const account = data.account || {};
+      const margin = data.margin || {};
+      const rawPositions = Array.isArray(data.positions) ? data.positions : [];
+      const rawHoldings = Array.isArray(data.holdings) ? data.holdings : [];
+      const rawOrders = Array.isArray(data.orders) ? data.orders : [];
 
       return {
-        account: { ...account, ...dashboardAccount, raw },
-        profile,
-        margin,
-        positions,
-        holdings,
-        orders,
-        signal,
-        balanceAlert,
-        errors,
-        raw,
+        account: {
+          id: account.accountId || account.id || accountId,
+          brokerId: account.brokerId || '',
+          brokerName: account.brokerName || account.broker || '',
+          clientId: account.clientId || account.username || '',
+          nickname: account.nickname || '',
+          status: String(account.status || '').toUpperCase(),
+          sessionActive: Boolean(account.sessionActive ?? account.isActive),
+          linkedAt: account.linkedAt || account.createdAt || null,
+        },
+        margin: {
+          availableMargin: Number(margin.availableMargin ?? margin.available ?? margin.net ?? 0),
+          usedMargin: Number(margin.usedMargin ?? margin.used ?? 0),
+          pnl: Number(margin.pnl || 0),
+        },
+        positions: rawPositions.map(normalizePosition),
+        holdings: rawHoldings.map((h, index) => ({
+          id: h.id || h.isin || h.symbol || `holding-${index}`,
+          symbol: h.symbol || h.tradingsymbol || 'N/A',
+          quantity: Number(h.quantity || h.qty || 0),
+          avgPrice: Number(h.avgPrice || h.averagePrice || 0),
+          lastPrice: Number(h.lastPrice || h.ltp || 0),
+          pnl: Number(h.pnl || h.unrealizedPnl || 0),
+          raw: h,
+        })),
+        orders: rawOrders.map((o, index) => ({
+          id: o.order_id || o.orderId || o.id || `order-${index}`,
+          symbol: o.tradingsymbol || o.symbol || 'N/A',
+          exchange: o.exchange || 'NSE',
+          type: String(o.transaction_type || o.transactionType || o.type || o.side || 'BUY').toUpperCase(),
+          qty: Number(o.quantity ?? o.qty ?? 0),
+          price: Number(o.average_price ?? o.averagePrice ?? o.price ?? 0),
+          status: String(o.status || 'UNKNOWN').toUpperCase(),
+          orderType: o.order_type || o.orderType || 'MARKET',
+          product: o.product || 'MIS',
+          time: o.order_timestamp || o.orderTimestamp || o.time || o.placedAt || '',
+          raw: o,
+        })),
+        signal: data.signal || null,
+        balanceAlert: data.balanceAlert || null,
+        errors: data.errors || {},
       };
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load broker dashboard'));
+      throw new Error(getErrorMessage(error, 'Unable to load dashboard'));
     }
   },
 

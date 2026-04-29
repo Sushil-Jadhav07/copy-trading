@@ -53,10 +53,10 @@ const Overview = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Portfolio Value" value={analytics.portfolioValue || 0} prefix="₹" isCurrency icon={IndianRupee} />
+        <StatCard title="Total Copied P&L" value={analytics.totalPnL || 0} prefix="₹" isCurrency icon={IndianRupee} />
         <StatCard title="Total P&L" value={analytics.totalPnL || 0} prefix="₹" isCurrency icon={TrendingUp} gradient="from-brand-blue to-brand-teal" />
         <StatCard title="Win Rate" value={analytics.winRate || 0} suffix="%" decimals={1} icon={Percent} gradient="from-brand-teal to-success" />
-        <StatCard title="Masters Copied" value={analytics.activeMasters || subscriptions.length} icon={Users} gradient="from-brand-purple to-brand-teal" />
+        <StatCard title="Masters Copied" value={analytics.activeMasters ?? subscriptions.filter((s) => s.status === 'ACTIVE').length} icon={Users} gradient="from-brand-purple to-brand-teal" />
       </div>
 
       <GlassCard title="Portfolio Performance">

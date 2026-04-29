@@ -48,25 +48,28 @@ const DataTable = ({
   };
 
   const getStatusBadge = (status) => {
+    const s = String(status || '').trim().toUpperCase();
     const styles = {
-      Active: 'bg-success/20 text-success',
-      Paused: 'bg-warning/20 text-warning',
-      Suspended: 'bg-danger/20 text-danger',
-      Closed: 'bg-muted text-muted-foreground',
-      Pending: 'bg-warning/20 text-warning',
-      Executed: 'bg-success/20 text-success',
-      Cancelled: 'bg-danger/20 text-danger',
-      Completed: 'bg-success/20 text-success',
-      Online: 'bg-success/20 text-success',
-      Degraded: 'bg-warning/20 text-warning',
-      Offline: 'bg-danger/20 text-danger',
-      High: 'bg-danger/20 text-danger',
-      Medium: 'bg-warning/20 text-warning',
-      Low: 'bg-success/20 text-success',
+      ACTIVE: 'bg-success/20 text-success',
+      PAUSED: 'bg-warning/20 text-warning',
+      SUSPENDED: 'bg-danger/20 text-danger',
+      CLOSED: 'bg-muted text-muted-foreground',
+      PENDING: 'bg-warning/20 text-warning',
+      EXECUTED: 'bg-success/20 text-success',
+      SUCCESS: 'bg-success/20 text-success',
+      CANCELLED: 'bg-danger/20 text-danger',
+      COMPLETED: 'bg-success/20 text-success',
+      ONLINE: 'bg-success/20 text-success',
+      DEGRADED: 'bg-warning/20 text-warning',
+      OFFLINE: 'bg-danger/20 text-danger',
+      HIGH: 'bg-danger/20 text-danger',
+      MEDIUM: 'bg-warning/20 text-warning',
+      LOW: 'bg-success/20 text-success',
       BUY: 'bg-success/20 text-success',
       SELL: 'bg-danger/20 text-danger',
+      FAILED: 'bg-danger/20 text-danger',
     };
-    return styles[status] || 'bg-muted text-muted-foreground';
+    return styles[s] || 'bg-muted text-muted-foreground';
   };
 
   return (

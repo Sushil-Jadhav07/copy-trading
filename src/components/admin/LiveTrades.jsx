@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatRelativeTime, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -13,12 +13,18 @@ const LiveTrades = () => {
 
     const loadTrades = async () => {
       setLoading(true);
-
       try {
-        const response = await adminService.getTradeLogs();
+        // FIX: pass status filter so we only get executed/replicated trade logs,
+        // not the same unfiltered dump that OrderFeed shows.
+        // Spec 6.12: GET /admin/trade-logs?userId=uuid&status=EXECUTED
+        const response = await adminService.getTradeLogs({ status: 'EXECUTED' });
 
         if (isMounted) {
-          setLogs(response.filter((log) => log.type === 'EXECUTED' || log.type === 'REPLICATED'));
+          // Further client-side filter to keep only copy-trade replication records
+          setLogs(response.filter((log) => {
+            const t = (log.type || '').toUpperCase();
+            return t === 'EXECUTED' || t === 'REPLICATED';
+          }));
         }
       } catch (error) {
         if (isMounted) {
@@ -48,7 +54,7 @@ const LiveTrades = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold sm:text-2xl">Live Trade Feed</h1>
-        <p className="text-sm text-muted-foreground">Trade activity derived from live admin trade logs.</p>
+        <p className="text-sm text-muted-foreground">Executed &amp; replicated copy trades — live from admin logs.</p>
       </div>
 
       <div className="glass-card overflow-x-auto p-0">
@@ -78,7 +84,7 @@ const LiveTrades = () => {
                 <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{formatNumber(trade.qty || 0)}</td>
                 <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{formatCurrency(trade.price || 0)}</td>
                 <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{formatCurrency((trade.price || 0) * (trade.qty || 0))}</td>
-                <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{formatDate(trade.timestamp || new Date().toISOString())}</td>
+                <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{formatRelativeTime(trade.timestamp || new Date().toISOString())}</td>
               </tr>
             ))}
             {!tradesByTime.length && (

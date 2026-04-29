@@ -10,7 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://copy-trading-production-3981.up.railway.app',
+        target: 'https://api.ascentracapital.com', 
         changeOrigin: true,
         secure: true,
       },

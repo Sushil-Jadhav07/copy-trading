@@ -6,14 +6,22 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { brokerService } from '@/lib/broker';
-import { useBrokerAccounts } from '@/hooks/useBroker';
+import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
+const parseActive = (v) => {
+  if (v === true || v === 1) return true;
+  if (typeof v === 'string') {
+    const u = v.trim().toUpperCase();
+    return ['TRUE', '1', 'ACTIVE', 'SESSION_ACTIVE', 'CONNECTED', 'LOGGED_IN', 'AUTHORIZED'].includes(u);
+  }
+  return false;
+};
+
 const OrderBook = () => {
   const { addToast } = useToast();
-  const { accounts } = useBrokerAccounts();
-
+  const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
 
   // Session
@@ -30,12 +38,29 @@ const OrderBook = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [cancelling, setCancelling]       = useState(false);
 
-  // ── Set default account once accounts load ──────────────────────────────────
+  // ── 1. Load accounts on mount ────────────────────────────────────────────────
   useEffect(() => {
-    if (accounts.length && !selectedAccountId) {
-      setSelectedAccountId(accounts[0]?.accountId || '');
-    }
-  }, [accounts, selectedAccountId]);
+    const loadAccounts = async () => {
+      try {
+        const [allAccounts, activeAcc] = await Promise.all([
+          brokerService.getAccounts(),
+          masterService.getActiveAccount().catch(() => null)
+        ]);
+        
+        setAccounts(allAccounts);
+        
+        // Priority: 1. Active Master Account, 2. First account from list
+        const activeId = activeAcc?.brokerAccountId || activeAcc?.accountId;
+        const fallbackId = allAccounts.length > 0 ? (allAccounts[0]?.accountId || allAccounts[0]?.id) : '';
+        
+        setSelectedAccountId(activeId || fallbackId);
+      } catch (e) {
+        addToast(e.message, 'error');
+      }
+    };
+    
+    loadAccounts();
+  }, [addToast]);
 
   // ── Load session + orders ───────────────────────────────────────────────────
   const loadOrders = useCallback(async (accountId, silent = false) => {
@@ -44,12 +69,19 @@ const OrderBook = () => {
     setSessionLoading(true);
 
     try {
-      // Check session first
-      const statusData = await brokerService.getAccountStatus(accountId);
-      const isActive =
-        statusData?.sessionActive === true ||
-        String(statusData?.status || '').toUpperCase() === 'ACTIVE' ||
-        String(statusData?.sessionStatus || '').toUpperCase() === 'SESSION_ACTIVE';
+      let isActive = false;
+      try {
+        const statusData = await brokerService.getAccountStatus(accountId);
+        isActive =
+          parseActive(statusData?.sessionActive) ||
+          parseActive(statusData?.isSessionActive) ||
+          parseActive(statusData?.status) ||
+          parseActive(statusData?.sessionStatus) ||
+          parseActive(statusData?.connectionHealth);
+      } catch {
+        // Degrade gracefully: allow orders API to return the actual auth/session error.
+        isActive = true;
+      }
 
       setSessionActive(isActive);
 
@@ -106,9 +138,9 @@ const OrderBook = () => {
   };
 
   // ── Derived stats ─────────────────────────────────────────────────────────────
-  const pending  = orders.filter((o) => ['PENDING', 'OPEN', 'TRIGGER PENDING'].includes(String(o.status).toUpperCase()));
-  const executed = orders.filter((o) => String(o.status).toUpperCase() === 'COMPLETE');
-  const selectedAccount = accounts.find((a) => a.accountId === selectedAccountId);
+  const pending  = orders.filter((o) => ['PENDING', 'OPEN', 'TRIGGER PENDING', 'REJECT PENDING'].includes(String(o.status).toUpperCase()));
+  const executed = orders.filter((o) => ['COMPLETE', 'EXECUTED', 'SUCCESS', 'TRADED'].includes(String(o.status).toUpperCase()));
+  const selectedAccount = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
   const showSessionWarning = sessionActive === false && !sessionLoading;
 
   return (
@@ -126,7 +158,7 @@ const OrderBook = () => {
               onChange={setSelectedAccountId}
               includeEmptyOption={false}
               options={accounts.map((a) => ({
-                value: a.accountId,
+                value: a.accountId || a.id,
                 label: `${a.broker} - ${a.clientId || a.userId}${a.nickname ? ` (${a.nickname})` : ''}`,
               }))}
               triggerClassName="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
@@ -299,4 +331,3 @@ const OrderBook = () => {
 };
 
 export default OrderBook;
-

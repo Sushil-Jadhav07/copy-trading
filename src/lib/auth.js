@@ -311,9 +311,11 @@ export const authService = {
     }
   },
 
-  async enable2FA() {
+  async enableTwoFactor() {
     try {
-      await api.post('/api/v1/auth/2fa/enable');
+      const res = await api.post('/api/v1/auth/2fa/enable');
+      // API returns { qrCodeUri, secret } — pass through so Profile can render the QR code
+      return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to enable 2FA'));
     }

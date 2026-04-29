@@ -125,7 +125,7 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   // API returns: { id, masterId, childId, type, status, message, broker, reference, createdAt }
   id: raw.id || raw.tradeId || `trade-${index}`,
   master: raw.master || raw.masterName || raw.masterId || 'Unknown',
-  // API has no instrument/symbol — use reference as identifier
+  // Prefer instrument/symbol; fallback to reference.
   instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.reference || 'N/A',
   // API "type" = REPLICATED/MANUAL, not BUY/SELL
   type: String(raw.type || raw.side || raw.action || 'REPLICATED').toUpperCase(),
@@ -181,7 +181,7 @@ const normalizeChildAnalytics = (raw = {}) => {
     copiedTrades: toNumber(raw.copiedTrades, raw.copiedCount),
     // API returns failedReplications
     failedReplications: toNumber(raw.failedReplications, raw.failedCount),
-    portfolioValue: toNumber(raw.portfolioValue),
+    portfolioValue: toNumber(raw.portfolioValue, raw.portfolioAmount, raw.totalAssets, raw.totalPnl, raw.totalPnL),
     winRate: toNumber(raw.winRate),
     activeMasters: toNumber(raw.activeMasters),
     pnlHistory: historySource.map(normalizeChartPoint),
@@ -312,6 +312,7 @@ export const childService = {
       const payload = {
         masterId: body?.masterId,
         scalingFactor: safeMultiplier,
+        brokerAccountId: body?.brokerAccountId, // Support updating broker account
       };
       const res = await api.put('/api/v1/child/scaling', payload);
       return res.data?.data || res.data;

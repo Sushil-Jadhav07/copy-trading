@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee } from 'lucide-react';
+import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
+import DivSelect from '@/components/shared/DivSelect';
 import { useChildSubscriptions } from '@/hooks/useChild';
+import { useBrokerAccounts } from '@/hooks/useBroker';
 import { childService } from '@/lib/child';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
@@ -33,10 +35,18 @@ const getStatusMeta = (status) => {
 const MyMasters = () => {
   const { addToast } = useToast();
   const { subscriptions, setSubscriptions, loading, refetch, error } = useChildSubscriptions();
+  const { accounts: brokerAccounts } = useBrokerAccounts();
   const [masters, setMasters] = useState([]);
   const [unfollowModal, setUnfollowModal] = useState(false);
   const [selectedMaster, setSelectedMaster] = useState(null);
   const [togglingMasters, setTogglingMasters] = useState({});
+
+  // Settings Modal State
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [editingMaster, setEditingMaster] = useState(null);
+  const [newBrokerAccountId, setNewBrokerAccountId] = useState('');
+  const [newMultiplier, setNewMultiplier] = useState(1.0);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const handleBulkUnfollow = async () => {
     if (!masters.length) {
@@ -124,6 +134,34 @@ const MyMasters = () => {
       addToast(e.message || 'Failed to update copy status', 'error');
     } finally {
       setTogglingMasters((prev) => ({ ...prev, [master.id]: false }));
+    }
+  };
+
+  const handleOpenSettings = (master) => {
+    setEditingMaster(master);
+    setNewBrokerAccountId(master.brokerAccountId || '');
+    setNewMultiplier(master.multiplier || 1.0);
+    setSettingsModal(true);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!editingMaster) return;
+    setSavingSettings(true);
+    try {
+      // Update Scaling and Broker Account
+      await childService.updateScaling({
+        masterId: editingMaster.id,
+        multiplier: newMultiplier,
+        brokerAccountId: newBrokerAccountId,
+      });
+
+      addToast('Subscription settings updated', 'success');
+      setSettingsModal(false);
+      refetch();
+    } catch (e) {
+      addToast(e.message || 'Failed to update settings', 'error');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -238,15 +276,24 @@ const MyMasters = () => {
                       <p className="text-xs text-muted-foreground mt-1">{statusMeta.subtitle}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedMaster(master);
-                      setUnfollowModal(true);
-                    }}
-                    className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors"
-                  >
-                    <UserMinus className="w-4 h-4 text-danger" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenSettings(master)}
+                      className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors"
+                      title="Subscription Settings"
+                    >
+                      <Settings className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedMaster(master);
+                        setUnfollowModal(true);
+                      }}
+                      className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors"
+                    >
+                      <UserMinus className="w-4 h-4 text-danger" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2 text-sm mb-4">
@@ -296,14 +343,19 @@ const MyMasters = () => {
 
                 <div className="flex items-center justify-between pt-3 border-t border-border/40">
                   <span className="text-sm text-muted-foreground">Copy Trading</span>
-                  <ToggleSwitch
-                    checked={master.tradingEnabled}
-                    disabled={!canToggle || isPending || isToggling}
-                    onChange={() => handleToggle(master)}
-                    label={canToggle ? '' : statusMeta.label}
-                    showStateText={canToggle}
-                    activeClassName="bg-success"
-                  />
+                  <div className="flex items-center gap-2">
+                    {!master.brokerAccountId && (
+                      <span className="text-[10px] text-danger font-bold uppercase animate-pulse">No Broker!</span>
+                    )}
+                    <ToggleSwitch
+                      checked={master.tradingEnabled}
+                      disabled={!canToggle || isPending || isToggling || !master.brokerAccountId}
+                      onChange={() => handleToggle(master)}
+                      label={canToggle ? '' : statusMeta.label}
+                      showStateText={canToggle}
+                      activeClassName="bg-success"
+                    />
+                  </div>
                 </div>
               </motion.div>
             );
@@ -347,6 +399,68 @@ const MyMasters = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Settings Modal */}
+      <Modal
+        isOpen={settingsModal}
+        onClose={() => setSettingsModal(false)}
+        title="Subscription Settings"
+        size="sm"
+      >
+        {editingMaster && (
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Broker Account</label>
+              <DivSelect
+                value={newBrokerAccountId}
+                onChange={setNewBrokerAccountId}
+                options={brokerAccounts.map((acc) => ({
+                  value: acc.accountId || acc.id,
+                  label: `${acc.broker} - ${acc.nickname || acc.clientId}`,
+                }))}
+                triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
+              />
+              <p className="text-[10px] text-muted-foreground">Trades will be copied to this account</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Multiplier (Scaling)</label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min="0.1"
+                  max="10"
+                  step="0.1"
+                  value={newMultiplier}
+                  onChange={(e) => setNewMultiplier(Number(e.target.value))}
+                  className="flex-1 accent-brand-purple"
+                />
+                <span className="w-12 text-center font-bold text-brand-purple text-sm">{newMultiplier}x</span>
+              </div>
+              <div className="flex justify-between px-1">
+                <span className="text-[10px] text-muted-foreground">0.1x (Safe)</span>
+                <span className="text-[10px] text-muted-foreground">10x (Aggressive)</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setSettingsModal(false)}
+                className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                {savingSettings ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

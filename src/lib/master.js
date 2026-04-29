@@ -27,6 +27,23 @@ const toNumber = (...values) => {
   return 0;
 };
 
+const expandChildRecords = (rawList = []) =>
+  rawList.flatMap((entry = {}) => {
+    const subs = Array.isArray(entry.subscriptions)
+      ? entry.subscriptions
+      : Array.isArray(entry.subscriptionDetails)
+      ? entry.subscriptionDetails
+      : [];
+
+    if (!subs.length) return [entry];
+
+    return subs.map((sub) => ({
+      ...entry,
+      ...sub,
+      child: entry.child || entry.user || entry.profile || null,
+    }));
+  });
+
 const normalizeChild = (raw = {}, index = 0) => {
   const source = raw.child || raw.user || raw.childUser || raw.profile || raw;
   const childId =
@@ -61,8 +78,15 @@ const normalizeChild = (raw = {}, index = 0) => {
   return {
     id: childId,
     childId,
+    subscriptionId: raw.subscriptionId || raw.id || '',
     userId: raw.userId || source.userId || source.id || childId,
-    brokerAccountId: raw.brokerAccountId || source.brokerAccountId || '',
+    brokerAccountId:
+      raw.brokerAccountId ||
+      raw.accountId ||
+      raw.linkedBrokerAccountId ||
+      source.brokerAccountId ||
+      source.accountId ||
+      '',
     clientId: raw.clientId || source.clientId || source.username || '',
     name,
     childName: name,
@@ -77,6 +101,9 @@ const normalizeChild = (raw = {}, index = 0) => {
     pnl: Number(raw.pnl || raw.totalPnL || raw.profitLoss || 0),
     tradesCopied: Number(raw.tradesCopied || raw.tradeCount || raw.copiedTrades || 0),
     tradeCount: Number(raw.tradeCount || raw.tradesCopied || raw.copiedTrades || 0),
+    margin: Number(raw.margin || raw.availableMargin || raw.available_margin || source.margin || source.availableMargin || source.available_margin || 0),
+    pnlToday: Number(raw.pnlToday || raw.todayPnL || raw.netPnL || raw.dailyPnL || 0),
+    positions: Number(raw.positions || raw.openPositions || raw.positionCount || 0),
     tradingEnabled: Boolean(
       raw.tradingEnabled ??
         raw.enabled ??
@@ -185,7 +212,8 @@ export const masterService = {
   async getChildren() {
     try {
       const res = await api.get('/api/v1/master/children');
-      return extractList(res.data).map(normalizeChild);
+      const list = expandChildRecords(extractList(res.data));
+      return list.map(normalizeChild);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load children'));
     }
@@ -194,11 +222,17 @@ export const masterService = {
   async getSubscriptionsByMaster(masterId) {
     try {
       const res = await api.get('/api/v1/master/children');
-      return extractList(res.data).map((raw, index) => ({
+      const list = expandChildRecords(extractList(res.data));
+      return list.map((raw, index) => ({
         ...normalizeChild(raw, index),
         id: raw.childId || raw.id || `child-${index}`,
         childId: raw.childId || raw.id || `child-${index}`,
-        brokerAccountId: raw.brokerAccountId || '',
+        subscriptionId: raw.subscriptionId || raw.id || '',
+        brokerAccountId:
+          raw.brokerAccountId ||
+          raw.accountId ||
+          raw.linkedBrokerAccountId ||
+          '',
         multiplier: Number(raw.scalingFactor || raw.multiplier || 1),
         scalingFactor: Number(raw.scalingFactor || raw.multiplier || 1),
         status: String(raw.copyingStatus || raw.status || 'ACTIVE').toUpperCase(),
@@ -265,8 +299,21 @@ export const masterService = {
   async bulkUnlinkChildren(children) {
     try {
       const childIds = (children || []).map((child) => child.childId || child.id || child);
-      const res = await api.post('/api/v1/master/children/bulk-unlink', { childIds });
-      return res.data?.data || res.data || {};
+      try {
+        const res = await api.post('/api/v1/master/children/bulk-unlink', { childIds });
+        return res.data?.data || res.data || {};
+      } catch (error) {
+        if (error?.response?.status !== 404) throw error;
+        const results = await Promise.allSettled(
+          childIds.map((id) => api.delete(`/api/v1/master/children/${id}/unlink`)),
+        );
+        const failed = results.filter((result) => result.status === 'rejected');
+        if (failed.length > 0) {
+          const first = failed[0]?.reason;
+          throw first;
+        }
+        return { success: true };
+      }
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to bulk unlink children'));
     }

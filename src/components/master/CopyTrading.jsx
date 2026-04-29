@@ -24,6 +24,7 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
+import MultiSelect from '@/components/shared/MultiSelect';
 import { useToast } from '@/components/shared/Toast';
 import { useBrokerAccounts } from '@/hooks/useBroker';
 import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
@@ -83,11 +84,17 @@ const getDetectionBadgeClass = (method = '') => {
 const normalizeChildRow = (child) => {
   const hasStatus = child.status != null && String(child.status).trim() !== '';
   const status = String(child.status || '').toUpperCase();
+  const brokerAccountId = child.brokerAccountId || child.accountId || '';
+  const rowId = child.subscriptionId
+    ? `sub-${child.subscriptionId}`
+    : `${child.id || child.childId}-${brokerAccountId || 'no-account'}`;
 
   return {
-    id: child.id || child.childId,
-    accountId: child.brokerAccountId || child.accountId || '',
-    brokerAccountId: child.brokerAccountId || child.accountId || '',
+    id: rowId,
+    childId: child.childId || child.id,
+    subscriptionId: child.subscriptionId || null,
+    accountId: brokerAccountId,
+    brokerAccountId,
     userId: child.clientId || child.userId || child.childId,
     nickname: child.nickname || child.name || child.childName || 'Unknown',
     broker: child.broker || child.brokerName || 'Broker',
@@ -212,27 +219,38 @@ const CopyTrading = () => {
 
   const connectedRows = useMemo(() => children.map(normalizeChildRow), [children]);
   const subscribedRows = useMemo(() => subscriptions.map(normalizeChildRow), [subscriptions]);
-  const linkedRows = useMemo(() => connectedRows.filter((row) => ['ACTIVE', 'PAUSED'].includes(row.status)), [connectedRows]);
+  const mergedRows = useMemo(() => {
+    const map = new Map();
+    [...connectedRows, ...subscribedRows].forEach((row) => {
+      map.set(String(row.id), { ...map.get(String(row.id)), ...row });
+    });
+    return Array.from(map.values());
+  }, [connectedRows, subscribedRows]);
+
+  const linkedRows = useMemo(
+    () => mergedRows.filter((row) => ['ACTIVE', 'PAUSED', 'PENDING_APPROVAL', 'APPROVED'].includes(row.status)),
+    [mergedRows],
+  );
 
   const availableChildRows = useMemo(() => {
     const map = new Map();
 
-    [...connectedRows, ...subscribedRows].forEach((child) => {
+    mergedRows.forEach((child) => {
       const key = String(child.id || child.accountId || child.userId);
       if (!key) return;
       map.set(key, { ...map.get(key), ...child });
     });
 
     return Array.from(map.values());
-  }, [connectedRows, subscribedRows]);
+  }, [mergedRows]);
 
   useEffect(() => {
     let isMounted = true;
 
     connectedRows.forEach((child) => {
-      masterService.getChildScaling(child.id).then((data) => {
+      masterService.getChildScaling(child.childId).then((data) => {
         if (isMounted) {
-          setScalingMap((prev) => ({ ...prev, [child.id]: data }));
+          setScalingMap((prev) => ({ ...prev, [child.childId]: data }));
         }
       }).catch(() => {});
     });
@@ -244,8 +262,8 @@ const CopyTrading = () => {
 
   const childOptions = availableChildRows.filter(
     (child) =>
-      String(child.id) !== String(masterAccountId) &&
-      !linkedRows.some((row) => String(row.id) === String(child.id)),
+      String(child.childId) !== String(masterAccountId) &&
+      !linkedRows.some((row) => String(row.childId) === String(child.childId)),
   );
 
   const handleConnectMaster = () => {
@@ -291,16 +309,17 @@ const CopyTrading = () => {
     }
 
     const selectedChildRow = childOptions.find((item) => String(item.id) === String(selectedChild));
+    const targetChildId = selectedChildRow?.childId || selectedChild;
     const scalingFactor = Number(childMultiplier) || 1;
 
     try {
-      await masterService.linkChild(selectedChild, scalingFactor);
+      await masterService.linkChild(targetChildId, scalingFactor);
       if (selectedChildRow) {
         setChildren((prev) => {
-          const exists = prev.some((item) => String(item.id || item.childId) === String(selectedChild));
+          const exists = prev.some((item) => String(item.id || item.childId) === String(targetChildId));
           if (exists) {
             return prev.map((item) =>
-              String(item.id || item.childId) === String(selectedChild)
+              String(item.id || item.childId) === String(targetChildId)
                 ? { ...item, multiplier: scalingFactor, status: 'ACTIVE', enabled: true, isLinked: true, isSubscribedOnly: false }
                 : item,
             );
@@ -310,8 +329,8 @@ const CopyTrading = () => {
             ...prev,
             {
               ...selectedChildRow,
-              childId: selectedChildRow.id,
-              id: selectedChildRow.id,
+              childId: targetChildId,
+              id: targetChildId,
               multiplier: scalingFactor,
               status: 'ACTIVE',
               enabled: true,
@@ -345,8 +364,8 @@ const CopyTrading = () => {
 
     try {
       await masterService.bulkLinkChildren(
-        selectedBulkChildren.map((childId) => ({
-          childId,
+        selectedBulkChildren.map((rowId) => ({
+          childId: childOptions.find((child) => String(child.id) === String(rowId))?.childId || rowId,
           scalingFactor: Number(childMultiplier) || 1,
         })),
       );
@@ -366,8 +385,15 @@ const CopyTrading = () => {
       return;
     }
 
+    if (!window.confirm(`Disconnect all ${linkedRows.length} linked children?`)) return;
+
     try {
-      await masterService.bulkUnlinkChildren(linkedRows.map((child) => ({ childId: child.id })));
+      await masterService.bulkUnlinkChildren(linkedRows.map((child) => ({ childId: child.childId })));
+      // Clear local children state for linked items
+      setChildren(prev => prev.filter(item => {
+        const id = item.id || item.childId;
+        return !linkedRows.some(lr => lr.childId === id);
+      }));
       addToast('All linked children disconnected', 'success');
       await Promise.all([refetch(), refetchSubscriptions()]);
     } catch (error) {
@@ -380,6 +406,7 @@ const CopyTrading = () => {
 
     const child = connectedRows.find((item) => item.id === id);
     if (!child) return;
+    const targetChildId = child.childId;
 
     const statusValue = String(child.status || '').toUpperCase();
     const next = !child.tradingEnabled;
@@ -397,15 +424,15 @@ const CopyTrading = () => {
     setTogglingChildren((prev) => ({ ...prev, [id]: true }));
     setChildren((prev) =>
       prev.map((item) =>
-        (item.id || item.childId) === id ? { ...item, status: next ? 'ACTIVE' : 'PAUSED', enabled: next } : item,
+        (item.id || item.childId) === targetChildId ? { ...item, status: next ? 'ACTIVE' : 'PAUSED', enabled: next } : item,
       ),
     );
 
     try {
       if (next) {
-        await masterService.resumeChild(id);
+        await masterService.resumeChild(child.childId);
       } else {
-        await masterService.pauseChild(id);
+        await masterService.pauseChild(child.childId);
       }
       addToast(`Child ${next ? 'resumed' : 'paused'}`, next ? 'success' : 'warning');
     } catch (error) {
@@ -419,8 +446,10 @@ const CopyTrading = () => {
   const handleRefresh = async (id) => {
     setRefreshing((prev) => ({ ...prev, [id]: true }));
     try {
-      const data = await masterService.getChildScaling(id);
-      setScalingMap((prev) => ({ ...prev, [id]: data }));
+      const child = connectedRows.find((item) => item.id === id);
+      if (!child) return;
+      const data = await masterService.getChildScaling(child.childId);
+      setScalingMap((prev) => ({ ...prev, [child.childId]: data }));
       addToast('Refreshed', 'success');
     } catch (error) {
       addToast(error.message, 'error');
@@ -430,11 +459,14 @@ const CopyTrading = () => {
   };
 
   const handleMultiplierChange = async (id, value) => {
+    const child = connectedRows.find((item) => item.id === id);
+    if (!child) return;
+    const targetChildId = child.childId;
     setChildren((prev) =>
-      prev.map((item) => ((item.id || item.childId) === id ? { ...item, multiplier: value } : item)),
+      prev.map((item) => ((item.id || item.childId) === targetChildId ? { ...item, multiplier: value } : item)),
     );
     try {
-      await masterService.updateChildScaling(id, { ...(scalingMap[id] || {}), scalingFactor: value });
+      await masterService.updateChildScaling(child.childId, { ...(scalingMap[child.childId] || {}), scalingFactor: value });
     } catch (error) {
       addToast(error.message, 'error');
       refetch();
@@ -470,6 +502,20 @@ const CopyTrading = () => {
     }
   };
 
+  const handleVerifyEngine = async () => {
+    setResettingCache(true);
+    try {
+      await engineService.resetPollingCache();
+      const status = await engineService.getStatus();
+      setEngineStatus(status);
+      addToast('Trade engine re-verified for F&O and Equity', 'success');
+    } catch (e) {
+      addToast('Engine verification failed', 'error');
+    } finally {
+      setResettingCache(false);
+    }
+  };
+
   const filtered = linkedRows.filter((child) =>
     !search || `${child.broker} ${child.userId} ${child.nickname}`.toLowerCase().includes(search.toLowerCase()),
   );
@@ -481,6 +527,30 @@ const CopyTrading = () => {
   const lastResetLabel = pollingStatus?.lastResetAt
     ? new Date(pollingStatus.lastResetAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
     : 'Not reset yet';
+  const tradeBlockers = useMemo(() => {
+    const issues = [];
+    if (!masterConnected) {
+      issues.push({ severity: 'error', msg: 'No master account connected. Engine has nothing to poll.' });
+    }
+    if (masterConnected && !pollingEnabled) {
+      issues.push({ severity: 'warning', msg: 'Auto-polling is OFF. Enable it so the engine detects master trades.' });
+    }
+    if (linkedRows.length === 0) {
+      issues.push({ severity: 'warning', msg: 'No child accounts linked. Link at least one child to start copying.' });
+    }
+    linkedRows.forEach((child) => {
+      if (child.status === 'PAUSED') {
+        issues.push({ severity: 'info', msg: `Child "${child.nickname || child.userId}" is PAUSED and will not receive copied trades.` });
+      }
+      if ((child.margin || 0) < 5000) {
+        issues.push({ severity: 'error', msg: `Child "${child.nickname || child.userId}" has low margin (${formatCurrency(child.margin || 0)}). Orders may be rejected.` });
+      }
+      if (!child.brokerAccountId) {
+        issues.push({ severity: 'error', msg: `Child "${child.nickname || child.userId}" has no broker account linked.` });
+      }
+    });
+    return issues;
+  }, [masterConnected, pollingEnabled, linkedRows]);
   return (
     <div className="space-y-6">
       <div>
@@ -658,6 +728,14 @@ const CopyTrading = () => {
                 >
                   Disconnect
                 </button>
+                <button
+                  onClick={handleVerifyEngine}
+                  disabled={resettingCache}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-purple/30 bg-brand-purple/5 text-brand-purple hover:bg-brand-purple/10 transition-all text-sm font-bold"
+                >
+                  <Zap className={`w-4 h-4 ${resettingCache ? 'animate-spin' : ''}`} />
+                  Verify F&O Support
+                </button>
                 <div className="flex flex-wrap items-center gap-4">
                   <ToggleSwitch checked={tradingEnabled} onChange={() => setTradingEnabled((prev) => !prev)} label="Trading" showStateText />
                 </div>
@@ -667,89 +745,79 @@ const CopyTrading = () => {
         </GlassCard>
 
         <GlassCard>
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Child Accounts</p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <div className="min-w-full flex-1 sm:min-w-[200px]">
-              <DivSelect
-                value={selectedChild}
-                onChange={setSelectedChild}
-                placeholder="Select Child Account"
-                options={childOptions.map((child) => ({
-                  value: child.id,
-                  label: `${child.broker} - ${child.userId} (${child.nickname})`,
-                }))}
-                triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:border-brand-purple dark:bg-white/5"
-              />
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Connect Child Accounts</p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground ml-1">Select Accounts</label>
+                <MultiSelect
+                  value={selectedBulkChildren}
+                  onChange={setSelectedBulkChildren}
+                  placeholder="Select one or more children..."
+                  options={childOptions.map((child) => ({
+                    value: child.id,
+                    label: `${child.broker} - ${child.nickname || child.userId}`,
+                  }))}
+                />
+              </div>
+              <div className="w-full sm:w-28 space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground ml-1">Multiplier</label>
+                <input
+                  type="number"
+                  value={childMultiplier}
+                  onChange={(event) => setChildMultiplier(event.target.value)}
+                  placeholder="1.0"
+                  min="0.1"
+                  step="0.1"
+                  className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                />
+              </div>
             </div>
-            <div className="w-full sm:w-28">
-              <input
-                type="number"
-                value={childMultiplier}
-                onChange={(event) => setChildMultiplier(event.target.value)}
-                placeholder="Multiplier"
-                min="0.1"
-                step="0.1"
-                className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple dark:bg-white/5"
-              />
-            </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-              <button
-                onClick={handleAddChild}
-                className="flex-1 rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue/90 sm:flex-none"
-              >
-                Connect
-              </button>
+
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">
               <button
                 onClick={handleBulkLink}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-purple px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-purple/90 sm:flex-none"
+                disabled={selectedBulkChildren.length === 0}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-purple/90 disabled:opacity-50 disabled:grayscale"
               >
                 <CheckSquare className="h-4 w-4" />
-                Bulk Connect
+                Connect {selectedBulkChildren.length > 0 ? `(${selectedBulkChildren.length})` : 'Selected'}
               </button>
               <button
                 onClick={handleBulkUnlink}
-                className="w-full rounded-xl bg-danger px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-danger/90 sm:w-auto"
+                className="flex-1 rounded-xl bg-danger/10 border border-danger/20 px-5 py-2.5 text-sm font-bold text-danger transition-all hover:bg-danger/20"
               >
                 Disconnect All
               </button>
             </div>
           </div>
-          {childOptions.length > 0 && (
-            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
-              {childOptions.map((child) => {
-                const checked = selectedBulkChildren.includes(child.id);
-                return (
-                  <label
-                    key={child.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-all ${
-                      checked
-                        ? 'border-brand-purple bg-brand-purple/8'
-                        : 'border-border bg-black/4 hover:border-brand-purple/40 dark:bg-white/4'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        setSelectedBulkChildren((prev) => (prev.includes(child.id) ? prev.filter((id) => id !== child.id) : [...prev, child.id]))
-                      }
-                      className="accent-brand-purple"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">
-                        {child.broker} - {child.userId}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {String(child.status || child.copyingStatus || 'SUBSCRIBED').replaceAll('_', ' ')}
-                      </p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
         </GlassCard>
       </div>
+
+      {tradeBlockers.length > 0 && (
+        <GlassCard>
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Why Trades May Not Be Copying</p>
+          <div className="space-y-2">
+            {tradeBlockers.map((issue, idx) => (
+              <div
+                key={idx}
+                className={`flex items-start gap-3 rounded-xl border p-3 text-sm ${
+                  issue.severity === 'error'
+                    ? 'border-danger/20 bg-danger/8 text-danger'
+                    : issue.severity === 'warning'
+                    ? 'border-amber-500/20 bg-amber-500/8 text-amber-500'
+                    : 'border-brand-blue/20 bg-brand-blue/8 text-brand-blue'
+                }`}
+              >
+                <span className="shrink-0 font-bold">
+                  {issue.severity === 'error' ? 'x' : issue.severity === 'warning' ? '!' : 'i'}
+                </span>
+                <span>{issue.msg}</span>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       {masterConnected && (
         <GlassCard>
@@ -941,10 +1009,11 @@ const CopyTrading = () => {
                           <button
                             onClick={async () => {
                               try {
-                                await masterService.unlinkChild(child.id);
+                                await masterService.unlinkChild(child.childId);
                                 addToast('Child disconnected', 'success');
-                                refetch();
-                                refetchSubscriptions();
+                                // Immediately update local state to reflect removal
+                                setChildren(prev => prev.filter(item => (item.id || item.childId) !== child.childId));
+                                await Promise.all([refetch(), refetchSubscriptions()]);
                               } catch (error) {
                                 addToast(error.message, 'error');
                               }
@@ -957,7 +1026,7 @@ const CopyTrading = () => {
                           <button
                             onClick={async () => {
                               try {
-                                await masterService.linkChild(child.id, child.multiplier);
+                                await masterService.linkChild(child.childId, child.multiplier);
                                 addToast('Child connected', 'success');
                                 refetch();
                                 refetchSubscriptions();
@@ -1020,7 +1089,7 @@ const CopyTrading = () => {
             <button
               onClick={async () => {
                 try {
-                  await masterService.unlinkChild(selectedRow.id);
+                  await masterService.unlinkChild(selectedRow.childId);
                   addToast('Removed', 'success');
                   refetch();
                 } catch (error) {

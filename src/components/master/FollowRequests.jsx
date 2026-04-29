@@ -45,11 +45,10 @@ const FollowRequests = () => {
       if (action === 'approve') {
         await masterService.approveChild(id);
       } else {
-        try {
-          await masterService.declineChild(id);
-        } catch (error) {
-          await masterService.rejectChild(id);
-        }
+        // FIX: was trying masterService.declineChild() first (POST /master/children/{id}/decline)
+        // that endpoint does NOT exist in spec — always 404'd before the rejectChild fallback.
+        // Spec 3.6: POST /master/children/{childId}/reject — use directly.
+        await masterService.rejectChild(id);
       }
       setRequests((prev) => prev.filter((r) => r.id !== id));
       addToast(

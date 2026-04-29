@@ -8,14 +8,23 @@ import { masterService } from '@/lib/master';
 import { copyLogService } from '@/lib/copyLogs';
 import { logsService } from '@/lib/logs';
 import { brokerService } from '@/lib/broker';
+import { formatCurrency, formatRelativeTime } from '@/lib/utils';
 
 const STATUS_CFG = {
   EXECUTED: { icon: CheckCircle2, cls: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', rowCls: 'border-l-emerald-500 bg-emerald-500/3', label: 'Executed' },
+  SUCCESS:  { icon: CheckCircle2, cls: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', rowCls: 'border-l-emerald-500 bg-emerald-500/3', label: 'Success' },
   FAILED:   { icon: AlertCircle,  cls: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',           rowCls: 'border-l-rose-500 bg-rose-500/3',     label: 'Failed' },
   SKIPPED:  { icon: SkipForward,  cls: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',        rowCls: 'border-l-amber-500 bg-amber-500/4',   label: 'Skipped' },
   PENDING:  { icon: Clock,        cls: 'bg-slate-500/10 text-slate-500 dark:text-slate-400',        rowCls: 'border-l-slate-400 bg-transparent',   label: 'Pending' },
 };
-const getStatusCfg = (s) => STATUS_CFG[String(s || '').toUpperCase()] || STATUS_CFG.PENDING;
+const normalizeStatus = (value) => {
+  const raw = String(value || '').toUpperCase();
+  if (raw === 'SUCCESS') return 'SUCCESS';
+  if (['COMPLETE', 'COMPLETED', 'TRADED'].includes(raw)) return 'EXECUTED';
+  if (['ERROR', 'REJECTED'].includes(raw)) return 'FAILED';
+  return raw || 'PENDING';
+};
+const getStatusCfg = (s) => STATUS_CFG[normalizeStatus(s)] || STATUS_CFG.PENDING;
 
 const StatusPill = ({ status }) => {
   const cfg = getStatusCfg(status);
@@ -115,9 +124,9 @@ const Logs = () => {
 
   // Status counts for legend
   const statusCounts = useMemo(() => {
-    const counts = { EXECUTED: 0, FAILED: 0, SKIPPED: 0, PENDING: 0 };
+    const counts = { SUCCESS: 0, EXECUTED: 0, FAILED: 0, SKIPPED: 0, PENDING: 0 };
     filteredCopyLogs.forEach((l) => {
-      const s = String(l.childStatus || 'PENDING').toUpperCase();
+      const s = normalizeStatus(l.childStatus);
       if (s in counts) counts[s]++;
     });
     return counts;
@@ -192,7 +201,7 @@ const Logs = () => {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
+                  <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatRelativeTime(log.createdAt)}</td>
                 </motion.tr>
               );
             })}
@@ -226,7 +235,9 @@ const Logs = () => {
               </td>
               <td className="px-4 py-3 text-sm">{log.quantity || log.qty || 0}</td>
               <td className="px-4 py-3"><StatusPill status={log.status} /></td>
-              <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(log.placedAt || log.createdAt || log.timestamp)}</td>
+              <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                {formatRelativeTime(log.placedAt || log.createdAt || log.timestamp)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -261,7 +272,7 @@ const Logs = () => {
                 <p className="text-sm text-foreground">{log.message || log.error || '-'}</p>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-[10px] font-bold text-rose-400 bg-rose-500/8 px-1.5 py-0.5 rounded">{log.broker || log.brokerId || '-'}</span>
-                  <span className="text-[10px] text-muted-foreground">{formatDate(log.timestamp || log.createdAt)}</span>
+                  <span className="text-[10px] text-muted-foreground">{formatRelativeTime(log.timestamp || log.createdAt)}</span>
                 </div>
               </div>
             </div>

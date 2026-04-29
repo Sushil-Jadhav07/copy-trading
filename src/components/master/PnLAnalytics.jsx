@@ -29,24 +29,47 @@ const PnLAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [fetchingRealized, setFetchingRealized] = useState(false);
 
-  const loadSummary = async (nextPeriod = period) => {
-    setLoading(true);
-    try {
-      const [summaryData, activeAccount] = await Promise.all([pnlService.getSummary(nextPeriod), masterService.getActiveAccount().catch(() => null)]);
-      setSummary((summaryData || []).map(normalizeSummaryRow));
-      const brokerAccountId = activeAccount?.brokerAccountId || activeAccount?.accountId;
-      const unrealizedData = await pnlService.getUnrealizedPnl(brokerAccountId);
-      setUnrealized(unrealizedData);
-    } catch (error) {
-      addToast(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadSummary(period);
-  }, [period]);
+    let isMounted = true;
+
+    const loadSummary = async () => {
+      setLoading(true);
+      try {
+        const [summaryData, activeAccount] = await Promise.all([
+          pnlService.getSummary(period).catch((err) => {
+            console.warn('Summary Fetch Failed:', err);
+            return [];
+          }),
+          masterService.getActiveAccount().catch(() => null)
+        ]);
+        
+        if (!isMounted) return;
+
+        const normalizedSummary = (Array.isArray(summaryData) ? summaryData : []).map(normalizeSummaryRow);
+        setSummary(normalizedSummary);
+        
+        const brokerAccountId = activeAccount?.brokerAccountId || activeAccount?.accountId;
+        if (brokerAccountId) {
+          const unrealizedData = await pnlService.getUnrealizedPnl(brokerAccountId).catch((err) => {
+            console.warn('Unrealized PnL Fetch Failed:', err);
+            return null;
+          });
+          if (isMounted) setUnrealized(unrealizedData);
+        }
+      } catch (error) {
+        console.error('PnL Summary Load Error:', error);
+        if (isMounted) addToast('Error loading P&L data', 'error');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [period, addToast]);
 
   const handleRealizedFetch = async () => {
     setFetchingRealized(true);
@@ -60,7 +83,20 @@ const PnLAnalytics = () => {
     }
   };
 
-  const chartData = useMemo(() => summary.map((row) => ({ time: row.period, value: row.realizedPnl + row.unrealizedPnl })), [summary]);
+  const chartData = useMemo(() => {
+    try {
+      if (!summary || !Array.isArray(summary) || summary.length === 0) {
+        return [];
+      }
+      return summary.map((row) => ({ 
+        time: String(row.period || row.label || 'N/A'), 
+        value: Number(row.realizedPnl || 0) + Number(row.unrealizedPnl || 0) 
+      }));
+    } catch (e) {
+      console.error('Chart Data Error:', e);
+      return [];
+    }
+  }, [summary]);
 
   const columns = [
     { header: 'Period', accessor: 'period' },
@@ -70,8 +106,48 @@ const PnLAnalytics = () => {
     { header: 'Win Rate', accessor: 'winRate', cell: (row) => `${row.winRate}%` },
   ];
 
+  const realizedPnlVal = useMemo(() => {
+    if (!realized) return 0;
+    if (typeof realized.realizedPnl === 'number') return realized.realizedPnl;
+    if (typeof realized.pnl === 'number') return realized.pnl;
+    return 0;
+  }, [realized]);
+
+  const realizedTrades = useMemo(() => {
+    if (!realized) return [];
+    if (Array.isArray(realized.trades)) return realized.trades;
+    if (Array.isArray(realized.items)) return realized.items;
+    return [];
+  }, [realized]);
+
+  const unrealizedPnlVal = useMemo(() => {
+    if (!unrealized) return 0;
+    if (typeof unrealized.unrealizedPnl === 'number') return unrealized.unrealizedPnl;
+    if (typeof unrealized.pnl === 'number') return unrealized.pnl;
+    if (Array.isArray(unrealized)) {
+      return unrealized.reduce((sum, pos) => sum + Number(pos.pnl || 0), 0);
+    }
+    return 0;
+  }, [unrealized]);
+
+  const unrealizedPositions = useMemo(() => {
+    if (!unrealized) return [];
+    if (Array.isArray(unrealized.positions)) return unrealized.positions;
+    if (Array.isArray(unrealized)) return unrealized;
+    return [];
+  }, [unrealized]);
+
   if (loading) {
-    return <SkeletonLoader type="chart" />;
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="h-8 bg-black/10 dark:bg-white/10 rounded w-48 mb-2" />
+          <div className="h-4 bg-black/10 dark:bg-white/10 rounded w-64" />
+        </div>
+        <SkeletonLoader type="chart" />
+        <SkeletonLoader type="table" rows={5} columns={5} />
+      </div>
+    );
   }
 
   return (
@@ -82,7 +158,15 @@ const PnLAnalytics = () => {
       </div>
 
       <GlassCard title="Summary Trend" action={<div className="flex flex-wrap gap-2">{PERIODS.map((item) => <button key={item} type="button" onClick={() => setPeriod(item)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${period === item ? 'bg-brand-purple text-white' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'}`}>{item}</button>)}</div>}>
-        {summary.length ? <LineChart data={chartData} xKey="time" yKey="value" height={280} /> : <p className="text-sm text-muted-foreground">No summary data available.</p>}
+        <div className="h-[400px]">
+          {chartData.length > 0 ? (
+            <LineChart data={chartData} xKey="time" yKey="value" height={400} />
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              No data available for the selected period
+            </div>
+          )}
+        </div>
       </GlassCard>
 
       <GlassCard title="P&L Summary Table">
@@ -100,10 +184,10 @@ const PnLAnalytics = () => {
             <div className="mt-4 space-y-4">
               <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
                 <p className="text-xs text-muted-foreground">Total Realized P&L</p>
-                <p className={`mt-1 text-lg font-semibold ${Number(realized.realizedPnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>{formatCurrency(Number(realized.realizedPnl || 0))}</p>
+                <p className={`mt-1 text-lg font-semibold ${realizedPnlVal >= 0 ? 'text-success' : 'text-danger'}`}>{formatCurrency(realizedPnlVal)}</p>
               </div>
               <div className="space-y-2">
-                {(realized.trades || []).map((trade, index) => (
+                {realizedTrades.map((trade, index) => (
                   <div key={trade.id || trade.tradeId || index} className="rounded-lg bg-black/5 p-3 text-sm dark:bg-white/5">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{trade.symbol || trade.instrument || 'Trade'}</span>
@@ -111,7 +195,7 @@ const PnLAnalytics = () => {
                     </div>
                   </div>
                 ))}
-                {!(realized.trades || []).length && <p className="text-sm text-muted-foreground">No trades returned for the selected range.</p>}
+                {!realizedTrades.length && <p className="text-sm text-muted-foreground">No trades returned for the selected range.</p>}
               </div>
             </div>
           )}
@@ -120,16 +204,16 @@ const PnLAnalytics = () => {
         <GlassCard title="Unrealized P&L">
           <div className="rounded-lg bg-black/5 p-4 dark:bg-white/5">
             <p className="text-xs text-muted-foreground">Current Unrealized P&L</p>
-            <p className={`mt-1 text-lg font-semibold ${Number(unrealized?.unrealizedPnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>{formatCurrency(Number(unrealized?.unrealizedPnl || 0))}</p>
+            <p className={`mt-1 text-lg font-semibold ${unrealizedPnlVal >= 0 ? 'text-success' : 'text-danger'}`}>{formatCurrency(unrealizedPnlVal)}</p>
           </div>
           <div className="mt-4 space-y-2">
-            {(unrealized?.positions || []).map((position, index) => (
+            {unrealizedPositions.map((position, index) => (
               <div key={position.id || position.symbol || index} className="flex items-center justify-between rounded-lg bg-black/5 p-3 text-sm dark:bg-white/5">
                 <div><p className="font-semibold">{position.symbol || position.instrument || 'Position'}</p><p className="text-xs text-muted-foreground">Qty: {position.qty || position.quantity || 0}</p></div>
                 <span className={Number(position.pnl || 0) >= 0 ? 'text-success font-semibold' : 'text-danger font-semibold'}>{formatCurrency(Number(position.pnl || 0))}</span>
               </div>
             ))}
-            {!(unrealized?.positions || []).length && <p className="text-sm text-muted-foreground">No open positions available.</p>}
+            {!unrealizedPositions.length && <p className="text-sm text-muted-foreground">No open positions available.</p>}
           </div>
         </GlassCard>
       </div>

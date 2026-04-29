@@ -29,6 +29,7 @@ import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
 import FollowRequests from '@/components/master/FollowRequests';
 import PnLAnalytics from '@/components/master/PnLAnalytics';
+import MasterOptionsStatus from '@/components/master/OptionsStatus';
 // ──────────────────────────────────────────────────────────
 
 // Child Components
@@ -38,6 +39,7 @@ import ChildOverview from '@/components/child/Overview';
 import FindMasters from '@/components/child/FindMasters';
 import PnLDashboard from '@/components/child/PnLDashboard';
 import ChildPnLAnalytics from '@/components/child/ChildPnLAnalytics';
+import OptionsStatus from '@/components/child/OptionsStatus';
 
 
 
@@ -146,6 +148,7 @@ const AppRouter = () => {
                 <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/logs" element={<Logs />} />
                 <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
+                <Route path="master/options-status" element={<MasterOptionsStatus />} />
                 {/* ───────────────────── */}
 
                 {/* Child Routes */}
@@ -158,6 +161,7 @@ const AppRouter = () => {
                 <Route path="child/find-masters" element={<FindMasters />} />
                 <Route path="child/my-masters" element={<MyMasters />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
+                <Route path="child/options-status" element={<OptionsStatus />} />
                 <Route path="child/profile" element={<Profile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
                 <Route path="child/pnl-analytics" element={<ChildPnLAnalytics />} />

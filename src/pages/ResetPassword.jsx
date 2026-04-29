@@ -38,13 +38,17 @@ const ResetPassword = () => {
       return;
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await authService.resetPassword({
-        token,
-        newPassword: password,
-      });
+      // FIX: was passing an object { token, newPassword: password }
+      // authService.resetPassword(token, newPassword) takes two positional args
+      await authService.resetPassword(token, password);
 
       sessionStorage.removeItem('pw_reset_token');
       navigate('/login', {

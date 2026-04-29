@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatRelativeTime } from '@/lib/utils';
 
 // ── Signal bars component ────────────────────────────────────────────────────
 const SignalBars = ({ signal }) => {
@@ -45,7 +45,7 @@ const BalanceAlertBadge = ({ alert }) => {
   );
 };
 
-const TABS = ['Positions', 'Holdings', 'Orders', 'Trades'];
+const TABS = ['Positions', 'Holdings', 'Orders', 'Trades', 'Options'];
 
 const getMarginValue = (marginData, fallback = 0) =>
   marginData?.availableMargin ?? marginData?.available ?? marginData?.net ?? fallback;
@@ -372,10 +372,27 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     return { cls: 'inactive', label: 'Inactive' };
   })();
 
-  const filteredPositions = positions.filter((p) => !search || String(p.symbol || '').toLowerCase().includes(search.toLowerCase()));
+  const isOption = (symbol) => /.*[0-9]{2,}[CP]E$/i.test(String(symbol || ''));
+
+  const filteredPositions = positions.filter((p) => {
+    if (activeTab === 'Options') return isOption(p.symbol);
+    if (!search) return true;
+    return String(p.symbol || '').toLowerCase().includes(search.toLowerCase());
+  });
+
   const filteredHoldings = holdings.filter((h) => !search || String(h.symbol || '').toLowerCase().includes(search.toLowerCase()));
-  const filteredOrders = orders.filter((o) => !search || String(o.symbol || '').toLowerCase().includes(search.toLowerCase()));
-  const filteredTrades = trades.filter((t) => !search || String(t.symbol || '').toLowerCase().includes(search.toLowerCase()));
+
+  const filteredOrders = orders.filter((o) => {
+    if (activeTab === 'Options') return isOption(o.symbol);
+    if (!search) return true;
+    return String(o.symbol || '').toLowerCase().includes(search.toLowerCase());
+  });
+
+  const filteredTrades = trades.filter((t) => {
+    if (activeTab === 'Options') return isOption(t.symbol);
+    if (!search) return true;
+    return String(t.symbol || '').toLowerCase().includes(search.toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
@@ -635,24 +652,24 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
               </thead>
               <tbody>
                 {filteredOrders.map((ord, idx) => (
-                  <motion.tr
-                    key={ord.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: idx * 0.04 }}
-                    className="border-b border-border/30 hover:bg-white/3 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-sm">{ord.symbol}</td>
+                  <motion.tr key={ord.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}
+                    className="border-b border-border/30 hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
+                    <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{idx + 1}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold">{ord.symbol}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase">{ord.exchange || 'NSE'}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <TransBadge type={ord.type} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">CARRYFORW...</td>
-                    <td className="px-4 py-3 text-sm">{ord.orderType}</td>
-                    <td className="px-4 py-3 text-sm">{ord.qty}</td>
-                    <td className="px-4 py-3 text-sm">{toNumber(ord.price).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{ord.time}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground font-mono">2307120{String(ord.id).padStart(8, '0')}</td>
+                    <td className="px-4 py-3 text-xs">{ord.product || 'MIS'}</td>
+                    <td className="px-4 py-3 text-xs">{ord.orderType || 'MARKET'}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{ord.qty}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{formatCurrency(ord.price)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(ord.time)}</td>
+                    <td className="px-4 py-3 text-xs font-mono">{ord.id}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={ord.status} />
                     </td>
@@ -702,26 +719,103 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
                 {filteredTrades.map((tr, idx) => (
                   <motion.tr
                     key={tr.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04 }}
-                    className="border-b border-border/30 hover:bg-white/3 transition-colors"
+                    className="border-b border-border/30 hover:bg-black/2 dark:hover:bg-white/2 transition-colors"
                   >
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-sm">{tr.symbol}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">2307120{String(tr.id).padStart(8, '0')}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">CARRYFORWARD</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{idx + 1}</td>
                     <td className="px-4 py-3">
-                      <TransBadge type={tr.action} />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold">{tr.symbol}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase">{tr.exchange || 'NSE'}</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{toNumber(tr.price).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{tr.time}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{tr.orderId || tr.id}</td>
+                    <td className="px-4 py-3 text-xs">{tr.product || 'MIS'}</td>
+                    <td className="px-4 py-3">
+                      <TransBadge type={tr.action || tr.type} />
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium">{formatCurrency(tr.price)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(tr.time)}</td>
                   </motion.tr>
                 ))}
                 {filteredTrades.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No trades found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+          {activeTab === 'Options' && (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/50">
+                  {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Status', 'Square Off'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPositions.map((pos, idx) => {
+                  const pnl = toNumber(pos.pnl);
+                  const ltp = toNumber(pos.ltp);
+                  const avgPrice = toNumber(pos.avgPrice);
+
+                  return (
+                    <motion.tr
+                      key={pos.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className="border-b border-border/30 hover:bg-white/3 transition-colors"
+                    >
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                      <td className="px-4 py-3 font-semibold text-sm">
+                        <div className="flex flex-col">
+                          <span>{pos.symbol}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase">{pos.exchange || 'NFO'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${pos.type === 'BUY' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                          {pos.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">{pos.qty}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm font-semibold ${pnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                          {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">{ltp.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm">{avgPrice > 0 ? avgPrice.toFixed(2) : '0'}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={pos.status || 'ACTIVE'} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => {
+                            setSelectedPos(pos);
+                            setSquareOffModal(true);
+                          }}
+                          className="px-3 py-1 rounded text-xs font-bold bg-danger hover:bg-danger/90 text-white transition-colors"
+                        >
+                          Square OFF
+                        </button>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+                {filteredPositions.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      No active options positions found
                     </td>
                   </tr>
                 )}
@@ -737,6 +831,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             {activeTab === 'Holdings' && `1-${holdings.length} of ${holdings.length}`}
             {activeTab === 'Orders' && `1-${filteredOrders.length} of ${filteredOrders.length}`}
             {activeTab === 'Trades' && `1-${filteredTrades.length} of ${filteredTrades.length}`}
+            {activeTab === 'Options' && `1-${filteredPositions.length} of ${filteredPositions.length}`}
           </span>
         </div>
       </div>

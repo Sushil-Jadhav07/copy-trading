@@ -127,10 +127,11 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile = false, isOpen = false, on
   const role = getEffectiveRole();
   const pendingFollowCount = usePendingFollowCount();
   const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
+  const normalizedRole = String(role || '').toUpperCase();
   const pendingFollowCountBadge =
-    role === 'Master' && pendingFollowCount > 0 ? String(pendingFollowCount) : undefined;
+    normalizedRole === 'MASTER' && pendingFollowCount > 0 ? String(pendingFollowCount) : undefined;
   const pendingVerificationBadge =
-    role === 'Admin' && pendingVerificationCount > 0 ? String(pendingVerificationCount) : undefined;
+    normalizedRole === 'ADMIN' && pendingVerificationCount > 0 ? String(pendingVerificationCount) : undefined;
 
   useEffect(() => {
     if (role !== 'Admin') {
@@ -189,11 +190,13 @@ const masterSidebarItems = [
       items: [
         { to: '/master/positions', icon: Activity, label: 'Open Positions' },
         { to: '/master/orders', icon: BookOpen, label: 'Order Book' },
+        { to: '/master/options-status', icon: Target, label: 'Options Status' },
       ],
     },
     {
       section: 'Child Accounts',
       items: [
+        { to: '/master/followers', icon: Users, label: 'Followers' },
         { to: '/master/follow-requests', icon: UserPlus, label: 'Follow Requests', badge: pendingFollowCountBadge },
         { to: '/master/earnings', icon: DollarSign, label: 'Earnings' },
       ],
@@ -216,6 +219,7 @@ const childSidebarItems = [
       items: [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
+        { to: '/child/options-status', icon: Target, label: 'Options Status' },
         { to: '/child/pnl-dashboard', icon: BarChart2, label: 'P&L Dashboard' },
         { to: '/child/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
@@ -256,9 +260,9 @@ const childSidebarItems = [
   ];
 
   const sidebarItems =
-    role === 'Master' ? masterSidebarItems :
-    role === 'Child' ? childSidebarItems :
-    role === 'Admin' ? adminSidebarItems :
+    normalizedRole === 'MASTER' ? masterSidebarItems :
+    normalizedRole === 'CHILD' ? childSidebarItems :
+    normalizedRole === 'ADMIN' ? adminSidebarItems :
     masterSidebarItems;
 
   const sidebarContent = (

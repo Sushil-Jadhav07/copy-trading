@@ -27,3 +27,34 @@ export const formatDate = (value?: string | number | Date | null) => {
     year: 'numeric',
   })
 }
+
+export const formatRelativeTime = (value?: string | number | Date | null) => {
+  if (!value) return 'N/A'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'N/A'
+
+  const now = new Date()
+  
+  // Reset hours to compare dates only
+  const dDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dNow = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  const diffTime = dNow.getTime() - dDate.getTime()
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+  const timeStr = date.toLocaleTimeString('en-IN', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    hour12: true 
+  })
+
+  if (diffDays === 0) {
+    return `Today, ${timeStr}`
+  } else if (diffDays === 1) {
+    return `Yesterday, ${timeStr}`
+  } else if (diffDays < 7) {
+    return `${date.toLocaleDateString('en-IN', { weekday: 'short' })}, ${timeStr}`
+  }
+
+  return `${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, ${timeStr}`
+}

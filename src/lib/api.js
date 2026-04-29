@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const FALLBACK_API_BASE_URL = 'https://copy-trading-production-3981.up.railway.app';
+// AFTER
+const FALLBACK_API_BASE_URL = 'http://13.53.246.13:8081';
+
 const configuredBaseURL = import.meta.env.VITE_API_BASE_URL || '';
 
 const baseURL = (configuredBaseURL || FALLBACK_API_BASE_URL).replace(/\/$/, '');

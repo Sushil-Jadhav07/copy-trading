@@ -1,6 +1,14 @@
 import { getAccessToken } from '@/lib/api';
 
-const WS_BASE = 'wss://copy-trading-production-3981.up.railway.app/ws';
+// Derive the WebSocket base from the same host as the REST API.
+// Integration spec: ws://13.53.246.13:8081/ws/trades
+// We swap the http/https scheme for ws/wss so the WS server is always
+// on the same origin as the REST API — no more hard-coded Railway URL.
+const REST_BASE =
+  (import.meta.env.VITE_API_BASE_URL || 'http://13.53.246.13:8081').replace(/\/$/, '');
+
+const WS_BASE = REST_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws') + '/ws';
+
 const connections = {};
 
 export const connectChannel = (channel, onMessage, onOpen, onError) => {

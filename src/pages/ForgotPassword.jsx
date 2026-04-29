@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Phone, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { authService } from '@/lib/auth';
@@ -14,48 +14,84 @@ const inputCls = (isDark) => ({
 
 const ForgotPassword = () => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [method, setMethod]       = useState('email'); // 'email' | 'phone'
   const [email, setEmail]         = useState('');
   const [phone, setPhone]         = useState('');
   const [countryCode, setCountry] = useState('+91');
+  const [otp, setOtp]             = useState('');
+  // phone flow stages: 'input' → 'otp'
+  const [phoneStage, setPhoneStage] = useState('input');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [errorType, setErrorType] = useState(''); // 'email_not_found'
   const [success, setSuccess]     = useState('');
 
-  const handleSubmit = async (e) => {
+  const resetPhoneFlow = () => { setPhoneStage('input'); setOtp(''); setError(''); setSuccess(''); };
+
+  // ─── Email flow: POST /auth/forgot-password { email } ─────────────────────
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError(''); setErrorType(''); setSuccess('');
-
     try {
-      if (method === 'email') {
-        const res = await authService.forgotPassword(email);
-        const data = res?.data || res;
-        if (data?.resetToken) {
-          sessionStorage.setItem('pw_reset_token', data.resetToken);
-        }
-        setSuccess("If this email exists, you'll receive a reset link shortly.");
-      } else {
-        const fullPhone = `${countryCode}${phone}`;
-        const res = await authService.forgotPassword(fullPhone);
-        const data = res?.data || res;
-        if (data?.resetToken) {
-          sessionStorage.setItem('pw_reset_token', data.resetToken);
-        }
-        setSuccess("If this phone number is registered, you'll receive an OTP shortly.");
+      const res = await authService.forgotPassword(email);
+      const data = res?.data || res;
+      if (data?.resetToken) {
+        sessionStorage.setItem('pw_reset_token', data.resetToken);
       }
+      setSuccess("If this email exists, you'll receive a reset link shortly.");
     } catch (err) {
       const msg = err.message || '';
-      const notFound = msg.toLowerCase().includes('not found') ||
-                       msg.toLowerCase().includes('does not exist') ||
-                       msg.toLowerCase().includes('no account') ||
-                       msg.toLowerCase().includes('invalid email');
-      if (notFound && method === 'email') {
+      const notFound =
+        msg.toLowerCase().includes('not found') ||
+        msg.toLowerCase().includes('does not exist') ||
+        msg.toLowerCase().includes('no account') ||
+        msg.toLowerCase().includes('invalid email');
+      if (notFound) {
         setErrorType('email_not_found');
         setError('No account found with this email address.');
       } else {
         setError(msg || 'Unable to process your request. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Phone flow step 1: POST /auth/send-otp { phone } ────────────────────
+  // FIX: spec has no phone-based password reset endpoint.
+  // We use the OTP login flow instead: send-otp → verify-otp → user is logged in
+  // and can change their password from the Profile page.
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const fullPhone = `${countryCode}${phone}`;
+      await authService.sendOtp(fullPhone, 'login');
+      setPhoneStage('otp');
+      setSuccess(`OTP sent to ${fullPhone}`);
+    } catch (err) {
+      setError(err.message || 'Unable to send OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Phone flow step 2: POST /auth/verify-otp → login → redirect ─────────
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (otp.length < 4) { setError('Please enter the full OTP'); return; }
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const fullPhone = `${countryCode}${phone}`;
+      await authService.verifyOtp(fullPhone, otp, 'login');
+      // User is now authenticated — send them to login so AuthContext bootstraps
+      navigate('/login', {
+        replace: true,
+        state: { message: 'Phone verified. You are now logged in. Go to Profile to change your password.' },
+      });
+    } catch (err) {
+      setError(err.message || 'OTP verification failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -98,25 +134,29 @@ const ForgotPassword = () => {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Reset password</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Choose how you'd like to recover your account.
+              {method === 'phone' && phoneStage === 'otp'
+                ? 'Enter the OTP sent to your phone.'
+                : "Choose how you'd like to recover your account."}
             </p>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1 mb-5 p-1 rounded-xl"
-            style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}>
-            {[
-              { key: 'email', icon: Mail,  label: 'Via Email' },
-              { key: 'phone', icon: Phone, label: 'Via Phone' },
-            ].map(({ key, icon: Icon, label }) => (
-              <button key={key} type="button"
-                onClick={() => { setMethod(key); setError(''); setErrorType(''); setSuccess(''); }}
-                className={tabCls(method === key)}
-                style={tabStyle(method === key)}>
-                <Icon className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />{label}
-              </button>
-            ))}
-          </div>
+          {/* Tabs — hidden during OTP entry */}
+          {phoneStage === 'input' && (
+            <div className="flex gap-1 mb-5 p-1 rounded-xl"
+              style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}>
+              {[
+                { key: 'email', icon: Mail,  label: 'Via Email' },
+                { key: 'phone', icon: Phone, label: 'Via Phone' },
+              ].map(({ key, icon: Icon, label }) => (
+                <button key={key} type="button"
+                  onClick={() => { setMethod(key); setError(''); setErrorType(''); setSuccess(''); }}
+                  className={tabCls(method === key)}
+                  style={tabStyle(method === key)}>
+                  <Icon className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />{label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <AnimatePresence>
             {success && (
@@ -148,10 +188,12 @@ const ForgotPassword = () => {
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <AnimatePresence mode="wait">
-              {method === 'email' ? (
-                <motion.div key="email" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}>
+          <AnimatePresence mode="wait">
+            {/* ── EMAIL FLOW ── */}
+            {method === 'email' && (
+              <motion.form key="email-form" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}
+                onSubmit={handleEmailSubmit} className="space-y-4">
+                <div>
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
                     Email Address
                   </label>
@@ -165,9 +207,22 @@ const ForgotPassword = () => {
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
                     We'll send a password reset link to this email.
                   </p>
-                </motion.div>
-              ) : (
-                <motion.div key="phone" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}>
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
+                  {loading
+                    ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : 'Send Reset Link'}
+                </button>
+              </motion.form>
+            )}
+
+            {/* ── PHONE FLOW — STEP 1: input number ── */}
+            {method === 'phone' && phoneStage === 'input' && (
+              <motion.form key="phone-input" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+                onSubmit={handleSendOtp} className="space-y-4">
+                <div>
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
                     Phone Number
                   </label>
@@ -182,20 +237,56 @@ const ForgotPassword = () => {
                     placeholder="10-digit number"
                   />
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
-                    We'll send a one-time code to your registered phone.
+                    We'll send a one-time code. After verifying, you can change your password in Profile settings.
                   </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
+                  {loading
+                    ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : 'Send OTP'}
+                </button>
+              </motion.form>
+            )}
 
-            <button type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
-              {loading
-                ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                : method === 'email' ? 'Send Reset Link' : 'Send OTP'}
-            </button>
-          </form>
+            {/* ── PHONE FLOW — STEP 2: OTP verify ── */}
+            {method === 'phone' && phoneStage === 'otp' && (
+              <motion.form key="phone-otp" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+                onSubmit={handleVerifyOtp} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                    Enter OTP
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="6-digit code"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm text-center tracking-[0.4em] text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                    style={inputCls(isDark)}
+                    required
+                  />
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 text-center">
+                    Code sent to {countryCode} {phone}
+                  </p>
+                </div>
+                <button type="submit" disabled={loading || otp.length < 4}
+                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
+                  {loading
+                    ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : 'Verify & Login'}
+                </button>
+                <button type="button" onClick={resetPhoneFlow}
+                  className="w-full text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
+                  ← Change phone number
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
 
           <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-500">
             Remembered your password?{' '}

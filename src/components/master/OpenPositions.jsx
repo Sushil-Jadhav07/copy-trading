@@ -6,9 +6,19 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { brokerService } from '@/lib/broker';
+import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
+
+const parseActive = (v) => {
+  if (v === true || v === 1) return true;
+  if (typeof v === 'string') {
+    const u = v.trim().toUpperCase();
+    return ['TRUE', '1', 'ACTIVE', 'SESSION_ACTIVE', 'CONNECTED', 'LOGGED_IN', 'AUTHORIZED'].includes(u);
+  }
+  return false;
+};
 
 const OpenPositions = () => {
   const { addToast } = useToast();
@@ -35,12 +45,26 @@ const OpenPositions = () => {
 
   // ── 1. Load broker accounts on mount ────────────────────────────────────────
   useEffect(() => {
-    brokerService.getAccounts()
-      .then((data) => {
-        setAccounts(data);
-        if (data.length > 0) setSelectedAccountId(data[0]?.accountId || '');
-      })
-      .catch((e) => addToast(e.message, 'error'));
+    const loadAccounts = async () => {
+      try {
+        const [allAccounts, activeAcc] = await Promise.all([
+          brokerService.getAccounts(),
+          masterService.getActiveAccount().catch(() => null)
+        ]);
+        
+        setAccounts(allAccounts);
+        
+        // Priority: 1. Active Master Account, 2. First account from list
+        const activeId = activeAcc?.brokerAccountId || activeAcc?.accountId;
+        const fallbackId = allAccounts.length > 0 ? (allAccounts[0]?.accountId || allAccounts[0]?.id) : '';
+        
+        setSelectedAccountId(activeId || fallbackId);
+      } catch (e) {
+        addToast(e.message, 'error');
+      }
+    };
+    
+    loadAccounts();
   }, [addToast]);
 
   // ── 2. Check session + load positions whenever account changes ───────────────
@@ -50,12 +74,19 @@ const OpenPositions = () => {
     setSessionLoading(true);
 
     try {
-      // First check if session is active
-      const statusData = await brokerService.getAccountStatus(accountId);
-      const isActive =
-        statusData?.sessionActive === true ||
-        String(statusData?.status || '').toUpperCase() === 'ACTIVE' ||
-        String(statusData?.sessionStatus || '').toUpperCase() === 'SESSION_ACTIVE';
+      let isActive = false;
+      try {
+        const statusData = await brokerService.getAccountStatus(accountId);
+        isActive =
+          parseActive(statusData?.sessionActive) ||
+          parseActive(statusData?.isSessionActive) ||
+          parseActive(statusData?.status) ||
+          parseActive(statusData?.sessionStatus) ||
+          parseActive(statusData?.connectionHealth);
+      } catch {
+        // Degrade gracefully: allow positions API to determine auth/session validity.
+        isActive = true;
+      }
 
       setSessionActive(isActive);
 
@@ -135,7 +166,7 @@ const OpenPositions = () => {
   // ── Derived stats ─────────────────────────────────────────────────────────────
   const totalUnrealized   = positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
   const followersCount    = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
-  const selectedAccount   = accounts.find((a) => a.accountId === selectedAccountId);
+  const selectedAccount   = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
 
   // ── Render: No accounts ───────────────────────────────────────────────────────
   if (accounts.length === 0 && !loading && !sessionLoading) {
@@ -175,7 +206,7 @@ const OpenPositions = () => {
               includeEmptyOption={false}
               className="w-full sm:w-auto"
               options={accounts.map((a) => ({
-                value: a.accountId,
+                value: a.accountId || a.id,
                 label: `${a.broker} - ${a.nickname || a.clientId}`,
               }))}
               triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"

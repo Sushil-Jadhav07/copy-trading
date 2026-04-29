@@ -45,14 +45,21 @@ const CopiedTrades = () => {
   // API returns type = REPLICATED | MANUAL, not BUY/SELL — filter by status instead
   const filtered = trades.filter((trade) => {
     if (filter === 'All') return true;
-    if (filter === 'EXECUTED') return String(trade.status).toUpperCase() === 'EXECUTED';
+    if (filter === 'EXECUTED') return String(trade.status).toUpperCase() === 'EXECUTED' || String(trade.status).toUpperCase() === 'SUCCESS';
     if (filter === 'FAILED') return String(trade.status).toUpperCase() === 'FAILED';
     return true;
   });
 
-  const executedCount = trades.filter((t) => String(t.status).toUpperCase() === 'EXECUTED').length;
+  const executedCount = trades.filter((t) => String(t.status).toUpperCase() === 'EXECUTED' || String(t.status).toUpperCase() === 'SUCCESS').length;
   const failedCount   = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
   const masterSet     = new Set(trades.map((t) => t.masterId).filter(Boolean));
+  const getSide = (trade) => {
+    const direct = String(trade.side || trade.raw?.side || '').toUpperCase();
+    if (['BUY', 'SELL'].includes(direct)) return direct;
+    if (trade.myQty > 0 || trade.masterQty > 0) return 'BUY';
+    if (trade.myQty < 0 || trade.masterQty < 0) return 'SELL';
+    return 'N/A';
+  };
 
   return (
     <div className="space-y-6">
@@ -97,14 +104,14 @@ const CopiedTrades = () => {
       <GlassCard noPadding>
         {loading ? (
           <div className="p-4">
-            <SkeletonLoader type="table" rows={6} columns={7} />
+            <SkeletonLoader type="table" rows={6} columns={9} />
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Type', 'Status', 'Broker', 'Reference / Order ID', 'Message', 'Time'].map((heading) => (
+                  {['#', 'Instrument', 'Side', 'Type', 'Status', 'Broker', 'Reference / Order ID', 'Qty', 'P&L', 'Time'].map((heading) => (
                     <th
                       key={heading}
                       className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -125,6 +132,24 @@ const CopiedTrades = () => {
                   >
                     <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
 
+                    {/* Instrument */}
+                    <td className="px-4 py-3 text-sm font-semibold">
+                      {trade.instrument !== 'N/A' ? trade.instrument : (trade.reference || '—')}
+                    </td>
+
+                    {/* Side */}
+                    <td className="px-4 py-3">
+                      <span className={`rounded border px-2.5 py-0.5 text-xs font-bold ${
+                        getSide(trade) === 'BUY'
+                          ? 'border-success/30 bg-success/20 text-success'
+                          : getSide(trade) === 'SELL'
+                          ? 'border-danger/30 bg-danger/20 text-danger'
+                          : 'border-brand-purple/30 bg-brand-purple/15 text-brand-purple'
+                      }`}>
+                        {getSide(trade)}
+                      </span>
+                    </td>
+
                     {/* Type: REPLICATED / MANUAL */}
                     <td className="px-4 py-3">
                       <span className="rounded border border-brand-purple/30 bg-brand-purple/15 px-2.5 py-0.5 text-xs font-bold text-brand-purple">
@@ -132,10 +157,10 @@ const CopiedTrades = () => {
                       </span>
                     </td>
 
-                    {/* Status: EXECUTED / FAILED */}
+                    {/* Status: EXECUTED / FAILED / SUCCESS */}
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                        String(trade.status).toUpperCase() === 'EXECUTED'
+                        String(trade.status).toUpperCase() === 'EXECUTED' || String(trade.status).toUpperCase() === 'SUCCESS'
                           ? 'bg-success/20 text-success'
                           : String(trade.status).toUpperCase() === 'FAILED'
                           ? 'bg-danger/20 text-danger'
@@ -153,9 +178,29 @@ const CopiedTrades = () => {
                       {trade.reference || trade.id || '—'}
                     </td>
 
-                    {/* Message from broker */}
-                    <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px] truncate" title={trade.message}>
-                      {trade.message || '—'}
+                    {/* Qty */}
+                    <td className="px-4 py-3 text-sm">
+                      {trade.myQty > 0 ? (
+                        <span>
+                          {trade.myQty}
+                          {trade.masterQty > 0 && trade.masterQty !== trade.myQty && (
+                            <span className="text-muted-foreground text-[10px] ml-1">(M:{trade.masterQty})</span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
+
+                    {/* P&L */}
+                    <td className="px-4 py-3">
+                      {trade.pnl !== 0 ? (
+                        <span className={`text-sm font-semibold ${trade.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                          {trade.pnl >= 0 ? '+' : ''}₹{trade.pnl.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground" title={trade.message || ''}>
+                          {trade.message ? <span className="truncate max-w-[120px] block" title={trade.message}>{trade.message}</span> : '—'}
+                        </span>
+                      )}
                     </td>
 
                     {/* Time */}
@@ -167,7 +212,7 @@ const CopiedTrades = () => {
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No trades found
                     </td>
                   </tr>

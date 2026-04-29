@@ -75,9 +75,33 @@ const UserManagement = ({
   const [oauthOpened, setOauthOpened]   = useState(false);
   const [addLoading, setAddLoading]     = useState(false);
   const [testResult, setTestResult]     = useState(null); // { ok, message }
+  const [liveBalances, setLiveBalances] = useState({});
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (error) addToast(error, 'error'); }, [addToast, error]);
+
+  // Enrich accounts with live balance data if session is active
+  useEffect(() => {
+    if (accounts.length > 0) {
+      accounts.forEach((acc) => {
+        const id = acc.accountId || acc.id;
+        if (acc.sessionActive && !liveBalances[id]) {
+          brokerService.getDashboard(id)
+            .then((data) => {
+              const margin = data.margin?.availableMargin ?? data.account?.margin ?? acc.margin ?? 0;
+              const pnl = data.account?.pnl ?? acc.pnl ?? 0;
+              setLiveBalances((prev) => ({
+                ...prev,
+                [id]: { margin, pnl },
+              }));
+            })
+            .catch(() => {
+              // Fail silently, fallback to cached data
+            });
+        }
+      });
+    }
+  }, [accounts]);
 
   const brokerOptions = useMemo(
     () => brokers.map((b) => ({
@@ -317,7 +341,16 @@ const UserManagement = ({
     const id = acc.accountId || acc.id;
     setRefreshing((p) => ({ ...p, [id]: true }));
     try {
-      await brokerService.getAccountStatus(id);
+      // Fetch dashboard for live data
+      const data = await brokerService.getDashboard(id);
+      const margin = data.margin?.availableMargin ?? data.account?.margin ?? acc.margin ?? 0;
+      const pnl = data.account?.pnl ?? acc.pnl ?? 0;
+
+      setLiveBalances((prev) => ({
+        ...prev,
+        [id]: { margin, pnl },
+      }));
+
       await refetch();
       addToast('Account refreshed', 'success');
     } catch (e) {
@@ -506,9 +539,12 @@ const UserManagement = ({
                       </td>
                       <td className="px-4 py-3">
                         <div>
-                          <p className="text-sm font-medium">{formatCurrency(acc.margin || 0)}</p>
-                          <p className={`text-xs font-semibold ${acc.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {acc.pnl >= 0 ? '+' : ''}{formatCurrency(acc.pnl || 0)} P&L
+                          <p className="text-sm font-medium">
+                            {formatCurrency(liveBalances[id]?.margin ?? acc.margin ?? 0)}
+                          </p>
+                          <p className={`text-xs font-semibold ${(liveBalances[id]?.pnl ?? acc.pnl ?? 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {(liveBalances[id]?.pnl ?? acc.pnl ?? 0) >= 0 ? '+' : ''}
+                            {formatCurrency(liveBalances[id]?.pnl ?? acc.pnl ?? 0)} P&L
                           </p>
                         </div>
                       </td>

@@ -15,13 +15,17 @@ const ChildPnLAnalytics = () => {
     let active = true;
     const load = async () => {
       try {
-        const subscriptions = await childService.getSubscriptions();
+        const subscriptions = await childService.getSubscriptions().catch(() => []);
+        if (!Array.isArray(subscriptions) || subscriptions.length === 0) return;
+        
         const firstActive = subscriptions.find((item) => String(item.status || '').toUpperCase() === 'ACTIVE') || subscriptions[0];
         if (!firstActive?.masterId) return;
-        const result = await pnlService.getChildVsMaster(firstActive.masterId);
-        if (active) setComparison(result);
+        
+        const result = await pnlService.getChildVsMaster(firstActive.masterId).catch(() => null);
+        if (active && result) setComparison(result);
       } catch (error) {
-        addToast(error.message, 'error');
+        console.error('Child PnL Analytics Load Error:', error);
+        addToast(error.message || 'Failed to load comparison data', 'error');
       }
     };
     load();
