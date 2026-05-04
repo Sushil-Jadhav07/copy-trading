@@ -73,19 +73,46 @@ const extractList = (data) => {
   return candidates[0] || [];
 };
 
+const extractPositionsList = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.positions)) return payload.positions;
+  if (Array.isArray(payload?.data?.positions)) return payload.data.positions;
+  if (Array.isArray(payload?.positions?.positions)) return payload.positions.positions;
+  if (Array.isArray(payload?.data?.positions?.positions)) return payload.data.positions.positions;
+  return [];
+};
+
+const extractOrdersList = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.orders)) return payload.orders;
+  if (Array.isArray(payload?.data?.orders)) return payload.data.orders;
+  if (Array.isArray(payload?.order_list)) return payload.order_list;
+  if (Array.isArray(payload?.orders?.order_list)) return payload.orders.order_list;
+  if (Array.isArray(payload?.data?.orders?.order_list)) return payload.data.orders.order_list;
+  return [];
+};
+
 const normalizePosition = (raw = {}, index = 0) => ({
-  id: raw.id || raw.positionId || `${raw.symbol || raw.instrument || 'position'}-${index}`,
-  symbol: raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || 'N/A',
-  instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.tradingsymbol || 'N/A',
-  type: String(raw.type || raw.side || raw.transactionType || raw.action || 'BUY').toUpperCase(),
-  qty: Number(raw.qty || raw.quantity || raw.netQuantity || raw.positionQty || 0),
-  pnl: Number(raw.pnl || raw.unrealizedPnl || raw.mtM || 0),
-  unrealizedPnl: Number(raw.unrealizedPnl || raw.pnl || raw.mtM || 0),
-  ltp: Number(raw.ltp || raw.lastPrice || raw.currentPrice || 0),
-  avgPrice: Number(raw.avgPrice || raw.averagePrice || raw.average_price || raw.entryPrice || 0),
-  entry: Number(raw.entry || raw.entryPrice || raw.averagePrice || raw.average_price || 0),
-  current: Number(raw.current || raw.ltp || raw.lastPrice || raw.currentPrice || 0),
-  change: Number(raw.change || raw.changePct || raw.pnlPercent || 0),
+  id: raw.id || raw.positionId || raw.position_id || `${raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'position'}-${index}`,
+  symbol: raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
+  instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
+  type: String(
+    raw.type ||
+    raw.side ||
+    raw.transactionType ||
+    raw.transaction_type ||
+    raw.action ||
+    ((Number(raw.debit_quantity ?? 0) > 0 || Number(raw.quantity ?? 0) > 0) ? 'BUY' : 'SELL')
+  ).toUpperCase(),
+  qty: Number(raw.qty ?? raw.quantity ?? raw.netQuantity ?? raw.net_quantity ?? raw.positionQty ?? raw.position_qty ?? 0),
+  pnl: Number(raw.pnl ?? raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
+  unrealizedPnl: Number(raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.pnl ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
+  ltp: Number(raw.ltp ?? raw.lastPrice ?? raw.last_price ?? raw.currentPrice ?? raw.current_price ?? raw.net_price ?? 0),
+  avgPrice: Number(raw.avgPrice ?? raw.averagePrice ?? raw.average_price ?? raw.entryPrice ?? raw.entry_price ?? raw.net_price ?? raw.debit_price ?? raw.credit_price ?? 0),
+  entry: Number(raw.entry ?? raw.entryPrice ?? raw.entry_price ?? raw.averagePrice ?? raw.average_price ?? raw.net_price ?? raw.debit_price ?? raw.credit_price ?? 0),
+  current: Number(raw.current ?? raw.currentPrice ?? raw.current_price ?? raw.ltp ?? raw.lastPrice ?? raw.last_price ?? raw.net_price ?? 0),
+  change: Number(raw.change ?? raw.changePct ?? raw.change_pct ?? raw.pnlPercent ?? raw.pnl_percent ?? 0),
+  exchange: raw.exchange || raw.exch || raw.exchange_code || '',
   market: raw.market || raw.segment || '',
   children: raw.children || raw.copiedAccounts || [],
   raw,
@@ -237,9 +264,9 @@ export const brokerService = {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/positions`);
       const data = res.data?.data || res.data;
-      const raw = Array.isArray(data?.positions) ? data.positions :
-                  Array.isArray(data?.items) ? data.items :
-                  Array.isArray(data) ? data : [];
+      const raw = extractPositionsList(data).length > 0
+        ? extractPositionsList(data)
+        : (Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
       return raw.map(normalizePosition);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load positions'));
@@ -279,21 +306,24 @@ export const brokerService = {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/orders`);
       const data = res.data?.data || res.data;
-      const raw = Array.isArray(data?.orders) ? data.orders :
-                  Array.isArray(data?.items) ? data.items :
-                  Array.isArray(data) ? data : [];
+      const raw = extractOrdersList(data).length > 0
+        ? extractOrdersList(data)
+        : (Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
       
       return raw.map((o, index) => ({
-        id: o.order_id || o.orderId || o.id || `order-${index}`,
-        symbol: o.tradingsymbol || o.symbol || 'N/A',
+        id: o.order_id || o.groww_order_id || o.orderId || o.id || `order-${index}`,
+        symbol: o.tradingsymbol || o.trading_symbol || o.symbol || 'N/A',
         exchange: o.exchange || 'NSE',
         type: String(o.transaction_type || o.transactionType || o.type || o.side || 'BUY').toUpperCase(),
-        qty: Number(o.quantity ?? o.qty ?? 0),
-        price: Number(o.average_price ?? o.averagePrice ?? o.price ?? 0),
-        status: String(o.status || 'UNKNOWN').toUpperCase(),
+        qty: Number(o.quantity ?? o.qty ?? o.filled_quantity ?? 0),
+        price: Number(o.average_fill_price ?? o.average_price ?? o.averagePrice ?? o.price ?? 0),
+        status: String(o.order_status || o.status || 'UNKNOWN').toUpperCase(),
         orderType: o.order_type || o.orderType || 'MARKET',
         product: o.product || 'MIS',
-        time: o.order_timestamp || o.orderTimestamp || o.time || o.placedAt || '',
+        time: o.created_at || o.exchange_time || o.trade_date || o.order_timestamp || o.orderTimestamp || o.time || o.placedAt || '',
+        filledQuantity: Number(o.filled_quantity ?? 0),
+        remainingQuantity: Number(o.remaining_quantity ?? 0),
+        triggerPrice: Number(o.trigger_price ?? 0),
         raw: o,
       }));
     } catch (error) {
@@ -384,7 +414,9 @@ export const brokerService = {
       // Normalize everything from the dashboard response
       const account = data.account || {};
       const margin = data.margin || {};
-      const rawPositions = Array.isArray(data.positions) ? data.positions : [];
+      const rawPositions = extractPositionsList(data.positions).length > 0
+        ? extractPositionsList(data.positions)
+        : (Array.isArray(data.positions) ? data.positions : []);
       const rawHoldings = Array.isArray(data.holdings) ? data.holdings : [];
       const rawOrders = Array.isArray(data.orders) ? data.orders : [];
 
@@ -414,17 +446,20 @@ export const brokerService = {
           pnl: Number(h.pnl || h.unrealizedPnl || 0),
           raw: h,
         })),
-        orders: rawOrders.map((o, index) => ({
-          id: o.order_id || o.orderId || o.id || `order-${index}`,
-          symbol: o.tradingsymbol || o.symbol || 'N/A',
+        orders: extractOrdersList(rawOrders).map((o, index) => ({
+          id: o.order_id || o.groww_order_id || o.orderId || o.id || `order-${index}`,
+          symbol: o.tradingsymbol || o.trading_symbol || o.symbol || 'N/A',
           exchange: o.exchange || 'NSE',
           type: String(o.transaction_type || o.transactionType || o.type || o.side || 'BUY').toUpperCase(),
-          qty: Number(o.quantity ?? o.qty ?? 0),
-          price: Number(o.average_price ?? o.averagePrice ?? o.price ?? 0),
-          status: String(o.status || 'UNKNOWN').toUpperCase(),
+          qty: Number(o.quantity ?? o.qty ?? o.filled_quantity ?? 0),
+          price: Number(o.average_fill_price ?? o.average_price ?? o.averagePrice ?? o.price ?? 0),
+          status: String(o.order_status || o.status || 'UNKNOWN').toUpperCase(),
           orderType: o.order_type || o.orderType || 'MARKET',
           product: o.product || 'MIS',
-          time: o.order_timestamp || o.orderTimestamp || o.time || o.placedAt || '',
+          time: o.created_at || o.exchange_time || o.trade_date || o.order_timestamp || o.orderTimestamp || o.time || o.placedAt || '',
+          filledQuantity: Number(o.filled_quantity ?? 0),
+          remainingQuantity: Number(o.remaining_quantity ?? 0),
+          triggerPrice: Number(o.trigger_price ?? 0),
           raw: o,
         })),
         signal: data.signal || null,

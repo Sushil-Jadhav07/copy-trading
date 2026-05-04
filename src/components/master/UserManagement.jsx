@@ -8,6 +8,8 @@ import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
+import { childService } from '@/lib/child';
+import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 import { useBrokerAccounts, useBrokerList } from '@/hooks/useBroker';
 
@@ -76,6 +78,9 @@ const UserManagement = ({
   const [addLoading, setAddLoading]     = useState(false);
   const [testResult, setTestResult]     = useState(null); // { ok, message }
   const [liveBalances, setLiveBalances] = useState({});
+  const [liveMetrics, setLiveMetrics] = useState({});
+  const isChildScope = String(detailBasePath || '').startsWith('/child');
+  const isMasterScope = String(detailBasePath || '').startsWith('/master');
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (error) addToast(error, 'error'); }, [addToast, error]);
@@ -90,9 +95,20 @@ const UserManagement = ({
             .then((data) => {
               const margin = data.margin?.availableMargin ?? data.account?.margin ?? acc.margin ?? 0;
               const pnl = data.account?.pnl ?? acc.pnl ?? 0;
+              const positions = Array.isArray(data.positions) ? data.positions.length : Number(acc.positions || 0);
+              const signal = data.signal || null;
               setLiveBalances((prev) => ({
                 ...prev,
                 [id]: { margin, pnl },
+              }));
+              setLiveMetrics((prev) => ({
+                ...prev,
+                [id]: {
+                  positions,
+                  quality: signal?.quality || 'unknown',
+                  latencyMs: signal?.latencyMs ?? null,
+                  sessionActive: Boolean(data.account?.sessionActive ?? acc.sessionActive),
+                },
               }));
             })
             .catch(() => {
@@ -327,9 +343,10 @@ const UserManagement = ({
     const id = acc.accountId || acc.id;
     setTesting((p) => ({ ...p, [id]: true }));
     try {
-      await brokerService.getAccountStatus(id);
+      const test = await brokerService.testAccount(id);
       await refetch();
-      addToast('Connection verified — account is active', 'success');
+      const message = test?.message || 'Connection verified';
+      addToast(message, 'success');
     } catch (e) {
       addToast('Connection test failed: ' + e.message, 'error');
     } finally {
@@ -345,10 +362,21 @@ const UserManagement = ({
       const data = await brokerService.getDashboard(id);
       const margin = data.margin?.availableMargin ?? data.account?.margin ?? acc.margin ?? 0;
       const pnl = data.account?.pnl ?? acc.pnl ?? 0;
+      const positions = Array.isArray(data.positions) ? data.positions.length : Number(acc.positions || 0);
+      const signal = data.signal || null;
 
       setLiveBalances((prev) => ({
         ...prev,
         [id]: { margin, pnl },
+      }));
+      setLiveMetrics((prev) => ({
+        ...prev,
+        [id]: {
+          positions,
+          quality: signal?.quality || 'unknown',
+          latencyMs: signal?.latencyMs ?? null,
+          sessionActive: Boolean(data.account?.sessionActive ?? acc.sessionActive),
+        },
       }));
 
       await refetch();
@@ -364,7 +392,17 @@ const UserManagement = ({
     const id = acc.accountId || acc.id;
     const active = acc.sessionActive || String(acc.status).toUpperCase() === 'ACTIVE';
     if (active) {
-      try { await brokerService.deleteAccount(id); addToast('Broker disconnected', 'warning'); refetch(); }
+      try {
+        await brokerService.deleteAccount(id);
+        const latest = await brokerService.getAccounts().catch(() => []);
+        const stillExists = latest.some((item) => String(item.accountId || item.id) === String(id));
+        if (stillExists) {
+          addToast('Account session disconnected, but account is still linked on server', 'warning');
+        } else {
+          addToast('Broker disconnected', 'warning');
+        }
+        refetch();
+      }
       catch (e) { addToast(e.message, 'error'); }
       return;
     }
@@ -372,8 +410,64 @@ const UserManagement = ({
   };
 
   const confirmDelete = async () => {
-    try { await brokerService.deleteAccount(selectedAcc.accountId || selectedAcc.id); addToast('Account removed', 'success'); refetch(); }
-    catch (e) { addToast(e.message, 'error'); }
+    const accountId = selectedAcc?.accountId || selectedAcc?.id;
+    if (!accountId) {
+      setDeleteModal(false);
+      return;
+    }
+
+    try {
+      if (isMasterScope) {
+        const active = await masterService.getActiveAccount().catch(() => null);
+        const activeId = active?.brokerAccountId || active?.accountId || '';
+        if (String(activeId) === String(accountId)) {
+          await masterService.clearActiveAccount().catch(() => {});
+          window.localStorage.removeItem('ascentra_active_master_account');
+        }
+
+        const linkedChildren = await masterService.getChildren().catch(() => []);
+        const isInUseByChildren = linkedChildren.some((child) => {
+          const childAccId = child?.brokerAccountId || child?.accountId || '';
+          const status = String(child?.status || child?.copyingStatus || '').toUpperCase();
+          return (
+            String(childAccId) === String(accountId) &&
+            ['ACTIVE', 'PAUSED', 'PENDING_APPROVAL', 'APPROVED'].includes(status)
+          );
+        });
+
+        if (isInUseByChildren) {
+          throw new Error('Broker is mapped to linked child accounts. Unlink/reassign those children in Copy Trading first.');
+        }
+      }
+
+      if (isChildScope) {
+        const subscriptions = await childService.getSubscriptions().catch(() => []);
+        const isInUseBySubscriptions = subscriptions.some((sub) => {
+          const subAccId = sub?.brokerAccountId || '';
+          const status = String(sub?.status || sub?.copyingStatus || '').toUpperCase();
+          return (
+            String(subAccId) === String(accountId) &&
+            !['INACTIVE', 'UNSUBSCRIBED', 'CANCELLED'].includes(status)
+          );
+        });
+
+        if (isInUseBySubscriptions) {
+          throw new Error('Broker is used by one or more master subscriptions. Switch broker/unsubscribe first in My Masters.');
+        }
+      }
+
+      await brokerService.deleteAccount(accountId);
+      const latest = await brokerService.getAccounts().catch(() => []);
+      const stillExists = latest.some((item) => String(item.accountId || item.id) === String(accountId));
+      if (stillExists) {
+        addToast('Delete request succeeded, but server still returns this account (disconnected only)', 'warning');
+      } else {
+        addToast('Account removed', 'success');
+      }
+      refetch();
+    } catch (e) {
+      addToast(e.message, 'error');
+    }
     setDeleteModal(false);
   };
 
@@ -517,7 +611,7 @@ const UserManagement = ({
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Account', 'Balance', 'Status', 'Last Synced', 'Actions'].map((h) => (
+                  {['#', 'Account', 'Broker', 'Client ID', 'Balance', 'Positions', 'Signal', 'Latency', 'Status', 'Last Synced', 'Actions'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -527,6 +621,10 @@ const UserManagement = ({
                   const id = acc.accountId || acc.id;
                   const active = acc.sessionActive || String(acc.status).toUpperCase() === 'ACTIVE';
                   const syncedAt = formatLinkedAt(acc.linkedAt);
+                  const metrics = liveMetrics[id] || {};
+                  const positions = Number(metrics.positions ?? acc.positions ?? 0);
+                  const quality = String(metrics.quality || 'unknown');
+                  const latencyMs = metrics.latencyMs;
                   return (
                     <motion.tr key={id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
                       className="border-b border-border/30 hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
@@ -537,6 +635,8 @@ const UserManagement = ({
                           <p className="text-xs text-muted-foreground">{acc.broker} · {acc.userId || acc.clientId}</p>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">{acc.broker || '—'}</td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">{acc.clientId || acc.userId || '—'}</td>
                       <td className="px-4 py-3">
                         <div>
                           <p className="text-sm font-medium">
@@ -547,6 +647,13 @@ const UserManagement = ({
                             {formatCurrency(liveBalances[id]?.pnl ?? acc.pnl ?? 0)} P&L
                           </p>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">{positions}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        <span className="uppercase">{quality}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {latencyMs != null ? `${latencyMs}ms` : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge acc={acc} />

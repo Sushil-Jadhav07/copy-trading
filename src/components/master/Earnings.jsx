@@ -17,7 +17,28 @@ const Earnings = () => {
       setLoading(true);
       try {
         const earningsData = await masterService.getEarnings();
-        setEarnings(earningsData);
+        let payoutData = [];
+        try {
+          const payouts = await masterService.getPayouts();
+          payoutData = Array.isArray(payouts?.payouts)
+            ? payouts.payouts
+            : Array.isArray(payouts?.data?.payouts)
+            ? payouts.data.payouts
+            : Array.isArray(payouts)
+            ? payouts
+            : [];
+        } catch {
+          payoutData = [];
+        }
+
+        setEarnings({
+          ...earningsData,
+          payouts: payoutData.length > 0
+            ? payoutData
+            : Array.isArray(earningsData?.payouts)
+            ? earningsData.payouts
+            : [],
+        });
       } catch (error) {
         addToast(error.message, 'error');
       } finally {

@@ -96,7 +96,7 @@ const normalizeSubscription = (raw = {}) => {
     raw.copyingStatus ||
     raw.subscriptionStatus ||
     (raw.tradingEnabled ? 'ACTIVE' : 'PAUSED') ||
-    'PAUSED'
+    'INACTIVE'
   ).toUpperCase();
 
   return {
@@ -238,35 +238,6 @@ export const childService = {
     }
   },
 
-  async bulkSubscribe(masters) {
-    try {
-      const res = await api.post('/api/v1/child/subscriptions/bulk', {
-        masters,
-      });
-      masters.forEach((master) => {
-        cacheSubscriptionAllocation(
-          master?.masterId,
-          master?.allocationAmount || master?.allocation
-        );
-      });
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to bulk subscribe'));
-    }
-  },
-
-  async bulkUnsubscribe(masterIds) {
-    try {
-      const res = await api.post('/api/v1/child/subscriptions/bulk-unsubscribe', {
-        masterIds,
-      });
-      (masterIds || []).forEach(removeSubscriptionAllocation);
-      return res.data?.data || res.data || {};
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to bulk unsubscribe'));
-    }
-  },
-
   async unsubscribe(masterId) {
     try {
       const res = await api.delete(`/api/v1/child/subscriptions/${masterId}`);
@@ -312,12 +283,25 @@ export const childService = {
       const payload = {
         masterId: body?.masterId,
         scalingFactor: safeMultiplier,
-        brokerAccountId: body?.brokerAccountId, // Support updating broker account
       };
       const res = await api.put('/api/v1/child/scaling', payload);
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to update scaling'));
+    }
+  },
+
+  async switchBrokerAccount({ masterId, brokerAccountId }) {
+    if (!masterId) throw new Error('masterId is required');
+    if (!brokerAccountId) throw new Error('Please select a broker account');
+    try {
+      const res = await api.put('/api/v1/child/subscriptions/broker', {
+        masterId,
+        brokerAccountId,
+      });
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to switch broker account'));
     }
   },
 

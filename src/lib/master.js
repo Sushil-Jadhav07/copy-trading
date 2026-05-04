@@ -72,7 +72,7 @@ const normalizeChild = (raw = {}, index = 0) => {
       source.status ||
       source.copyingStatus ||
       source.subscriptionStatus ||
-      'PAUSED'
+      'INACTIVE'
   ).toUpperCase();
 
   return {
@@ -293,29 +293,6 @@ export const masterService = {
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to bulk link children'));
-    }
-  },
-
-  async bulkUnlinkChildren(children) {
-    try {
-      const childIds = (children || []).map((child) => child.childId || child.id || child);
-      try {
-        const res = await api.post('/api/v1/master/children/bulk-unlink', { childIds });
-        return res.data?.data || res.data || {};
-      } catch (error) {
-        if (error?.response?.status !== 404) throw error;
-        const results = await Promise.allSettled(
-          childIds.map((id) => api.delete(`/api/v1/master/children/${id}/unlink`)),
-        );
-        const failed = results.filter((result) => result.status === 'rejected');
-        if (failed.length > 0) {
-          const first = failed[0]?.reason;
-          throw first;
-        }
-        return { success: true };
-      }
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to bulk unlink children'));
     }
   },
 

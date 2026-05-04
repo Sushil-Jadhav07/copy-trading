@@ -198,7 +198,6 @@ const masterSidebarItems = [
       items: [
         { to: '/master/followers', icon: Users, label: 'Followers' },
         { to: '/master/follow-requests', icon: UserPlus, label: 'Follow Requests', badge: pendingFollowCountBadge },
-        { to: '/master/earnings', icon: DollarSign, label: 'Earnings' },
       ],
     },
   ];
@@ -221,7 +220,6 @@ const childSidebarItems = [
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
         { to: '/child/options-status', icon: Target, label: 'Options Status' },
         { to: '/child/pnl-dashboard', icon: BarChart2, label: 'P&L Dashboard' },
-        { to: '/child/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
     },
     {

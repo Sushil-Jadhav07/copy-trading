@@ -95,9 +95,15 @@ const OpenPositions = () => {
         return;
       }
 
-      // Session is active → fetch positions
-      const data = await brokerService.getPositions(accountId);
-      setPositions(data);
+      // Session is active → prefer dashboard payload (more consistent across brokers)
+      const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
+      const dashboardPositions = Array.isArray(dashboard?.positions) ? dashboard.positions : [];
+      if (dashboardPositions.length > 0) {
+        setPositions(dashboardPositions);
+      } else {
+        const data = await brokerService.getPositions(accountId);
+        setPositions(data);
+      }
     } catch (e) {
       // If the error is a session error, mark session as inactive
       const msg = e.message || '';
@@ -282,7 +288,7 @@ const OpenPositions = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Instrument', 'Type', 'Qty', 'Avg Price', 'LTP', 'Unrealized P&L', 'Change %', 'Children Copying', 'Action'].map((h) => (
+                  {['#', 'Instrument', 'Type', 'Qty', 'Price', 'Unrealized P&L', 'Change %', 'Children Copying', 'Action'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -310,8 +316,7 @@ const OpenPositions = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">{pos.qty}</td>
-                      <td className="px-4 py-3 text-sm">₹{(pos.avgPrice || 0).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm font-mono font-medium">₹{(pos.ltp || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm font-mono font-medium">{formatCurrency(pos.ltp || pos.avgPrice || 0)}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-semibold ${(pos.unrealizedPnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
                           {(pos.unrealizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(pos.unrealizedPnl || 0)}
@@ -347,7 +352,7 @@ const OpenPositions = () => {
                 })}
                 {positions.length === 0 && !showSessionWarning && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No open positions for this account
                     </td>
                   </tr>

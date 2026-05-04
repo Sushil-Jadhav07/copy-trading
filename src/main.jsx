@@ -1,3 +1,4 @@
+import './api-debug-interceptor.js' // 🔍 REMOVE THIS LINE BEFORE DEPLOYING TO PRODUCTION
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

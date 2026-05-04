@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useNotifications } from '@/hooks/useNotifications';
 
 const CursorGlow = ({ position, isVisible }) => {
   if (!isVisible) return null;
@@ -25,11 +26,15 @@ const CursorGlow = ({ position, isVisible }) => {
 const Dashboard = () => {
   const { isAuthenticated, loading, user, role } = useAuth();
   const { isDark } = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
+  const { sessionExpiredBrokers, dismissSessionExpired } = useNotifications();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { position, isVisible } = useCursorGlow(isDark);
+  const isOverviewRoute = /\/overview$/.test(location.pathname);
 
   useEffect(() => {
     // Simulate initial loading
@@ -81,6 +86,37 @@ const Dashboard = () => {
 
         {/* Page Content */}
         <main className="p-4 pt-20 sm:p-6 sm:pt-20">
+          {sessionExpiredBrokers.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {sessionExpiredBrokers.map((item) => (
+                <div
+                  key={item.accountId}
+                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-rose-500/30 bg-rose-500/8 text-sm"
+                >
+                  <div className="flex items-center gap-2 text-rose-500">
+                    <span className="font-bold text-[11px] uppercase tracking-wide">Session Expired</span>
+                    <span className="text-foreground">
+                      Your <strong>{item.broker}</strong> session has expired. Trades are not being copied.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => navigate('/demat')}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+                    >
+                      Re-login
+                    </button>
+                    <button
+                      onClick={() => dismissSessionExpired(item.accountId)}
+                      className="text-muted-foreground hover:text-foreground transition-colors text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {isLoading ? (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -102,25 +138,27 @@ const Dashboard = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
-                <div>
-                  <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
-                    {role === 'Admin' ? 'Admin Dashboard' : role === 'Master' ? 'Master Hub' : 'Portfolio Overview'}
-                  </h1>
-                  <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
-                    Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="hidden sm:flex flex-col text-right">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
-                    <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
+              {isOverviewRoute && (
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
+                  <div>
+                    <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
+                      {role === 'Admin' ? 'Admin Dashboard' : role === 'Master' ? 'Master Hub' : 'Portfolio Overview'}
+                    </h1>
+                    <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
+                      Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="hidden sm:flex flex-col text-right">
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
+                      <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
               <Outlet />
             </motion.div>
           )}

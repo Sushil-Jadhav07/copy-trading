@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users,
   UserMinus,
-  TrendingUp,
   TrendingDown,
   Copy,
   IndianRupee,
@@ -22,6 +21,18 @@ import { masterService } from '@/lib/master';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
 const normalizeStatus = (status) => String(status || 'PAUSED').toUpperCase();
+const formatJoinedDate = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 const MultiplierControl = ({ value, onChange, disabled }) => {
   const idx = MULTIPLIER_STEPS.indexOf(value);
@@ -64,13 +75,13 @@ const ActiveFollowers = () => {
           initials: (c.name || c.childName || 'UN').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
           multiplier: c.multiplier || 1.0,
           tradingEnabled,
+          rawStatus: status,
           status: tradingEnabled ? 'ACTIVE' : 'PAUSED',
           statusLabel: tradingEnabled ? 'Active' : 'Paused',
           allocation: Number(c.allocation || c.allocationAmount || 0),
           totalPnL: Number(c.totalPnL || c.pnl || 0),
           tradesCopied: Number(c.tradesCopied || c.tradeCount || 0),
-          joinedDate: c.joinedDate || c.createdAt || `Follower ${index + 1}`,
-          placeRejected: Boolean(c.placeRejected),
+          joinedDate: formatJoinedDate(c.joinedDate || c.createdAt),
         };
       }),
     [children]
@@ -126,10 +137,6 @@ const ActiveFollowers = () => {
     }
   };
 
-  const handleToggleRejected = (id) => {
-    updateChild(id, (child) => ({ placeRejected: !child.placeRejected }));
-  };
-
   const handleMultiplierChange = (id, val) => {
     updateChild(id, () => ({ multiplier: val }));
     setPendingMultiplier((prev) => ({ ...prev, [id]: val }));
@@ -173,31 +180,22 @@ const ActiveFollowers = () => {
     }
   };
 
-  const handleSubscribeToChild = async (child) => {
-    try {
-      await masterService.subscribeToChild(child.id, child.multiplier || 1);
-      addToast(`Subscribed to ${child.name}'s trades`, 'success');
-    } catch (error) {
-      addToast(error.message, 'error');
-    }
-  };
-
-  const totalAUM = followerList.reduce((sum, f) => sum + f.allocation, 0);
-  const totalPnL = followerList.reduce((sum, f) => sum + f.totalPnL, 0);
-  const activeCount = followerList.filter((f) => f.tradingEnabled).length;
+  const activeCount = followerList.filter((f) => f.rawStatus === 'ACTIVE' || f.tradingEnabled).length;
+  const pausedCount = followerList.filter((f) => f.rawStatus === 'PAUSED').length;
+  const inactiveCount = followerList.filter((f) => f.rawStatus === 'INACTIVE' || f.rawStatus === 'FAILED' || f.rawStatus === 'ERROR').length;
 
   const stats = [
-    { label: 'Total Child Accounts', value: followerList.length, icon: Users, color: 'text-brand-purple' },
-    { label: 'Active', value: activeCount, icon: Copy, color: 'text-success' },
-    { label: 'Total AUM', value: formatCurrency(totalAUM), icon: IndianRupee, color: 'text-brand-blue' },
-    { label: 'Total P&L', value: `${totalPnL >= 0 ? '+' : ''}${formatCurrency(Math.abs(totalPnL))}`, icon: totalPnL >= 0 ? TrendingUp : TrendingDown, color: totalPnL >= 0 ? 'text-success' : 'text-danger' },
+    { label: 'Total', value: followerList.length, icon: Users, color: 'text-foreground' },
+    { label: 'Active', value: activeCount, icon: Copy, color: 'text-foreground' },
+    { label: 'Paused', value: pausedCount, icon: TrendingDown, color: 'text-foreground' },
+    { label: 'Inactive', value: inactiveCount, icon: IndianRupee, color: 'text-foreground' },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Child Accounts</h1>
-        <p className="text-sm text-muted-foreground">Manage copy trading settings for each child account</p>
+        <h1 className="text-xl font-bold sm:text-2xl">My Children</h1>
+        <p className="text-sm text-muted-foreground">Manage children subscribed to copy your trades</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
@@ -235,7 +233,7 @@ const ActiveFollowers = () => {
               <div key={child.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-warning to-brand-purple flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-bold text-foreground">
+                    <span className="text-xs font-bold text-white">
                       {(child.name || 'UN').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
                     </span>
                   </div>
@@ -267,106 +265,75 @@ const ActiveFollowers = () => {
       </GlassCard>
 
       <GlassCard noPadding>
-        <div className="hidden md:grid md:grid-cols-[2.2fr_1.1fr_1.05fr_1.05fr_1.05fr_1.05fr_0.7fr] gap-3 px-5 py-3 border-b border-border/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          <div className="col-span-2">Follower</div>
-          <div>Allocation</div>
-          <div>Multiplier</div>
-          <div>Trading</div>
-          <div>Pl. Rejected</div>
-          <div>P&amp;L</div>
-          <div>Action</div>
-        </div>
-
-        {loading ? (
-          <div className="p-5">
-            <SkeletonLoader type="table" rows={5} columns={8} />
-          </div>
-        ) : followerList.length ? (
-          <div className="divide-y divide-border/30">
-            {followerList.map((follower, idx) => (
-              <motion.div key={follower.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className={`px-4 sm:px-5 py-4 hover:bg-white/3 transition-colors ${!follower.tradingEnabled ? 'opacity-60' : ''}`}>
-                <div className="space-y-4 md:grid md:grid-cols-[2.2fr_1.1fr_1.05fr_1.05fr_1.05fr_1.05fr_0.7fr] md:gap-3 md:items-center md:space-y-0">
-                  <div className="col-span-2 flex items-center justify-between gap-3 md:justify-start">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-foreground">{follower.initials}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{follower.name}</p>
-                        <p className="text-xs text-muted-foreground">{follower.joinedDate}</p>
-                      </div>
-                    </div>
-
-                    <button onClick={() => handleRemove(follower)} className="md:hidden p-2 hover:bg-danger/20 rounded-lg transition-colors flex-shrink-0" title="Remove child">
-                      <UserMinus className="w-4 h-4 text-danger" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:contents">
-                    <div className="rounded-xl bg-black/5 dark:bg-white/5 p-3 md:bg-transparent md:p-0">
-                      <p className="text-xs text-muted-foreground mb-0.5 md:hidden">Allocation</p>
-                      <p className="text-sm font-medium">{formatCurrency(follower.allocation)}</p>
-                      <p className="text-xs text-muted-foreground">{follower.tradesCopied} trades</p>
-                    </div>
-
-                    <div className="rounded-xl bg-black/5 dark:bg-white/5 p-3 md:bg-transparent md:p-0">
-                      <p className="text-xs text-muted-foreground mb-1 md:hidden">Multiplier</p>
-                      <MultiplierControl value={follower.multiplier} onChange={(value) => handleMultiplierChange(follower.id, value)} disabled={!follower.tradingEnabled} />
-                    </div>
-
-                    <div className="rounded-xl bg-black/5 dark:bg-white/5 p-3 md:bg-transparent md:p-0">
-                      <p className="text-xs text-muted-foreground mb-1 md:hidden">Trading</p>
-                      <ToggleSwitch
-                        checked={follower.tradingEnabled}
-                        disabled={Boolean(togglingFollowers[follower.id])}
-                        onChange={() => handleToggleStatus(follower.id)}
-                        showStateText
-                        activeClassName="bg-success"
-                      />
-                    </div>
-
-                    <div className="rounded-xl bg-black/5 dark:bg-white/5 p-3 md:bg-transparent md:p-0">
-                      <p className="text-xs text-muted-foreground mb-1 md:hidden">Pl. Rejected</p>
-                      <ToggleSwitch
-                        checked={follower.placeRejected}
-                        disabled={!follower.tradingEnabled}
-                        onChange={() => handleToggleRejected(follower.id)}
-                        showStateText
-                        onText="Yes"
-                        offText="No"
-                        activeClassName="bg-warning"
-                      />
-                    </div>
-
-                    <div className="rounded-xl bg-black/5 dark:bg-white/5 p-3 md:bg-transparent md:p-0">
-                      <p className="text-xs text-muted-foreground mb-0.5 md:hidden">P&amp;L</p>
-                      <span className={`text-sm font-semibold ${follower.totalPnL >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {follower.totalPnL >= 0 ? '+' : ''}{formatCurrency(follower.totalPnL)}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px]">
+            <thead>
+              <tr className="border-b border-border/50 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide bg-black/5 dark:bg-white/5">
+                {['#', 'Name', 'Email', 'Broker', 'Scaling', 'Status', 'Subscribed', 'Today P&L', 'Actions'].map((h) => (
+                  <th key={h} className="px-5 py-3 text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="p-5">
+                    <SkeletonLoader type="table" rows={5} columns={9} />
+                  </td>
+                </tr>
+              ) : followerList.length ? (
+                followerList.map((follower, idx) => (
+                  <motion.tr
+                    key={follower.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    className="border-b border-border/30 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <td className="px-5 py-4 text-sm text-muted-foreground">{idx + 1}</td>
+                    <td className="px-5 py-4 text-base font-medium">{follower.name}</td>
+                    <td className="px-5 py-4 text-sm text-brand-blue">{follower.email || '—'}</td>
+                    <td className="px-5 py-4 text-sm">{follower.broker || '—'}</td>
+                    <td className="px-5 py-4">
+                      <span className="px-2 py-0.5 rounded-md text-xs bg-brand-purple/20 text-brand-purple">{follower.multiplier}x</span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${follower.tradingEnabled ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                        {follower.tradingEnabled ? 'Copying' : 'Paused'}
                       </span>
-                    </div>
-
-                    <div className="hidden md:block md:justify-self-end">
-                      <div className="flex items-center justify-end gap-2">
+                    </td>
+                    <td className="px-5 py-4 text-sm">{follower.joinedDate}</td>
+                    <td className={`px-5 py-4 text-sm font-semibold ${follower.totalPnL >= 0 ? 'text-success' : 'text-danger'}`}>
+                      {follower.totalPnL >= 0 ? '+' : ''}{formatCurrency(follower.totalPnL)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch
+                          checked={follower.tradingEnabled}
+                          disabled={Boolean(togglingFollowers[follower.id])}
+                          onChange={() => handleToggleStatus(follower.id)}
+                          showStateText={false}
+                          activeClassName="bg-success"
+                        />
                         <button
-                          onClick={() => handleSubscribeToChild(follower)}
-                          className="p-1.5 hover:bg-brand-purple/20 rounded-lg transition-colors"
-                          title="Subscribe to child trades"
+                          onClick={() => handleRemove(follower)}
+                          className="p-1.5 hover:bg-danger/20 rounded-md transition-colors"
+                          title="Remove child"
                         >
-                          <Copy className="w-4 h-4 text-brand-purple" />
-                        </button>
-                        <button onClick={() => handleRemove(follower)} className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors" title="Remove child">
                           <UserMinus className="w-4 h-4 text-danger" />
                         </button>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-10 text-center text-sm text-muted-foreground">No data available</div>
-        )}
+                    </td>
+                  </motion.tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="p-10 text-center text-sm text-muted-foreground">No data available</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </GlassCard>
 
       <Modal isOpen={removeModalOpen} onClose={() => setRemoveModalOpen(false)} title="Remove child account" size="sm">

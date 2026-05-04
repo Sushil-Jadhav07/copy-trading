@@ -45,7 +45,7 @@ const BalanceAlertBadge = ({ alert }) => {
   );
 };
 
-const TABS = ['Positions', 'Holdings', 'Orders', 'Trades', 'Options'];
+const TABS = ['Positions', 'Orders', 'Options'];
 
 const getMarginValue = (marginData, fallback = 0) =>
   marginData?.availableMargin ?? marginData?.available ?? marginData?.net ?? fallback;
@@ -92,9 +92,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const [squareOffModal, setSquareOffModal] = useState(false);
   const [selectedPos, setSelectedPos] = useState(null);
   const [positions, setPositions] = useState([]);
-  const [holdings, setHoldings] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -120,8 +118,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
       setPositionsError('');
       setMarginError('');
       setOrders([]);
-      setTrades([]);
-      setHoldings([]);
 
       try {
         const data = await brokerService.getDashboard(accountId);
@@ -163,28 +159,13 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           }
         }
 
-        if (data.errors.holdings) {
-          setHoldings([]);
-        } else {
-          setHoldings(data.holdings);
-        }
-
-        const [ordersResult, tradesResult] = await Promise.allSettled([
-          brokerService.getOrders(accountId),
-          brokerService.getTrades(accountId),
-        ]);
+        const ordersResult = await Promise.allSettled([brokerService.getOrders(accountId)]);
 
         if (isMounted) {
-          if (ordersResult.status === 'fulfilled') {
-            setOrders(ordersResult.value);
+          if (ordersResult[0]?.status === 'fulfilled') {
+            setOrders(ordersResult[0].value);
           } else {
             setOrders([]);
-          }
-
-          if (tradesResult.status === 'fulfilled') {
-            setTrades(tradesResult.value);
-          } else {
-            setTrades([]);
           }
 
           setLoadingData(false);
@@ -247,18 +228,8 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
         }
       }
 
-      if (data.errors.holdings) {
-        setHoldings([]);
-      } else {
-        setHoldings(data.holdings);
-      }
-
-      const [ordersRefresh, tradesRefresh] = await Promise.allSettled([
-        brokerService.getOrders(accountId),
-        brokerService.getTrades(accountId),
-      ]);
+      const [ordersRefresh] = await Promise.allSettled([brokerService.getOrders(accountId)]);
       if (ordersRefresh.status === 'fulfilled') setOrders(ordersRefresh.value);
-      if (tradesRefresh.status === 'fulfilled') setTrades(tradesRefresh.value);
 
       addToast('Refreshed', 'success');
     } catch (e) {
@@ -304,7 +275,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
       if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
       setAccount((prev) => ({ ...prev, sessionActive: data.account.sessionActive, margin: data.margin?.availableMargin ?? prev?.margin ?? 0 }));
       setPositions(data.positions || []);
-      setHoldings(data.holdings || []);
       setOrders(data.orders || []);
     } catch (e) {
       addToast(e.message || 'Re-authentication failed. Check your token and try again.', 'error');
@@ -380,19 +350,19 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     return String(p.symbol || '').toLowerCase().includes(search.toLowerCase());
   });
 
-  const filteredHoldings = holdings.filter((h) => !search || String(h.symbol || '').toLowerCase().includes(search.toLowerCase()));
-
   const filteredOrders = orders.filter((o) => {
     if (activeTab === 'Options') return isOption(o.symbol);
     if (!search) return true;
     return String(o.symbol || '').toLowerCase().includes(search.toLowerCase());
   });
 
-  const filteredTrades = trades.filter((t) => {
-    if (activeTab === 'Options') return isOption(t.symbol);
-    if (!search) return true;
-    return String(t.symbol || '').toLowerCase().includes(search.toLowerCase());
-  });
+  const headerTitle = (() => {
+    const nickname = String(account?.nickname || '').trim();
+    const broker = String(account?.broker || '').trim();
+    const userId = String(account?.userId || '').trim();
+    const parts = [nickname, broker, userId].filter(Boolean);
+    return parts.length ? parts.join(' - ').toUpperCase() : 'DEMAT ACCOUNT';
+  })();
 
   return (
     <div className="space-y-6">
@@ -401,9 +371,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           <button onClick={resolvedBack} className="p-2 hover:bg-black/10 dark:bg-white/10 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-bold uppercase tracking-wide">
-            {account?.broker?.toUpperCase()} - {account?.userId} - {account?.nickname?.toUpperCase()}
-          </h1>
+          <h1 className="text-lg font-bold uppercase tracking-wide">{headerTitle}</h1>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
@@ -595,50 +563,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             </table>
           )}
 
-          {activeTab === 'Holdings' && (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/50">
-                  {['#', 'Symbol', 'Qty', 'Avg Price', 'LTP', 'P&L'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredHoldings.map((h, idx) => (
-                  <motion.tr
-                    key={h.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: idx * 0.04 }}
-                    className="border-b border-border/30 hover:bg-white/3 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-sm">{h.symbol}</td>
-                    <td className="px-4 py-3 text-sm">{h.quantity}</td>
-                    <td className="px-4 py-3 text-sm">{h.avgPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm">{h.lastPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-sm font-semibold ${h.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {h.pnl >= 0 ? '+' : ''}
-                        {h.pnl.toFixed(2)}
-                      </span>
-                    </td>
-                  </motion.tr>
-                ))}
-                {filteredHoldings.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      {loadingData ? 'Loading holdings...' : 'No holdings found'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-
           {activeTab === 'Orders' && (
             <table className="w-full">
               <thead>
@@ -704,52 +628,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             </table>
           )}
 
-          {activeTab === 'Trades' && (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/50">
-                  {['Id', 'Symbol', 'Order ID', 'Product', 'Trans', 'Price', 'Time'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTrades.map((tr, idx) => (
-                  <motion.tr
-                    key={tr.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    className="border-b border-border/30 hover:bg-black/2 dark:hover:bg-white/2 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{idx + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-semibold">{tr.symbol}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase">{tr.exchange || 'NSE'}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{tr.orderId || tr.id}</td>
-                    <td className="px-4 py-3 text-xs">{tr.product || 'MIS'}</td>
-                    <td className="px-4 py-3">
-                      <TransBadge type={tr.action || tr.type} />
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium">{formatCurrency(tr.price)}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(tr.time)}</td>
-                  </motion.tr>
-                ))}
-                {filteredTrades.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No trades found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
           {activeTab === 'Options' && (
             <table className="w-full">
               <thead>
@@ -828,9 +706,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           <span>
             Rows per page: 10 &nbsp;|&nbsp;
             {activeTab === 'Positions' && `1-${filteredPositions.length} of ${filteredPositions.length}`}
-            {activeTab === 'Holdings' && `1-${holdings.length} of ${holdings.length}`}
             {activeTab === 'Orders' && `1-${filteredOrders.length} of ${filteredOrders.length}`}
-            {activeTab === 'Trades' && `1-${filteredTrades.length} of ${filteredTrades.length}`}
             {activeTab === 'Options' && `1-${filteredPositions.length} of ${filteredPositions.length}`}
           </span>
         </div>

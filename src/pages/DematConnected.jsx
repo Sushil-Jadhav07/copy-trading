@@ -15,6 +15,8 @@ const formatSyncTime = (raw) => {
   } catch { return null; }
 };
 
+const IP_WHITELIST_BROKERS = ['GROWW', 'FYERS', 'DHAN', 'ANGELONE'];
+
 const DematConnected = () => {
   const [searchParams] = useSearchParams();
   const navigate        = useNavigate();
@@ -26,6 +28,11 @@ const DematConnected = () => {
   const [retrying, setRetrying]           = useState(false);
 
   const accountId = searchParams.get('accountId') || searchParams.get('account_id');
+  const selectedBroker = {
+    brokerId: accountDetails?.account?.broker || accountDetails?.broker || accountDetails?.profile?.broker || '',
+    name: accountDetails?.account?.broker || accountDetails?.broker || accountDetails?.profile?.broker || '',
+  };
+  const requiresWhitelist = IP_WHITELIST_BROKERS.includes(String(selectedBroker?.brokerId || '').toUpperCase());
 
   const verifyConnection = async () => {
     const requestToken = searchParams.get('request_token');
@@ -107,6 +114,23 @@ const DematConnected = () => {
 
             <h2 className="text-xl font-bold mb-1">Broker Connected</h2>
             <p className="text-sm text-muted-foreground mb-6">Your broker account has been linked and verified successfully.</p>
+
+            {requiresWhitelist && (
+              <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/8 text-sm mb-4">
+                <span className="text-amber-500 font-bold text-base shrink-0">⚠</span>
+                <div>
+                  <p className="font-semibold text-amber-600 dark:text-amber-400 text-[11px] uppercase tracking-wide mb-0.5">
+                    IP Whitelist Required
+                  </p>
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    {selectedBroker?.name || 'This broker'} requires you to whitelist our server IP in your broker developer portal before API calls will work.
+                  </p>
+                  <p className="font-mono text-xs font-bold mt-1 text-foreground select-all">
+                    Server IP: 13.53.246.13
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Account info */}
             {detailsLoading ? (

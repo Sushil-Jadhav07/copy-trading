@@ -18,7 +18,6 @@ import OpenPositions from '@/components/master/OpenPositions';
 import OrderBook from '@/components/master/OrderBook';
 import PnLSummary from '@/components/master/PnLSummary';
 import ActiveFollowers from '@/components/master/ActiveFollowers';
-import Earnings from '@/components/master/Earnings';
 import Profile from '@/components/master/Profile';
 
 // ── NEW MASTER COMPONENTS ──────────────────────────────────
@@ -38,7 +37,6 @@ import CopiedTrades from '@/components/child/CopiedTrades';
 import ChildOverview from '@/components/child/Overview';
 import FindMasters from '@/components/child/FindMasters';
 import PnLDashboard from '@/components/child/PnLDashboard';
-import ChildPnLAnalytics from '@/components/child/ChildPnLAnalytics';
 import OptionsStatus from '@/components/child/OptionsStatus';
 
 
@@ -137,7 +135,6 @@ const AppRouter = () => {
                 <Route path="master/orders" element={<OrderBook />} />
                 <Route path="master/pnl" element={<PnLSummary />} />
                 <Route path="master/followers" element={<ActiveFollowers />} />
-                <Route path="master/earnings" element={<Earnings />} />
                 <Route path="master/profile" element={<Profile />} />
 
 
@@ -164,7 +161,6 @@ const AppRouter = () => {
                 <Route path="child/options-status" element={<OptionsStatus />} />
                 <Route path="child/profile" element={<Profile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
-                <Route path="child/pnl-analytics" element={<ChildPnLAnalytics />} />
 
                 {/* Admin Routes */}
                 <Route path="admin/overview" element={<AdminOverview />} />

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
@@ -7,16 +8,27 @@ import { normalizeCopiedTrade } from '@/lib/child';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 
-// Format date string nicely
-const fmtTime = (raw) => {
-  if (!raw) return 'N/A';
-  try { return new Date(raw).toLocaleString('en-IN'); } catch { return raw; }
+const fmtDateShort = (raw) => {
+  if (!raw) return '-';
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return String(raw);
+  const now = new Date();
+  const isToday =
+    dt.getFullYear() === now.getFullYear() &&
+    dt.getMonth() === now.getMonth() &&
+    dt.getDate() === now.getDate();
+  const time = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return `Today, ${time}`;
+  return `${dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, ${time}`;
 };
 
 const CopiedTrades = () => {
   const { trades: copiedTrades, loading, error } = useChildCopiedTrades();
   const { addToast } = useToast();
+
   const [filter, setFilter] = useState('All');
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [trades, setTrades] = useState([]);
 
   useEffect(() => {
@@ -24,201 +36,237 @@ const CopiedTrades = () => {
   }, [error, addToast]);
 
   useEffect(() => {
-    setTrades(copiedTrades);
+    setTrades(Array.isArray(copiedTrades) ? copiedTrades : []);
   }, [copiedTrades]);
 
-  // Real-time WebSocket updates
   useEffect(() => {
-    const sub = connectChannel(
-      'trades',
-      (event, data) => {
-        if (event === 'TRADE_COPIED' || event === 'copy_trade' || event === 'MESSAGE') {
-          setTrades((prev) => [normalizeCopiedTrade(data), ...prev]);
-        }
-      },
-      null,
-      null,
-    );
-    return () => sub.close();
+    let sub = null;
+    try {
+      sub = connectChannel(
+        'trades',
+        (event, data) => {
+          if (event === 'TRADE_COPIED' || event === 'copy_trade' || event === 'MESSAGE') {
+            setTrades((prev) => [normalizeCopiedTrade(data), ...prev]);
+          }
+        },
+        null,
+        null,
+      );
+    } catch {
+      // Keep page usable without websocket
+    }
+
+    return () => {
+      if (sub && typeof sub.close === 'function') sub.close();
+    };
   }, []);
 
-  // API returns type = REPLICATED | MANUAL, not BUY/SELL — filter by status instead
-  const filtered = trades.filter((trade) => {
-    if (filter === 'All') return true;
-    if (filter === 'EXECUTED') return String(trade.status).toUpperCase() === 'EXECUTED' || String(trade.status).toUpperCase() === 'SUCCESS';
-    if (filter === 'FAILED') return String(trade.status).toUpperCase() === 'FAILED';
+  const matchesTimeFilter = (trade) => {
+    if (timeFilter === 'all') return true;
+    const raw = trade?.time || trade?.raw?.createdAt || trade?.raw?.timestamp || trade?.createdAt;
+    const dt = new Date(raw || 0);
+    if (Number.isNaN(dt.getTime())) return false;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (timeFilter === 'today') return dt >= startOfToday;
+    if (timeFilter === 'weekly') return dt >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    if (timeFilter === 'monthly') return dt >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     return true;
-  });
-
-  const executedCount = trades.filter((t) => String(t.status).toUpperCase() === 'EXECUTED' || String(t.status).toUpperCase() === 'SUCCESS').length;
-  const failedCount   = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
-  const masterSet     = new Set(trades.map((t) => t.masterId).filter(Boolean));
-  const getSide = (trade) => {
-    const direct = String(trade.side || trade.raw?.side || '').toUpperCase();
-    if (['BUY', 'SELL'].includes(direct)) return direct;
-    if (trade.myQty > 0 || trade.masterQty > 0) return 'BUY';
-    if (trade.myQty < 0 || trade.masterQty < 0) return 'SELL';
-    return 'N/A';
   };
 
+  const getErrorReason = (trade) => {
+    if (String(trade.status).toUpperCase() !== 'FAILED') return '-';
+    return trade.message || trade.raw?.message || trade.raw?.error || trade.raw?.errorMessage || trade.raw?.reason || 'Order failed (reason not provided by API)';
+  };
+
+  const getSkipReason = (trade) => {
+    if (String(trade.status).toUpperCase() !== 'SKIPPED') return '-';
+    return trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
+  };
+
+  const filtered = useMemo(() => {
+    return (Array.isArray(trades) ? trades : []).filter((trade) => {
+      if (!matchesTimeFilter(trade)) return false;
+
+      const status = String(trade.status || '').toUpperCase();
+      const matchesStatus =
+        filter === 'All' ||
+        (filter === 'EXECUTED' && ['EXECUTED', 'SUCCESS'].includes(status)) ||
+        (filter === 'FAILED' && status === 'FAILED');
+
+      if (!matchesStatus) return false;
+
+      const instrument = String(trade.instrument || '').toLowerCase();
+      const master = String(trade.master || trade.masterName || '').toLowerCase();
+      const ref = String(trade.reference || trade.id || '').toLowerCase();
+      const query = String(searchQuery || '').toLowerCase();
+
+      return instrument.includes(query) || master.includes(query) || ref.includes(query);
+    });
+  }, [trades, filter, timeFilter, searchQuery]);
+
+  const executedCount = trades.filter((t) => ['EXECUTED', 'SUCCESS'].includes(String(t.status).toUpperCase())).length;
+  const failedCount = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
+  const skippedCount = trades.filter((t) => String(t.status).toUpperCase() === 'SKIPPED').length;
+  const pendingCount = trades.filter((t) => ['PENDING', 'QUEUED', 'PROCESSING'].includes(String(t.status).toUpperCase())).length;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Copied Trades</h1>
-        <p className="text-sm text-muted-foreground">Live feed of trades copied from your masters</p>
+    <div className="space-y-6 max-w-[1600px] mx-auto">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">Copied Trades</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Child copy-trade execution log from child API.</p>
+        </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        {[
-          { label: 'Total Trades',    value: trades.length,  color: 'text-brand-purple' },
-          { label: 'Executed',        value: executedCount,  color: 'text-success' },
-          { label: 'Failed',          value: failedCount,    color: 'text-danger' },
-          { label: 'Masters Active',  value: masterSet.size, color: 'text-brand-blue' },
-        ].map((stat) => (
-          <GlassCard key={stat.label}>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-            <p className={`mt-1 text-lg font-bold ${stat.color}`}>{stat.value}</p>
-          </GlassCard>
-        ))}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
+            {['All', 'EXECUTED', 'FAILED'].map((v) => (
+              <button
+                key={v}
+                onClick={() => setFilter(v)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                  filter === v ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {v === 'EXECUTED' ? 'Success' : v === 'FAILED' ? 'Failed' : 'All'}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-6 w-px bg-border/40 hidden sm:block" />
+
+          <div className="flex items-center gap-1.5">
+            {[
+              { key: 'today', label: 'Today', icon: Zap },
+              { key: 'weekly', label: 'Week', icon: History },
+              { key: 'all', label: 'All Time', icon: Clock },
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setTimeFilter(item.key)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                  timeFilter === item.key ? 'border-brand-purple/30 bg-brand-purple/10 text-brand-purple' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <item.icon className="w-3 h-3" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search symbol/master/ref..."
+            className="w-full lg:w-72 rounded-xl border border-border bg-black/5 dark:bg-white/5 pl-9 pr-4 py-2 text-xs font-bold focus:outline-none focus:border-brand-purple"
+          />
+        </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {['All', 'EXECUTED', 'FAILED'].map((value) => (
-          <button
-            key={value}
-            onClick={() => setFilter(value)}
-            className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
-              filter === value
-                ? 'bg-brand-purple text-white'
-                : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
-            }`}
-          >
-            {value === 'All' ? 'All' : value === 'EXECUTED' ? 'Executed' : 'Failed'}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <GlassCard noPadding>
+      <GlassCard noPadding className="relative overflow-hidden">
         {loading ? (
-          <div className="p-4">
-            <SkeletonLoader type="table" rows={6} columns={9} />
+          <div className="p-6">
+            <SkeletonLoader type="table" rows={6} columns={8} />
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <div className="px-6 py-4 border-b border-border/40 bg-black/3 dark:bg-white/3 flex flex-wrap items-center gap-5 text-xs font-black uppercase tracking-wide">
+              <span className="text-emerald-500">Executed ({executedCount})</span>
+              <span className="text-rose-500">Failed ({failedCount})</span>
+              <span className="text-amber-500">Skipped ({skippedCount})</span>
+              <span className="text-muted-foreground">Pending ({pendingCount})</span>
+            </div>
+
+            <table className="w-full">
               <thead>
-                <tr className="border-b border-border/50">
-                  {['#', 'Instrument', 'Side', 'Type', 'Status', 'Broker', 'Reference / Order ID', 'Qty', 'P&L', 'Time'].map((heading) => (
-                    <th
-                      key={heading}
-                      className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {heading}
-                    </th>
-                  ))}
+                <tr className="border-b border-border/40 bg-black/3 dark:bg-white/3">
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">#</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Instrument</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Side</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Broker</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">P&L</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Why Not Copied</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
                 </tr>
               </thead>
-              <tbody>
-                {filtered.map((trade, idx) => (
-                  <motion.tr
-                    key={trade.id}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    className="border-b border-border/30 transition-colors hover:bg-white/3"
-                  >
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
 
-                    {/* Instrument */}
-                    <td className="px-4 py-3 text-sm font-semibold">
-                      {trade.instrument !== 'N/A' ? trade.instrument : (trade.reference || '—')}
-                    </td>
+              <tbody className="divide-y divide-border/20">
+                {filtered.map((trade, idx) => {
+                  const status = String(trade.status || '').toUpperCase();
+                  const isExecuted = ['EXECUTED', 'SUCCESS'].includes(status);
+                  const isFailed = status === 'FAILED';
+                  const isSkipped = status === 'SKIPPED';
 
-                    {/* Side */}
-                    <td className="px-4 py-3">
-                      <span className={`rounded border px-2.5 py-0.5 text-xs font-bold ${
-                        getSide(trade) === 'BUY'
-                          ? 'border-success/30 bg-success/20 text-success'
-                          : getSide(trade) === 'SELL'
-                          ? 'border-danger/30 bg-danger/20 text-danger'
-                          : 'border-brand-purple/30 bg-brand-purple/15 text-brand-purple'
+                  const symbol = (trade.instrument && trade.instrument !== 'N/A') ? trade.instrument : (trade.reference || 'UNKNOWN');
+                  const qty = trade.myQty ?? trade.masterQty ?? 0;
+                  const side = String(trade.type || trade.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+                  const broker = trade.broker || trade.raw?.broker || '-';
+                  const pnl = Number(trade.pnl || 0);
+                  const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : status || 'Pending';
+                  const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
+
+                  return (
+                    <motion.tr
+                      key={`${trade.id || 'row'}-${idx}`}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.015 }}
+                      className="hover:bg-black/5 dark:hover:bg-white/2 transition-colors"
+                    >
+                      <td className="px-6 py-5 text-sm font-bold text-muted-foreground">{idx + 1}</td>
+                      <td className="px-6 py-5 text-sm font-black uppercase tracking-tight">{symbol}</td>
+                      <td className="px-6 py-5">
+                        <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
+                          {side}
+                        </span>
+                      </td>
+                      <td className={`px-6 py-5 text-xs font-black ${
+                        isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : 'text-muted-foreground'
                       }`}>
-                        {getSide(trade)}
-                      </span>
-                    </td>
-
-                    {/* Type: REPLICATED / MANUAL */}
-                    <td className="px-4 py-3">
-                      <span className="rounded border border-brand-purple/30 bg-brand-purple/15 px-2.5 py-0.5 text-xs font-bold text-brand-purple">
-                        {trade.type || 'REPLICATED'}
-                      </span>
-                    </td>
-
-                    {/* Status: EXECUTED / FAILED / SUCCESS */}
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                        String(trade.status).toUpperCase() === 'EXECUTED' || String(trade.status).toUpperCase() === 'SUCCESS'
-                          ? 'bg-success/20 text-success'
-                          : String(trade.status).toUpperCase() === 'FAILED'
-                          ? 'bg-danger/20 text-danger'
-                          : 'bg-warning/20 text-warning'
-                      }`}>
-                        {trade.status || 'UNKNOWN'}
-                      </span>
-                    </td>
-
-                    {/* Broker */}
-                    <td className="px-4 py-3 text-sm font-medium">{trade.broker || '—'}</td>
-
-                    {/* Reference / Order ID */}
-                    <td className="px-4 py-3 text-sm font-mono text-muted-foreground">
-                      {trade.reference || trade.id || '—'}
-                    </td>
-
-                    {/* Qty */}
-                    <td className="px-4 py-3 text-sm">
-                      {trade.myQty > 0 ? (
-                        <span>
-                          {trade.myQty}
-                          {trade.masterQty > 0 && trade.masterQty !== trade.myQty && (
-                            <span className="text-muted-foreground text-[10px] ml-1">(M:{trade.masterQty})</span>
-                          )}
-                        </span>
-                      ) : '—'}
-                    </td>
-
-                    {/* P&L */}
-                    <td className="px-4 py-3">
-                      {trade.pnl !== 0 ? (
-                        <span className={`text-sm font-semibold ${trade.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}₹{trade.pnl.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground" title={trade.message || ''}>
-                          {trade.message ? <span className="truncate max-w-[120px] block" title={trade.message}>{trade.message}</span> : '—'}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Time */}
-                    <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                      {fmtTime(trade.time)}
-                    </td>
-                  </motion.tr>
-                ))}
-
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No trades found
-                    </td>
-                  </tr>
-                )}
+                        {childLabel}
+                      </td>
+                      <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
+                      <td className="px-6 py-5 text-sm font-black">{qty}</td>
+                      <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                      </td>
+                      <td
+                        className={`px-6 py-5 text-sm max-w-[360px] truncate ${isFailed ? 'text-rose-500' : 'text-amber-500'}`}
+                        title={whyNotCopied}
+                      >
+                        {whyNotCopied}
+                      </td>
+                      <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{fmtDateShort(trade.time)}</td>
+                    </motion.tr>
+                  );
+                })}
               </tbody>
             </table>
+
+            {filtered.length === 0 && (
+              <div className="py-24 text-center">
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-black/5 dark:bg-white/5">
+                  <Activity className="h-10 w-10 text-muted-foreground/20" />
+                </div>
+                <h3 className="text-lg font-black uppercase tracking-tight">No Trades Found</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[250px] mx-auto leading-relaxed">
+                  We could not find any trades matching your current filters and search query.
+                </p>
+                <button
+                  onClick={() => { setFilter('All'); setTimeFilter('all'); setSearchQuery(''); }}
+                  className="mt-6 text-[10px] font-black uppercase tracking-widest text-brand-purple hover:underline"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
           </div>
         )}
       </GlassCard>

@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { X, RefreshCw, WifiOff, Wifi } from 'lucide-react';
+import { RefreshCw, WifiOff, Wifi } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
-import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { brokerService } from '@/lib/broker';
@@ -33,10 +32,6 @@ const OrderBook = () => {
   const [loading, setLoading]   = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Cancel modal
-  const [cancelModal, setCancelModal]     = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [cancelling, setCancelling]       = useState(false);
 
   // ── 1. Load accounts on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -90,9 +85,15 @@ const OrderBook = () => {
         return;
       }
 
-      // Fetch orders from broker
-      const data = await brokerService.getOrders(accountId);
-      setOrders(data);
+      // Prefer dashboard payload (more consistent across brokers), fallback to direct orders endpoint.
+      const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
+      const dashboardOrders = Array.isArray(dashboard?.orders) ? dashboard.orders : [];
+      if (dashboardOrders.length > 0) {
+        setOrders(dashboardOrders);
+      } else {
+        const data = await brokerService.getOrders(accountId);
+        setOrders(data);
+      }
     } catch (e) {
       const msg = e.message || '';
       if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('login')) {
@@ -119,22 +120,6 @@ const OrderBook = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     loadOrders(selectedAccountId, true);
-  };
-
-  // ── Cancel order ────────────────────────────────────────────────────────────
-  const confirmCancel = async () => {
-    if (!selectedOrder) return;
-    setCancelling(true);
-    try {
-      await brokerService.cancelOrder(selectedAccountId, selectedOrder.id);
-      setOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id));
-      addToast('Order cancelled', 'success');
-    } catch (e) {
-      addToast(e.message || 'Cancel failed', 'error');
-    } finally {
-      setCancelling(false);
-      setCancelModal(false);
-    }
   };
 
   // ── Derived stats ─────────────────────────────────────────────────────────────
@@ -218,7 +203,7 @@ const OrderBook = () => {
       {/* Table */}
       <GlassCard noPadding>
         {(loading || sessionLoading) ? (
-          <div className="p-4"><SkeletonLoader type="table" rows={5} columns={7} /></div>
+          <div className="p-4"><SkeletonLoader type="table" rows={5} columns={8} /></div>
         ) : showSessionWarning ? (
           <div className="py-16 text-center">
             <WifiOff className="w-10 h-10 mx-auto mb-3 opacity-20" />
@@ -229,7 +214,7 @@ const OrderBook = () => {
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Symbol', 'Type', 'Qty', 'Price', 'Status', 'Action'].map((h) => (
+                  {['#', 'Symbol', 'Exchange', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -242,13 +227,15 @@ const OrderBook = () => {
                     animate={{ opacity: 1 }}
                     transition={{ delay: idx * 0.03 }}
                     className="border-b border-border/30 hover:bg-white/3 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-sm">{order.symbol}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
-                        order.type === 'BUY'
-                          ? 'bg-success/20 text-success border-success/30'
+                    >
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                      <td className="px-4 py-3 font-semibold text-sm">{order.symbol}</td>
+                      <td className="px-4 py-3 text-sm">{order.exchange || '—'}</td>
+                      <td className="px-4 py-3 text-sm">{order.orderType || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
+                          order.type === 'BUY'
+                            ? 'bg-success/20 text-success border-success/30'
                           : 'bg-danger/20 text-danger border-danger/30'
                       }`}>
                         {order.type}
@@ -269,22 +256,11 @@ const OrderBook = () => {
                         {order.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      {['PENDING', 'OPEN', 'TRIGGER PENDING'].includes(String(order.status).toUpperCase()) && (
-                        <button
-                          onClick={() => { setSelectedOrder(order); setCancelModal(true); }}
-                          className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors"
-                          title="Cancel order"
-                        >
-                          <X className="w-4 h-4 text-danger" />
-                        </button>
-                      )}
-                    </td>
                   </motion.tr>
                 ))}
                 {orders.length === 0 && !showSessionWarning && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No orders found for today
                     </td>
                   </tr>
@@ -295,37 +271,6 @@ const OrderBook = () => {
         )}
       </GlassCard>
 
-      {/* Cancel Order Modal */}
-      <Modal isOpen={cancelModal} onClose={() => setCancelModal(false)} title="Cancel Order" size="sm">
-        {selectedOrder && (
-          <div className="space-y-4">
-            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
-              {[
-                ['Symbol', selectedOrder.symbol],
-                ['Type',   selectedOrder.type],
-                ['Qty',    selectedOrder.qty],
-                ['Price',  selectedOrder.price ? formatCurrency(selectedOrder.price) : 'MARKET'],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-muted-foreground">{k}</span>
-                  <span className="font-medium">{v}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">This will cancel the pending order immediately.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setCancelModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 rounded-lg text-sm transition-colors">Keep Order</button>
-              <button
-                onClick={confirmCancel}
-                disabled={cancelling}
-                className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {cancelling ? 'Cancelling…' : 'Cancel Order'}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };

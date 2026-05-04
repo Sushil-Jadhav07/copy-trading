@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Search, X, AlertCircle, CheckCircle2, Clock, SkipForward } from 'lucide-react';
+import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
@@ -12,14 +12,13 @@ import { formatCurrency, formatRelativeTime } from '@/lib/utils';
 
 const STATUS_CFG = {
   EXECUTED: { icon: CheckCircle2, cls: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', rowCls: 'border-l-emerald-500 bg-emerald-500/3', label: 'Executed' },
-  SUCCESS:  { icon: CheckCircle2, cls: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', rowCls: 'border-l-emerald-500 bg-emerald-500/3', label: 'Success' },
   FAILED:   { icon: AlertCircle,  cls: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',           rowCls: 'border-l-rose-500 bg-rose-500/3',     label: 'Failed' },
   SKIPPED:  { icon: SkipForward,  cls: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',        rowCls: 'border-l-amber-500 bg-amber-500/4',   label: 'Skipped' },
   PENDING:  { icon: Clock,        cls: 'bg-slate-500/10 text-slate-500 dark:text-slate-400',        rowCls: 'border-l-slate-400 bg-transparent',   label: 'Pending' },
 };
 const normalizeStatus = (value) => {
   const raw = String(value || '').toUpperCase();
-  if (raw === 'SUCCESS') return 'SUCCESS';
+  if (raw === 'SUCCESS') return 'EXECUTED';
   if (['COMPLETE', 'COMPLETED', 'TRADED'].includes(raw)) return 'EXECUTED';
   if (['ERROR', 'REJECTED'].includes(raw)) return 'FAILED';
   return raw || 'PENDING';
@@ -63,6 +62,12 @@ const TABS = [
   { key: 'trade',  label: 'Trade Logs' },
   { key: 'broker', label: 'Broker Errors' },
 ];
+const TIME_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'today', label: 'Today' },
+  { key: 'weekly', label: 'Weekly' },
+  { key: 'monthly', label: 'Monthly' },
+];
 
 const Logs = () => {
   const { addToast } = useToast();
@@ -73,6 +78,8 @@ const Logs = () => {
   const [brokerErrors, setBrokerErrors] = useState([]);
   const [brokerAccounts, setBrokerAccounts] = useState([]);
   const [selectedBrokerAccountId, setSelectedBrokerAccountId] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('today');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -110,21 +117,45 @@ const Logs = () => {
       .catch((error) => addToast(error.message, 'error'));
   }, [activeTab, selectedBrokerAccountId, addToast]);
 
+  const matchesTimeFilter = (value) => {
+    if (timeFilter === 'all') return true;
+    const dt = new Date(value || 0);
+    if (Number.isNaN(dt.getTime())) return false;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (timeFilter === 'today') return dt >= startOfToday;
+    if (timeFilter === 'weekly') return dt >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    if (timeFilter === 'monthly') return dt >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return true;
+  };
+
   const filteredCopyLogs = useMemo(() =>
-    copyLogs.filter((l) => !search || `${l.symbol || ''} ${l.childId || ''}`.toLowerCase().includes(search.toLowerCase())),
-    [copyLogs, search]);
+    copyLogs.filter((l) =>
+      (statusFilter === 'all' ||
+        (statusFilter === 'success' && normalizeStatus(l.childStatus) === 'EXECUTED') ||
+        (statusFilter === 'failed' && normalizeStatus(l.childStatus) === 'FAILED')) &&
+      (!search || `${l.symbol || ''} ${l.childId || ''}`.toLowerCase().includes(search.toLowerCase())) &&
+      matchesTimeFilter(l.createdAt || l.timestamp || l.time)
+    ),
+    [copyLogs, search, timeFilter, statusFilter]);
 
   const filteredTradeLogs = useMemo(() =>
-    tradeLogs.filter((l) => !search || `${l.instrument || l.symbol || ''} ${l.status || ''}`.toLowerCase().includes(search.toLowerCase())),
-    [tradeLogs, search]);
+    tradeLogs.filter((l) =>
+      (!search || `${l.instrument || l.symbol || ''} ${l.status || ''}`.toLowerCase().includes(search.toLowerCase())) &&
+      matchesTimeFilter(l.placedAt || l.createdAt || l.timestamp || l.time)
+    ),
+    [tradeLogs, search, timeFilter]);
 
   const filteredBrokerErrors = useMemo(() =>
-    brokerErrors.filter((l) => !search || `${l.message || l.error || ''} ${l.broker || ''}`.toLowerCase().includes(search.toLowerCase())),
-    [brokerErrors, search]);
+    brokerErrors.filter((l) =>
+      (!search || `${l.message || l.error || ''} ${l.broker || ''}`.toLowerCase().includes(search.toLowerCase())) &&
+      matchesTimeFilter(l.timestamp || l.createdAt || l.time)
+    ),
+    [brokerErrors, search, timeFilter]);
 
   // Status counts for legend
   const statusCounts = useMemo(() => {
-    const counts = { SUCCESS: 0, EXECUTED: 0, FAILED: 0, SKIPPED: 0, PENDING: 0 };
+    const counts = { EXECUTED: 0, FAILED: 0, SKIPPED: 0, PENDING: 0 };
     filteredCopyLogs.forEach((l) => {
       const s = normalizeStatus(l.childStatus);
       if (s in counts) counts[s]++;
@@ -155,7 +186,7 @@ const Logs = () => {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
-              {['Symbol', 'Qty', 'Type', 'Master', 'Child', 'Skip Reason', 'Ref', 'Error', 'Date'].map((h) => (
+              {['Symbol', 'Qty', 'Master', 'Child', 'Skip Reason', 'Ref', 'Error', 'Date'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -173,11 +204,6 @@ const Logs = () => {
                 >
                   <td className="px-4 py-3 text-sm font-bold">{log.symbol || 'N/A'}</td>
                   <td className="px-4 py-3 text-sm">{log.qty || 0}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.tradeType === 'BUY' ? 'bg-emerald-500/12 text-emerald-600' : 'bg-rose-500/12 text-rose-600'}`}>
-                      {log.tradeType || 'N/A'}
-                    </span>
-                  </td>
                   <td className="px-4 py-3"><MasterStatusPill status={log.masterStatus} /></td>
                   <td className="px-4 py-3"><StatusPill status={log.childStatus} /></td>
                   <td className="px-4 py-3 text-xs text-amber-500 font-medium">
@@ -218,7 +244,7 @@ const Logs = () => {
       <table className="w-full">
         <thead>
           <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
-            {['ID', 'Instrument', 'Type', 'Quantity', 'Status', 'Placed At'].map((h) => (
+            {['ID', 'Instrument', 'Quantity', 'Status', 'Placed At'].map((h) => (
               <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{h}</th>
             ))}
           </tr>
@@ -228,11 +254,6 @@ const Logs = () => {
             <tr key={log.id || i} className="border-b border-border/15 hover:bg-black/3 dark:hover:bg-white/3 transition-colors">
               <td className="px-4 py-3 text-[10px] text-muted-foreground font-mono">{log.id || log.tradeId || '-'}</td>
               <td className="px-4 py-3 text-sm font-bold">{log.instrument || log.symbol || '-'}</td>
-              <td className="px-4 py-3">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${String(log.transactionType || log.side || '').toUpperCase() === 'BUY' ? 'bg-emerald-500/12 text-emerald-600' : 'bg-rose-500/12 text-rose-600'}`}>
-                  {log.transactionType || log.side || '-'}
-                </span>
-              </td>
               <td className="px-4 py-3 text-sm">{log.quantity || log.qty || 0}</td>
               <td className="px-4 py-3"><StatusPill status={log.status} /></td>
               <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
@@ -295,33 +316,93 @@ const Logs = () => {
           <h1 className="text-xl font-bold sm:text-2xl">Logs</h1>
           <p className="text-sm text-muted-foreground">Copy logs, trade logs, and broker errors in one place.</p>
         </div>
-        {/* Search with clear button */}
-        <div className="relative w-full sm:w-64">
+      </div>
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'success', label: 'Success' },
+              { key: 'failed', label: 'Failed' },
+            ].map((v) => (
+              <button
+                key={v.key}
+                onClick={() => setStatusFilter(v.key)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                  statusFilter === v.key
+                    ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-6 w-px bg-border/40 hidden sm:block" />
+
+          <div className="flex items-center gap-1.5">
+            {[
+              { key: 'today', label: 'Today', icon: Zap },
+              { key: 'weekly', label: 'Week', icon: RotateCcw },
+              { key: 'all', label: 'All Time', icon: Clock },
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setTimeFilter(item.key)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                  timeFilter === item.key
+                    ? 'border-brand-purple/30 bg-brand-purple/10 text-brand-purple'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <item.icon className="w-3 h-3" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs..."
-            className="w-full pl-9 pr-8 py-2 rounded-xl border border-border bg-black/5 dark:bg-white/5 text-sm focus:outline-none focus:border-brand-purple"
+            placeholder="Search symbol/master/ref..."
+            className="w-full pl-9 pr-4 py-2 rounded-xl border border-border bg-black/5 dark:bg-white/5 text-sm focus:outline-none focus:border-brand-purple"
           />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-          )}
         </div>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <GlassCard>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Copy Logs</p>
+          <p className="text-2xl font-black">{tabCounts.copy}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Replication events</p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Trade Logs</p>
+          <p className="text-2xl font-black">{tabCounts.trade}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Master-side trade entries</p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Broker Errors</p>
+          <p className="text-2xl font-black text-rose-500">{tabCounts.broker}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Critical integration errors</p>
+        </GlassCard>
+      </div>
+
       {/* Tabs with count badges */}
-      <div className="flex flex-wrap gap-1 border-b border-border/30">
+      <div className="p-1 rounded-2xl border border-border/40 bg-black/5 dark:bg-white/5 flex flex-wrap gap-1">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`relative -mb-px px-4 py-3 text-sm font-semibold transition-all duration-200 ${
+            className={`relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
               activeTab === tab.key
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'text-foreground bg-black/8 dark:bg-white/8'
+                : 'text-muted-foreground hover:text-foreground hover:bg-black/6 dark:hover:bg-white/6'
             }`}
           >
             {tab.label}
@@ -335,14 +416,14 @@ const Logs = () => {
             {activeTab === tab.key && (
               <motion.span
                 layoutId="logs-tab-indicator"
-                className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-brand-purple"
+                className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-brand-purple"
               />
             )}
           </button>
         ))}
       </div>
 
-      <GlassCard noPadding>
+      <GlassCard noPadding className="overflow-hidden">
         <div className="overflow-x-auto">
           <AnimatePresence mode="wait">
             {loading ? (

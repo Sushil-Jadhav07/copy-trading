@@ -55,7 +55,7 @@ const MyMasters = () => {
     }
 
     try {
-      await childService.bulkUnsubscribe(masters.map((master) => master.id));
+      await Promise.allSettled(masters.map((master) => childService.unsubscribe(master.id)));
       setSubscriptions((prev) =>
         prev.map((item) => ({
           ...item,
@@ -146,18 +146,73 @@ const MyMasters = () => {
 
   const handleSaveSettings = async () => {
     if (!editingMaster) return;
-    setSavingSettings(true);
-    try {
-      // Update Scaling and Broker Account
-      await childService.updateScaling({
-        masterId: editingMaster.id,
-        multiplier: newMultiplier,
-        brokerAccountId: newBrokerAccountId,
-      });
+    if (!newBrokerAccountId) {
+      addToast('Please select a broker account', 'error');
+      return;
+    }
 
-      addToast('Subscription settings updated', 'success');
+    setSavingSettings(true);
+
+    const brokerChanged = newBrokerAccountId && newBrokerAccountId !== editingMaster.brokerAccountId;
+    const scalingChanged = newMultiplier !== editingMaster.multiplier;
+
+    if (!brokerChanged && !scalingChanged) {
+      addToast('No changes to save', 'info');
+      setSavingSettings(false);
       setSettingsModal(false);
-      refetch();
+      return;
+    }
+
+    const tasks = [];
+
+    if (brokerChanged) {
+      tasks.push(
+        childService
+          .switchBrokerAccount({ masterId: editingMaster.id, brokerAccountId: newBrokerAccountId })
+          .then(() => ({ type: 'broker', success: true }))
+          .catch((e) => ({ type: 'broker', success: false, message: e.message }))
+      );
+    }
+
+    if (scalingChanged) {
+      tasks.push(
+        childService
+          .updateScaling({ masterId: editingMaster.id, multiplier: newMultiplier, scalingFactor: newMultiplier })
+          .then(() => ({ type: 'scaling', success: true }))
+          .catch((e) => ({ type: 'scaling', success: false, message: e.message }))
+      );
+    }
+
+    try {
+      const results = await Promise.all(tasks);
+
+      const brokerResult = results.find((r) => r.type === 'broker');
+      const scalingResult = results.find((r) => r.type === 'scaling');
+
+      if (brokerResult?.success) {
+        addToast('Broker account switched successfully', 'success');
+      } else if (brokerResult && !brokerResult.success) {
+        const brokerMessage = brokerResult.message || '';
+        if (brokerMessage.includes('does not belong to you')) {
+          addToast("This broker account doesn't belong to your account", 'error');
+        } else if (brokerMessage.includes('Subscription not found')) {
+          addToast('Subscription not found — please refresh and try again', 'error');
+        } else {
+          addToast(brokerResult.message || 'Failed to switch broker account', 'error');
+        }
+      }
+
+      if (scalingResult?.success) {
+        addToast('Scaling factor updated', 'success');
+      } else if (scalingResult && !scalingResult.success) {
+        addToast(scalingResult.message || 'Failed to update scaling', 'error');
+      }
+
+      const allFailed = results.every((r) => !r.success);
+      if (!allFailed) {
+        setSettingsModal(false);
+        refetch();
+      }
     } catch (e) {
       addToast(e.message || 'Failed to update settings', 'error');
     } finally {
@@ -410,6 +465,11 @@ const MyMasters = () => {
       >
         {editingMaster && (
           <div className="space-y-5">
+            {normalizeStatus(editingMaster.status) === 'PENDING_APPROVAL' && (
+              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                Note: This subscription is pending master approval
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Broker Account</label>
               <DivSelect
@@ -422,6 +482,11 @@ const MyMasters = () => {
                 triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
               />
               <p className="text-[10px] text-muted-foreground">Trades will be copied to this account</p>
+              {newBrokerAccountId && newBrokerAccountId !== editingMaster?.brokerAccountId && (
+                <p className="text-xs text-amber-400 mt-1">
+                  ⚡ Broker account will be switched instantly - no need to unsubscribe
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -453,7 +518,7 @@ const MyMasters = () => {
               </button>
               <button
                 onClick={handleSaveSettings}
-                disabled={savingSettings}
+                disabled={savingSettings || !newBrokerAccountId}
                 className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
               >
                 {savingSettings ? 'Saving...' : 'Save Settings'}

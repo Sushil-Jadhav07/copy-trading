@@ -162,7 +162,15 @@ const FindMasters = () => {
     if (!selectedBrokerAccountId) { addToast('Select a broker account first', 'error'); return; }
     setSubscribing(true);
     try {
-      await childService.bulkSubscribe(selectedMasters.map((masterId) => ({ masterId, brokerAccountId: selectedBrokerAccountId, scalingFactor: multiplier })));
+      const results = await Promise.allSettled(
+        selectedMasters.map((masterId) =>
+          childService.subscribe({ masterId, brokerAccountId: selectedBrokerAccountId, scalingFactor: multiplier })
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length > 0 && failed.length === results.length) {
+        throw new Error(failed[0]?.reason?.message || 'All subscriptions failed');
+      }
       await refetchSubscriptions();
       setBulkSubscribeModal(false);
       setSelectedMasters([]);
@@ -220,10 +228,7 @@ const FindMasters = () => {
             <CheckSquare className="w-4 h-4" /> Bulk Subscribe {selectedMasters.length > 0 && `(${selectedMasters.length})`}
           </button>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide text-xs text-muted-foreground">
-          <Filter className="w-4 h-4 flex-shrink-0" />
-          Showing fields backed by the current masters API.
-        </div>
+        
       </div>
 
       {/* Master cards */}

@@ -9,9 +9,34 @@ import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 
-const isOptionSymbol = (value = '') => /(?:\d{2}[A-Z]{3}\d+|[A-Z]+)\d+(?:CE|PE)$/i.test(String(value).trim());
+const normalizeSymbol = (value = '') =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^.*[:|]/, '')
+    .replace(/\s+/g, '');
+
+const isOptionSymbol = (value = '') =>
+  /(?:\d{2}[A-Z]{3}\d+|[A-Z]+)\d+(?:CE|PE)$/.test(normalizeSymbol(value));
 
 const getSymbol = (item = {}) => item.symbol || item.instrument || item.tradingSymbol || '';
+const isOptionRecord = (item = {}) => {
+  const symbol = getSymbol(item);
+  if (isOptionSymbol(symbol)) return true;
+  const exchange = String(item.exchange || item.raw?.exchange || '').toUpperCase();
+  const segment = String(item.segment || item.market || item.raw?.segment || '').toUpperCase();
+  const instrumentType = String(
+    item.instrumentType ||
+    item.raw?.instrumentType ||
+    item.raw?.instrument_type ||
+    item.raw?.instrument ||
+    ''
+  ).toUpperCase();
+  if (exchange.includes('NFO') || exchange.includes('BFO') || exchange.includes('FO')) return true;
+  if (segment.includes('OPT') || segment.includes('OPTION')) return true;
+  if (instrumentType.includes('OPT') || instrumentType.includes('CE') || instrumentType.includes('PE')) return true;
+  return false;
+};
 
 const toMs = (value) => {
   const ms = new Date(value || '').getTime();
@@ -65,11 +90,16 @@ const OptionsStatus = () => {
         return;
       }
 
+      const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
+      const dashboardPositions = Array.isArray(dashboard?.positions) ? dashboard.positions : [];
+      const dashboardOrders = Array.isArray(dashboard?.orders) ? dashboard.orders : [];
+
       const [pos, ord, trd] = await Promise.all([
-        brokerService.getPositions(accountId),
-        brokerService.getOrders(accountId),
+        dashboardPositions.length > 0 ? Promise.resolve(dashboardPositions) : brokerService.getPositions(accountId),
+        dashboardOrders.length > 0 ? Promise.resolve(dashboardOrders) : brokerService.getOrders(accountId),
         brokerService.getTrades(accountId),
       ]);
+
       setPositions(pos);
       setOrders(ord);
       setTrades(trd);
@@ -96,17 +126,17 @@ const OptionsStatus = () => {
   const selectedAccount = accounts.find((item) => (item.accountId || item.id) === selectedAccountId);
 
   const optionPositions = useMemo(
-    () => positions.filter((item) => isOptionSymbol(getSymbol(item))),
+    () => positions.filter((item) => isOptionRecord(item)),
     [positions],
   );
   const optionOrders = useMemo(
-    () => orders.filter((item) => isOptionSymbol(getSymbol(item))),
+    () => orders.filter((item) => isOptionRecord(item)),
     [orders],
   );
   const optionTrades = useMemo(
     () =>
       trades
-        .filter((item) => isOptionSymbol(getSymbol(item)))
+        .filter((item) => isOptionRecord(item))
         .sort((a, b) => toMs(b.time || b.date) - toMs(a.time || a.date)),
     [trades],
   );

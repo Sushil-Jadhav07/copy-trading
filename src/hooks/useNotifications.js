@@ -30,7 +30,7 @@ export const useNotifications = () => {
   // NEW — Subscribe to /ws/notifications for real-time SESSION_EXPIRED events
   useEffect(() => {
     const sub = connectChannel(
-      'notifications',
+      'trades',
       (event, data) => {
         // Backend sends SESSION_EXPIRED when a copy trade fails due to expired broker session
         if (event === 'SESSION_EXPIRED') {
