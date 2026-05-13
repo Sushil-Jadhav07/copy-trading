@@ -27,7 +27,7 @@ const CopiedTrades = () => {
   const { addToast } = useToast();
 
   const [filter, setFilter] = useState('All');
-  const [timeFilter, setTimeFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('today');
   const [searchQuery, setSearchQuery] = useState('');
   const [trades, setTrades] = useState([]);
 
@@ -192,6 +192,7 @@ const CopiedTrades = () => {
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Broker</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">P&L</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Latency</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Why Not Copied</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
                 </tr>
@@ -221,7 +222,25 @@ const CopiedTrades = () => {
                       className="hover:bg-black/5 dark:hover:bg-white/2 transition-colors"
                     >
                       <td className="px-6 py-5 text-sm font-bold text-muted-foreground">{idx + 1}</td>
-                      <td className="px-6 py-5 text-sm font-black uppercase tracking-tight">{symbol}</td>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col gap-1.5">
+                          <p className="text-sm font-black uppercase tracking-tight">{symbol}</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {trade.exchange && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground uppercase">{trade.exchange}</span>
+                            )}
+                            {trade.segment && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-brand-blue/10 border border-brand-blue/20 text-brand-blue uppercase">{trade.segment}</span>
+                            )}
+                            {trade.product && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground uppercase">{trade.product}</span>
+                            )}
+                            {trade.orderType && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground uppercase">{trade.orderType}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-6 py-5">
                         <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
                           {side}
@@ -236,6 +255,15 @@ const CopiedTrades = () => {
                       <td className="px-6 py-5 text-sm font-black">{qty}</td>
                       <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-5">
+                        {trade.latencyMs != null && trade.latencyMs > 0 ? (
+                          <span className={`text-xs font-black ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                            {trade.latencyMs}ms
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td
                         className={`px-6 py-5 text-sm max-w-[360px] truncate ${isFailed ? 'text-rose-500' : 'text-amber-500'}`}
@@ -260,7 +288,7 @@ const CopiedTrades = () => {
                   We could not find any trades matching your current filters and search query.
                 </p>
                 <button
-                  onClick={() => { setFilter('All'); setTimeFilter('all'); setSearchQuery(''); }}
+                  onClick={() => { setFilter('All'); setTimeFilter('today'); setSearchQuery(''); }}
                   className="mt-6 text-[10px] font-black uppercase tracking-widest text-brand-purple hover:underline"
                 >
                   Clear all filters

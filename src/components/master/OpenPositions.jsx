@@ -128,9 +128,10 @@ const OpenPositions = () => {
     }
   }, [selectedAccountId, loadPositions]);
 
-  // ── 3. WebSocket for real-time position updates ──────────────────────────────
+  // ── 3. WebSocket for real-time updates ──────────────────────────────────────
   useEffect(() => {
-    const sub = connectChannel(
+    // 3.1 Listen to positions channel for P&L and status updates
+    const posSub = connectChannel(
       'positions',
       (event, data) => {
         if (['POSITION_UPDATE', 'position_update', 'POSITION_UPDATED', 'MESSAGE'].includes(event)) {
@@ -142,8 +143,25 @@ const OpenPositions = () => {
       null,
       null,
     );
-    return () => sub.close();
-  }, []);
+
+    // 3.2 Listen to trades channel to refresh list when a new trade is copied
+    const tradeSub = connectChannel(
+      'trades',
+      (event) => {
+        if (['TRADE_COPIED', 'copy_trade', 'TRADE_DETECTED', 'trade_detected'].includes(event)) {
+          // New trade occurred, refresh the full positions list
+          handleRefresh();
+        }
+      },
+      null,
+      null,
+    );
+
+    return () => {
+      posSub.close();
+      tradeSub.close();
+    };
+  }, [selectedAccountId]);
 
   // ── 4. Close position ────────────────────────────────────────────────────────
   const confirmClose = async () => {

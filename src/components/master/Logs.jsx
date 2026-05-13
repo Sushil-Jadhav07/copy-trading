@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
@@ -9,6 +9,7 @@ import { copyLogService } from '@/lib/copyLogs';
 import { logsService } from '@/lib/logs';
 import { brokerService } from '@/lib/broker';
 import { formatCurrency, formatRelativeTime } from '@/lib/utils';
+import { connectChannel } from '@/lib/websocket';
 
 const STATUS_CFG = {
   EXECUTED: { icon: CheckCircle2, cls: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', rowCls: 'border-l-emerald-500 bg-emerald-500/3', label: 'Executed' },
@@ -82,33 +83,53 @@ const Logs = () => {
   const [timeFilter, setTimeFilter] = useState('today');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [copyData, tradeData, accounts] = await Promise.all([
-          masterService.getCopyLogs().catch(async () => {
-            const fb = await copyLogService.getAll();
-            return Array.isArray(fb) ? fb : fb.logs || [];
-          }),
-          logsService.getUserTradeLogs().catch(() => []),
-          brokerService.getAccounts().catch(() => []),
-        ]);
-        setCopyLogs((Array.isArray(copyData) ? copyData : copyData.logs || []).map((log) => ({
-          ...log,
-          errorCode: log.errorCode,
-        })));
-        setTradeLogs(Array.isArray(tradeData) ? tradeData : []);
-        setBrokerAccounts(accounts);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [copyData, tradeData, accounts] = await Promise.all([
+        masterService.getCopyLogs().catch(async () => {
+          const fb = await copyLogService.getAll();
+          return Array.isArray(fb) ? fb : fb.logs || [];
+        }),
+        logsService.getUserTradeLogs().catch(() => []),
+        brokerService.getAccounts().catch(() => []),
+      ]);
+      setCopyLogs((Array.isArray(copyData) ? copyData : copyData.logs || []).map((log) => ({
+        ...log,
+        errorCode: log.errorCode,
+      })));
+      setTradeLogs(Array.isArray(tradeData) ? tradeData : []);
+      setBrokerAccounts(accounts);
+      if (!selectedBrokerAccountId && accounts.length > 0) {
         setSelectedBrokerAccountId(accounts[0]?.accountId || '');
-      } catch (error) {
-        addToast(error.message, 'error');
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (error) {
+      addToast(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast, selectedBrokerAccountId]);
+
+  useEffect(() => {
     load();
-  }, [addToast]);
+  }, [load]);
+
+  // ── WebSocket listener for real-time log updates ───────────────────────────
+  useEffect(() => {
+    const sub = connectChannel(
+      'trades',
+      (event) => {
+        if (['TRADE_COPIED', 'copy_trade', 'TRADE_COPY_FAILED', 'copy_trade_failed', 'MESSAGE'].includes(event)) {
+          // New trade activity, refresh the logs
+          load();
+        }
+      },
+      null,
+      null,
+    );
+
+    return () => sub.close();
+  }, [load]);
 
   useEffect(() => {
     if (activeTab !== 'broker') return;
@@ -186,7 +207,7 @@ const Logs = () => {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
-              {['Symbol', 'Qty', 'Master', 'Child', 'Skip Reason', 'Ref', 'Error', 'Date'].map((h) => (
+              {['Symbol', 'Seg', 'Qty', 'Master', 'Child', 'Latency', 'Skip Reason', 'Ref', 'Error', 'Date'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -203,9 +224,27 @@ const Logs = () => {
                   className={`border-b border-border/15 border-l-2 hover:bg-black/3 dark:hover:bg-white/3 transition-colors ${cfg.rowCls}`}
                 >
                   <td className="px-4 py-3 text-sm font-bold">{log.symbol || 'N/A'}</td>
+                  <td className="px-4 py-3">
+                    {log.segment ? (
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide ${log.segment === 'FNO' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                        {log.segment}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-sm">{log.qty || 0}</td>
                   <td className="px-4 py-3"><MasterStatusPill status={log.masterStatus} /></td>
                   <td className="px-4 py-3"><StatusPill status={log.childStatus} /></td>
+                  <td className="px-4 py-3">
+                    {log.latencyMs != null && log.latencyMs > 0 ? (
+                      <span className={`text-xs font-black tabular-nums ${log.latencyMs < 200 ? 'text-emerald-500' : log.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                        {log.latencyMs}ms
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-xs text-amber-500 font-medium">
                     {log.skipReason ? String(log.skipReason).replace(/_/g, ' ') : '-'}
                   </td>

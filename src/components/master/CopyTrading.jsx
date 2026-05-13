@@ -34,6 +34,7 @@ import { engineService } from '@/lib/engine';
 import { brokerService } from '@/lib/broker';
 import { connectChannel } from '@/lib/websocket';
 import { formatCurrency } from '@/lib/utils';
+import TradeLatencyCard from '@/components/master/TradeLatencyCard';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
 
@@ -163,6 +164,7 @@ const CopyTrading = () => {
   const [liveTrades, setLiveTrades] = useState([]);
   const [copyResultModal, setCopyResultModal] = useState(false);
   const [copyResult, setCopyResult] = useState(null);
+  const [copyResultHistory, setCopyResultHistory] = useState([]);
   const [liveChildMetrics, setLiveChildMetrics] = useState({});
 
   useEffect(() => {
@@ -232,16 +234,28 @@ const CopyTrading = () => {
       (event, data) => {
         if (event === 'TRADE_COPIED' || event === 'copy_trade') {
           addToast(`Trade copied to ${data?.childName || 'follower'} - ${data?.symbol || ''} ${data?.qty || ''}`, 'success');
+          
+          // Show the result modal with timing and latency data
           if (data?.results || data?.childrenTotal != null || data?.success != null || data?.failed != null) {
             setCopyResult(data);
+            setCopyResultHistory((prev) => {
+              const newHistory = [...prev, data];
+              return newHistory.slice(-10);
+            });
             setCopyResultModal(true);
           }
+          
+          // Refresh all data on copy trading page
           refetch();
+          refetchSubscriptions();
         }
+        
         if (event === 'TRADE_COPY_FAILED' || event === 'copy_trade_failed') {
           addToast(`Copy failed for ${data?.childName || 'follower'}: ${data?.reason || 'unknown error'}`, 'error');
+          refetch();
         }
-        if (event === 'TRADE_DETECTED') {
+
+        if (event === 'TRADE_DETECTED' || event === 'trade_detected') {
           const trade = {
             id: `${Date.now()}-${Math.random()}`,
             symbol: data?.symbol || data?.instrument || 'Unknown',
@@ -252,6 +266,9 @@ const CopyTrading = () => {
             raw: data,
           };
           setLiveTrades((prev) => [trade, ...prev].slice(0, 20));
+          
+          // Auto-refresh stats when a new trade is detected from master
+          refetch();
         }
       },
       null,
@@ -259,7 +276,7 @@ const CopyTrading = () => {
     );
 
     return () => sub.close();
-  }, [addToast, refetch]);
+  }, [addToast, refetch, refetchSubscriptions]);
 
   const connectedRows = useMemo(() => children.map(normalizeChildRow), [children]);
   const subscribedRows = useMemo(() => subscriptions.map(normalizeChildRow), [subscriptions]);
@@ -800,6 +817,11 @@ const CopyTrading = () => {
 
       </div>
 
+      {/* Latency card — visible once master is connected */}
+      {masterConnected && (
+        <TradeLatencyCard copyResults={copyResultHistory} />
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <GlassCard title="Master Setup" subtitle="Select the primary account to poll trades from">
           {!masterConnected ? (
@@ -1171,8 +1193,35 @@ const CopyTrading = () => {
         size="md"
       >
         {copyResult && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-5">
+            {/* Trade info row */}
+            {(copyResult.symbol || copyResult.exchange || copyResult.segment) && (
+              <div className="flex flex-wrap items-center gap-2 px-4 py-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
+                {copyResult.symbol && (
+                  <span className="text-sm font-black uppercase tracking-tight">{copyResult.symbol}</span>
+                )}
+                {copyResult.side && (
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${copyResult.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'}`}>
+                    {copyResult.side}
+                  </span>
+                )}
+                {copyResult.exchange && (
+                  <span className="text-[10px] font-bold text-muted-foreground px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 uppercase">{copyResult.exchange}</span>
+                )}
+                {copyResult.segment && (
+                  <span className="text-[10px] font-bold text-brand-blue px-2 py-0.5 rounded-full bg-brand-blue/10 border border-brand-blue/20 uppercase">{copyResult.segment}</span>
+                )}
+                {copyResult.product && (
+                  <span className="text-[10px] font-bold text-muted-foreground px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 uppercase">{copyResult.product}</span>
+                )}
+                {copyResult.orderType && (
+                  <span className="text-[10px] font-bold text-muted-foreground px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 uppercase">{copyResult.orderType}</span>
+                )}
+              </div>
+            )}
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-border/40">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Total</p>
                 <p className="text-2xl font-black">{copyResult.childrenTotal ?? 0}</p>
@@ -1187,13 +1236,45 @@ const CopyTrading = () => {
               </div>
             </div>
 
+            {/* Timing summary */}
+            {copyResult.totalExecutionMs != null && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-purple/5 border border-brand-purple/15">
+                <Clock className="w-4 h-4 text-brand-purple shrink-0" />
+                <div className="flex flex-1 items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-purple/70">Total Execution</p>
+                    <p className="text-lg font-black text-brand-purple">{copyResult.totalExecutionMs}ms</p>
+                  </div>
+                  {copyResult.masterTriggeredAt && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Triggered</p>
+                      <p className="text-xs font-bold text-foreground">
+                        {new Date(copyResult.masterTriggeredAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
+                      </p>
+                    </div>
+                  )}
+                  {copyResult.completedAt && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Completed</p>
+                      <p className="text-xs font-bold text-foreground">
+                        {new Date(copyResult.completedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Per-child results */}
             {Array.isArray(copyResult.results) && copyResult.results.length > 0 && (
-              <div className="space-y-3 max-h-72 overflow-y-auto pr-2 scrollbar-hide">
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 scrollbar-hide">
                 {copyResult.results.map((r, i) => {
                   const cfg = getResultCfg(r.status);
                   const Icon = cfg.icon;
+                  const maxLatency = Math.max(...copyResult.results.map((x) => x.latencyMs || 0));
+                  const latencyPct = maxLatency > 0 && r.latencyMs != null ? Math.round((r.latencyMs / maxLatency) * 100) : 0;
                   return (
-                    <div key={r.childId || i} className={`flex items-start gap-4 px-4 py-3.5 rounded-2xl border ${cfg.row} border-opacity-30`}>
+                    <div key={r.childId || i} className={`flex items-start gap-4 px-4 py-3.5 rounded-2xl border-l-4 ${cfg.row}`}>
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${cfg.badge}`}>
                         <Icon className="w-4 h-4" />
                       </div>
@@ -1204,13 +1285,31 @@ const CopyTrading = () => {
                             {cfg.label}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{r.message || 'Processing complete'}</p>
-                        {r.scaledQty != null && (
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Scaled Qty:</span>
-                            <span className="text-xs font-black text-foreground">{r.scaledQty}</span>
-                          </div>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.message || 'Processing complete'}</p>
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          {r.scaledQty != null && (
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Qty: <span className="text-foreground">{r.scaledQty}</span></span>
+                          )}
+                          {r.latencyMs != null && r.latencyMs > 0 && (
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <Activity className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <div className="flex items-center gap-1.5 flex-1">
+                                <div className="flex-1 h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden max-w-[60px]">
+                                  <div
+                                    className={`h-full rounded-full ${r.latencyMs < 200 ? 'bg-emerald-500' : r.latencyMs < 400 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                    style={{ width: `${latencyPct}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-black text-muted-foreground whitespace-nowrap">{r.latencyMs}ms</span>
+                              </div>
+                            </div>
+                          )}
+                          {r.placedAt && (
+                            <span className="text-[10px] font-bold text-muted-foreground">
+                              {new Date(r.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

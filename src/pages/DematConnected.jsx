@@ -50,7 +50,11 @@ const DematConnected = () => {
         const oauthData  = await brokerService.getOAuthUrl(accountId);
         const loginField = oauthData?.loginField ||
           (requestToken ? 'requestToken' : authCode || tokenId ? 'authCode' : 'code');
-        await brokerService.loginAccount(accountId, { [loginField]: brokerCode });
+        const loginPayload = { [loginField]: brokerCode };
+        // Dhan requires clientId at login time — pass it if present in URL params
+        const dhanClientId = searchParams.get('clientId') || searchParams.get('client_id') || searchParams.get('dhanClientId');
+        if (dhanClientId) loginPayload.clientId = dhanClientId;
+        await brokerService.loginAccount(accountId, loginPayload);
       } else {
         await brokerService.getAccountStatus(accountId);
       }

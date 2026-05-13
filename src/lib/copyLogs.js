@@ -6,11 +6,37 @@ const getErrorMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
+/**
+ * Normalize a copy-log entry to include the new timing & latency fields
+ * added in the May 2026 API update.
+ */
+const normalizeCopyLog = (entry) => ({
+  ...entry,
+  // Timing fields
+  masterTriggeredAt: entry.masterTriggeredAt || entry.triggeredAt || null,
+  completedAt: entry.completedAt || null,
+  totalExecutionMs: entry.totalExecutionMs != null ? Number(entry.totalExecutionMs) : null,
+  // Trade metadata
+  exchange: entry.exchange || '',
+  segment: entry.segment || '',
+  product: entry.product || '',
+  orderType: entry.orderType || '',
+  // Per-child results (if returned)
+  results: Array.isArray(entry.results)
+    ? entry.results.map((r) => ({
+        ...r,
+        latencyMs: r.latencyMs != null ? Number(r.latencyMs) : null,
+        placedAt: r.placedAt || null,
+      }))
+    : [],
+});
+
 export const copyLogService = {
   async getAll() {
     try {
       const res = await api.get('/api/v1/copy/logs');
-      return res.data?.logs || res.data || [];
+      const raw = res.data?.logs || res.data || [];
+      return Array.isArray(raw) ? raw.map(normalizeCopyLog) : raw;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
     }

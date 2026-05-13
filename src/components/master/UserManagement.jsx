@@ -14,6 +14,9 @@ import { formatCurrency } from '@/lib/utils';
 import { useBrokerAccounts, useBrokerList } from '@/hooks/useBroker';
 
 const normalizeBrokerKey = (value) => String(value || '').trim().toLowerCase();
+const isTotpBroker = (loginMethod, brokerKey) =>
+  normalizeBrokerKey(loginMethod) === 'totp' ||
+  ['angelone', 'angel one'].includes(normalizeBrokerKey(brokerKey));
 
 const EMPTY_FORM = {
   broker: '',
@@ -21,7 +24,9 @@ const EMPTY_FORM = {
   growwOption: 'accessToken',
   dhanOption: 'accessToken',
   dhanClientId: '',
+  clientId: '',
   apiKey: '',
+  apiSecret: '',
   accessToken: '',
 };
 
@@ -161,7 +166,26 @@ const UserManagement = ({
       // For oauth brokers, we can't fully test until after oauth, so just indicate ready
       const brokerMeta = brokerMetaMap[normalizeBrokerKey(form.broker)];
       const loginMethod = brokerMeta?.loginMethod || 'oauth';
-      if (loginMethod === 'oauth') {
+      const normalizedBrokerId = normalizeBrokerKey(brokerMeta?.brokerId || brokerMeta?.name || form.broker);
+      const isDhan = normalizedBrokerId === 'dhan';
+      const isTotp = isTotpBroker(loginMethod, normalizedBrokerId);
+      if (isDhan) {
+        if (!form.dhanClientId?.trim()) {
+          setTestResult({ ok: false, message: 'Enter Dhan Client ID before testing.' });
+        } else if (form.dhanOption === 'accessToken' && !form.accessToken.trim()) {
+          setTestResult({ ok: false, message: 'Paste Dhan access token before testing.' });
+        } else {
+          setTestResult({ ok: true, message: 'Dhan credentials look valid. Click Add to connect.' });
+        }
+      } else if (isTotp) {
+        if (!form.clientId?.trim()) {
+          setTestResult({ ok: false, message: 'Enter Angel One Client ID before testing.' });
+        } else if (!form.apiSecret?.trim()) {
+          setTestResult({ ok: false, message: 'Enter Angel One API Secret Key before testing.' });
+        } else {
+          setTestResult({ ok: true, message: 'Angel One credentials are ready. Click Add, then enter TOTP.' });
+        }
+      } else if (loginMethod === 'oauth') {
         setTestResult({ ok: true, message: 'OAuth broker — connection will be verified after login.' });
       } else if (form.accessToken) {
         // Optimistic: validate token format
@@ -207,13 +231,18 @@ const UserManagement = ({
     const loginMethod = brokerMeta?.loginMethod || 'oauth';
     const normalizedBrokerId = normalizeBrokerKey(brokerMeta?.brokerId || form.broker);
     const isDhan = normalizedBrokerId === 'dhan';
+    const isTotp = isTotpBroker(loginMethod, normalizedBrokerId);
     if (!isDhan && loginMethod === 'token') {
       if (form.growwOption === 'accessToken' && !form.accessToken.trim()) errors.accessToken = 'Required';
       if (form.growwOption === 'apiKeyWithTotp' && !form.apiKey.trim()) errors.apiKey = 'Required';
     }
+    if (isTotp) {
+      if (!form.clientId?.trim()) errors.clientId = 'Required';
+      if (!form.apiSecret?.trim()) errors.apiSecret = 'Required';
+    }
     if (isDhan) {
+      if (!form.dhanClientId?.trim()) errors.dhanClientId = 'Required';
       if (form.dhanOption === 'accessToken' && !form.accessToken.trim()) errors.accessToken = 'Required';
-      if (form.dhanOption === 'oauth' && !form.dhanClientId?.trim()) errors.dhanClientId = 'Required';
     }
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -221,15 +250,33 @@ const UserManagement = ({
     setAddLoading(true);
     try {
       if (isDhan) {
+        const dhanClientId = form.dhanClientId.trim();
         if (form.dhanOption === 'accessToken') {
-          await brokerService.addAccount({ brokerId: 'dhan', accessToken: form.accessToken, accountNickname: form.nickname });
+          await brokerService.addAccount({
+            brokerId: 'dhan',
+            clientId: dhanClientId,
+            accessToken: form.accessToken.trim(),
+            accountNickname: form.nickname,
+          });
           addToast('Dhan account connected successfully', 'success');
           refetch(); setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null);
           return;
         }
-        const newAcc = await brokerService.addAccount({ brokerId: 'dhan', clientId: form.dhanClientId?.trim() || '', accountNickname: form.nickname });
+        const newAcc = await brokerService.addAccount({ brokerId: 'dhan', clientId: dhanClientId, accountNickname: form.nickname });
         setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
         await openLoginModal(newAcc.accountId || newAcc.id, 'dhan');
+        return;
+      }
+      if (isTotp) {
+        const brokerId = brokerMeta?.brokerId || (normalizedBrokerId === 'angelone' ? 'ANGELONE' : normalizedBrokerId);
+        const newAcc = await brokerService.addAccount({
+          brokerId,
+          clientId: form.clientId.trim(),
+          apiSecret: form.apiSecret.trim(),
+          accountNickname: form.nickname,
+        });
+        setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
+        await openLoginModal(newAcc.accountId || newAcc.id, normalizedBrokerId);
         return;
       }
       if (loginMethod === 'token') {
@@ -301,6 +348,16 @@ const UserManagement = ({
       const brokerKey = brokerKeyOverride || normalizeBrokerKey(accountMeta?.brokerId || accountMeta?.broker || accountMeta?.brokerName || '');
       const localBrokerMeta = brokerMetaMap[brokerKey];
       const loginMethod = localBrokerMeta?.loginMethod || 'oauth';
+      if (isTotpBroker(loginMethod, brokerKey)) {
+        setLoginConfig({
+          broker: localBrokerMeta?.name || localBrokerMeta?.brokerName || 'Angel One',
+          loginMethod: 'totp',
+          loginField: 'totpCode',
+          message: 'Enter the current 6-digit TOTP from your authenticator app.',
+        });
+        setLoginModalOpen(true);
+        return;
+      }
       if (loginMethod === 'token' && brokerKey === 'groww') {
         setLoginConfig({ broker: 'Groww', loginMethod: 'token', loginField: 'totpCode' });
         setLoginModalOpen(true);
@@ -320,13 +377,22 @@ const UserManagement = ({
     if (!loginTarget || !loginConfig) { addToast('Broker login configuration is missing', 'error'); return; }
     setLoginLoading(true);
     try {
-      if (loginConfig.loginMethod === 'token') {
+      if (loginConfig.loginMethod === 'token' || loginConfig.loginMethod === 'totp') {
         const sanitized = String(totpCode || '').replace(/\D/g, '').slice(0, 6);
+        if (loginConfig.loginMethod === 'totp' && sanitized.length !== 6) {
+          addToast('Enter the 6-digit TOTP code', 'error');
+          return;
+        }
         await brokerService.loginAccount(loginTarget, sanitized ? { totpCode: sanitized } : {});
       } else {
         const extracted = parseCodeFromRedirectUrl(oauthRedirectUrl, loginConfig.loginField);
         if (!extracted) { addToast('Could not find the token in the pasted URL. Copy the full redirect URL after login.', 'error'); return; }
-        await brokerService.loginAccount(loginTarget, { [loginConfig.loginField]: extracted });
+        const loginPayload = { [loginConfig.loginField]: extracted };
+        const accountMeta = accounts.find((item) => String(item.accountId || item.id) === String(loginTarget));
+        const brokerKey = normalizeBrokerKey(accountMeta?.brokerId || accountMeta?.broker || accountMeta?.brokerName || loginConfig.broker);
+        const clientId = accountMeta?.clientId || accountMeta?.userId || accountMeta?.raw?.clientId;
+        if (brokerKey === 'dhan' && clientId) loginPayload.clientId = clientId;
+        await brokerService.loginAccount(loginTarget, loginPayload);
       }
       closeLoginModal();
       addToast('Broker connected & verified successfully', 'success');
@@ -509,7 +575,9 @@ const UserManagement = ({
           {(() => {
             const brokerMeta = brokerMetaMap[normalizeBrokerKey(form.broker)];
             const loginMethod = brokerMeta?.loginMethod || 'oauth';
-            const isDhan = normalizeBrokerKey(brokerMeta?.brokerId || brokerMeta?.name || form.broker) === 'dhan';
+            const normalizedBrokerId = normalizeBrokerKey(brokerMeta?.brokerId || brokerMeta?.name || form.broker);
+            const isDhan = normalizedBrokerId === 'dhan';
+            const isTotp = isTotpBroker(loginMethod, normalizedBrokerId);
             if (!form.broker) return null;
             if (isDhan) return (
               <>
@@ -518,27 +586,41 @@ const UserManagement = ({
                   <div className="flex flex-wrap gap-2">
                     {[{ value: 'accessToken', label: 'Access Token' }, { value: 'oauth', label: 'OAuth' }].map((opt) => (
                       <label key={opt.value} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm cursor-pointer transition-colors ${form.dhanOption === opt.value ? 'border-brand-purple bg-brand-purple/15' : 'border-border bg-black/5 dark:bg-white/5 text-muted-foreground'}`}>
-                        <input type="radio" name="dhanOption" value={opt.value} checked={form.dhanOption === opt.value} onChange={(e) => setForm((f) => ({ ...f, dhanOption: e.target.value, accessToken: '', dhanClientId: '' }))} className="accent-brand-purple" />
+                        <input type="radio" name="dhanOption" value={opt.value} checked={form.dhanOption === opt.value} onChange={(e) => setForm((f) => ({ ...f, dhanOption: e.target.value, accessToken: '' }))} className="accent-brand-purple" />
                         {opt.label}
                       </label>
                     ))}
                   </div>
                 </div>
                 <div className="sm:col-span-2 lg:col-span-2">
-                  {form.dhanOption === 'accessToken' ? (
-                    <>
-                      <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Access Token</label>
-                      <input type="password" value={form.accessToken} onChange={(e) => setForm((f) => ({ ...f, accessToken: e.target.value }))} placeholder="Paste access token" className={inputCls} />
-                      <p className="text-[10px] text-warning mt-1">Tokens expire daily at 6 AM.</p>
-                      {formErrors.accessToken && <p className="text-danger text-xs mt-1">{formErrors.accessToken}</p>}
-                    </>
-                  ) : (
-                    <>
-                      <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Client ID</label>
-                      <input value={form.dhanClientId} onChange={(e) => setForm((f) => ({ ...f, dhanClientId: e.target.value }))} placeholder="Dhan Client ID" className={inputCls} />
-                      {formErrors.dhanClientId && <p className="text-danger text-xs mt-1">{formErrors.dhanClientId}</p>}
-                    </>
-                  )}
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Client ID</label>
+                  <input value={form.dhanClientId} onChange={(e) => setForm((f) => ({ ...f, dhanClientId: e.target.value }))} placeholder="Dhan Client ID" className={inputCls} />
+                  {formErrors.dhanClientId && <p className="text-danger text-xs mt-1">{formErrors.dhanClientId}</p>}
+                </div>
+                {form.dhanOption === 'accessToken' && (
+                  <div className="sm:col-span-2 lg:col-span-2">
+                    <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Access Token</label>
+                    <input type="password" value={form.accessToken} onChange={(e) => setForm((f) => ({ ...f, accessToken: e.target.value }))} placeholder="Paste access token" className={inputCls} />
+                    <p className="text-[10px] text-warning mt-1">Tokens expire daily at 6 AM.</p>
+                    {formErrors.accessToken && <p className="text-danger text-xs mt-1">{formErrors.accessToken}</p>}
+                  </div>
+                )}
+              </>
+            );
+            if (isTotp) return (
+              <>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Client ID</label>
+                  <input value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))} placeholder="Angel One Client Code" className={inputCls} />
+                  {formErrors.clientId && <p className="text-danger text-xs mt-1">{formErrors.clientId}</p>}
+                </div>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">API Secret Key</label>
+                  <input type="password" value={form.apiSecret} onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))} placeholder="Angel One API Secret Key" className={inputCls} />
+                  {formErrors.apiSecret && <p className="text-danger text-xs mt-1">{formErrors.apiSecret}</p>}
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 flex items-end">
+                  <p className="text-xs text-muted-foreground">After adding, enter the 6-digit TOTP to activate the Angel One session.</p>
                 </div>
               </>
             );

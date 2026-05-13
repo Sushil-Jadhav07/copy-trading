@@ -143,6 +143,13 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   reference: raw.reference || '',
   masterId: raw.masterId || '',
   childId: raw.childId || '',
+  // Latency & timing fields (added May 2026 API update)
+  latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : null,
+  placedAt: raw.placedAt || null,
+  exchange: raw.exchange || '',
+  segment: raw.segment || '',
+  product: raw.product || '',
+  orderType: raw.orderType || '',
   raw,
 });
 

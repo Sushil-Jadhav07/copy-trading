@@ -8,6 +8,7 @@ import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
+import { connectChannel } from '@/lib/websocket';
 
 const parseActive = (v) => {
   if (v === true || v === 1) return true;
@@ -117,6 +118,25 @@ const OrderBook = () => {
     }
   }, [selectedAccountId, loadOrders]);
 
+  // ── WebSocket listener for real-time order updates ─────────────────────────
+  useEffect(() => {
+    if (!selectedAccountId) return;
+
+    const sub = connectChannel(
+      'trades',
+      (event) => {
+        if (['TRADE_COPIED', 'copy_trade', 'TRADE_DETECTED', 'trade_detected', 'MESSAGE'].includes(event)) {
+          // New trade or order detected, refresh the order book
+          loadOrders(selectedAccountId, true);
+        }
+      },
+      null,
+      null,
+    );
+
+    return () => sub.close();
+  }, [selectedAccountId, loadOrders]);
+
   const handleRefresh = () => {
     setRefreshing(true);
     loadOrders(selectedAccountId, true);
@@ -214,7 +234,7 @@ const OrderBook = () => {
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Symbol', 'Exchange', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
+                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -231,6 +251,15 @@ const OrderBook = () => {
                       <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
                       <td className="px-4 py-3 font-semibold text-sm">{order.symbol}</td>
                       <td className="px-4 py-3 text-sm">{order.exchange || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight ${
+                          (order.segment || order.market) === 'FNO'
+                            ? 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20'
+                            : 'bg-black/5 dark:bg-white/5 text-muted-foreground border border-border/30'
+                        }`}>
+                          {order.segment || order.market || '—'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm">{order.orderType || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
