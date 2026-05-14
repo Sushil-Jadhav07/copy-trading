@@ -35,6 +35,7 @@ import { brokerService } from '@/lib/broker';
 import { connectChannel } from '@/lib/websocket';
 import { formatCurrency } from '@/lib/utils';
 import TradeLatencyCard from '@/components/master/TradeLatencyCard';
+import TradeTimeline from '@/components/master/TradeTimeline';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
 
@@ -155,6 +156,19 @@ const CopyTrading = () => {
   const [scalingMap, setScalingMap] = useState({});
   const [selectedBulkChildren, setSelectedBulkChildren] = useState([]);
 
+  // Manual Trigger State
+  const [manualTrade, setManualTrade] = useState({
+    symbol: '',
+    qty: '',
+    side: 'BUY',
+    product: 'NRML',
+    orderType: 'MARKET',
+    exchange: 'NSE',
+    price: 0,
+  });
+  const [triggeringManual, setTriggeringManual] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
+
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const [engineStatus, setEngineStatus] = useState(null);
   const [pollingStatus, setPollingStatus] = useState(null);
@@ -166,6 +180,92 @@ const CopyTrading = () => {
   const [copyResult, setCopyResult] = useState(null);
   const [copyResultHistory, setCopyResultHistory] = useState([]);
   const [liveChildMetrics, setLiveChildMetrics] = useState({});
+
+  // ── Load historical latency data ──────────────────────────────────────────
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLatencyHistory = async () => {
+      try {
+        const logs = await masterService.getCopyLogs();
+        if (!isMounted || !Array.isArray(logs)) return;
+
+        // Group flat logs into executions (by masterTradeId or close timestamps)
+        const executionsMap = new Map();
+
+        logs.forEach((log) => {
+          const key = log.masterTradeId || log.createdAt || log.time;
+          if (!key) return;
+
+          if (!executionsMap.has(key)) {
+            // Extract master order time from raw data if it's an external trade
+            const rawMaster = log.rawMaster || log.raw || {};
+            const masterOrderTime = 
+              rawMaster.order_timestamp || // Zerodha
+              rawMaster.orderTime ||       // Dhan
+              rawMaster.timestamp ||       // Generic
+              rawMaster.time || 
+              log.masterOrderTime || 
+              null;
+
+            executionsMap.set(key, {
+              symbol: log.symbol,
+              side: log.side || (log.masterStatus?.includes('BUY') ? 'BUY' : 'SELL'),
+              exchange: log.exchange,
+              segment: log.segment,
+              product: log.product,
+              orderType: log.orderType,
+              masterQty: log.qty,
+              masterTriggeredAt: log.masterTriggeredAt || log.createdAt,
+              masterOrderTime,
+              completedAt: log.completedAt || log.createdAt,
+              totalExecutionMs: log.totalExecutionMs,
+              childrenTotal: 0,
+              success: 0,
+              failed: 0,
+              results: [],
+            });
+          }
+
+          const exec = executionsMap.get(key);
+          const status = String(log.childStatus || '').toUpperCase() === 'EXECUTED' ? 'SUCCESS' : 'FAILED';
+          
+          exec.results.push({
+              childId: log.childId,
+              status,
+              message: log.errorMessage || log.childStatus,
+              broker: log.broker || log.brokerName,
+              scaledQty: log.qty,
+              latencyMs: log.latencyMs,
+              placedAt: log.createdAt || log.placedAt,
+            });
+
+            exec.childrenTotal += 1;
+            if (status === 'SUCCESS') exec.success += 1;
+            else exec.failed += 1;
+
+            // Update top-level if missing
+            if (log.exchange && !exec.exchange) exec.exchange = log.exchange;
+            if (log.segment && !exec.segment) exec.segment = log.segment;
+            if (log.product && !exec.product) exec.product = log.product;
+            if (log.orderType && !exec.orderType) exec.orderType = log.orderType;
+            if (log.totalExecutionMs && !exec.totalExecutionMs) exec.totalExecutionMs = log.totalExecutionMs;
+            if (log.completedAt && !exec.completedAt) exec.completedAt = log.completedAt;
+        });
+
+        const history = Array.from(executionsMap.values())
+          .sort((a, b) => new Date(b.masterTriggeredAt) - new Date(a.masterTriggeredAt))
+          .slice(0, 10);
+
+        setCopyResultHistory(history);
+      } catch (err) {
+        console.warn('Failed to load latency history', err);
+      }
+    };
+
+    loadLatencyHistory();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     const onFocus = () => {
@@ -237,9 +337,15 @@ const CopyTrading = () => {
           
           // Show the result modal with timing and latency data
           if (data?.results || data?.childrenTotal != null || data?.success != null || data?.failed != null) {
-            setCopyResult(data);
+            // Enrich data with masterOrderTime if external
+            const rawMaster = data?.rawMaster || data?.raw || {};
+            const enrichedData = {
+              ...data,
+              masterOrderTime: data.masterOrderTime || rawMaster.order_timestamp || rawMaster.orderTime || rawMaster.timestamp || rawMaster.time || null
+            };
+            setCopyResult(enrichedData);
             setCopyResultHistory((prev) => {
-              const newHistory = [...prev, data];
+              const newHistory = [...prev, enrichedData];
               return newHistory.slice(-10);
             });
             setCopyResultModal(true);
@@ -349,13 +455,24 @@ const CopyTrading = () => {
 
     Promise.allSettled(
       uniqueTargets.map(async (accountId) => {
-        const data = await brokerService.getDashboard(accountId);
-        return {
-          accountId,
-          margin: Number(data?.margin?.availableMargin ?? data?.account?.margin ?? 0),
-          pnl: Number(data?.account?.pnl ?? data?.margin?.pnl ?? 0),
-          positions: Array.isArray(data?.positions) ? data.positions.length : 0,
-        };
+        // Fallback to getAccount if dashboard fails
+        try {
+          const data = await brokerService.getDashboard(accountId);
+          return {
+            accountId,
+            margin: Number(data?.margin?.availableMargin ?? data?.account?.margin ?? 0),
+            pnl: Number(data?.account?.pnl ?? data?.margin?.pnl ?? 0),
+            positions: Array.isArray(data?.positions) ? data.positions.length : 0,
+          };
+        } catch {
+          const acc = await brokerService.getAccount(accountId);
+          return {
+            accountId,
+            margin: Number(acc.margin || 0),
+            pnl: Number(acc.pnl || 0),
+            positions: Number(acc.positions || 0),
+          };
+        }
       }),
     ).then((results) => {
       if (cancelled) return;
@@ -412,6 +529,35 @@ const CopyTrading = () => {
       String(child.childId) !== String(masterAccountId) &&
       !linkedRows.some((row) => String(row.childId) === String(child.childId)),
   );
+
+  const handleManualCopyTrade = async () => {
+    if (!manualTrade.symbol || !manualTrade.qty) {
+      addToast('Please fill in symbol and quantity', 'error');
+      return;
+    }
+
+    setTriggeringManual(true);
+    try {
+      const res = await engineService.manualCopyTrade({
+        ...manualTrade,
+        qty: Number(manualTrade.qty),
+        price: Number(manualTrade.price || 0),
+      });
+      
+      setCopyResult(res);
+      setCopyResultModal(true);
+      setCopyResultHistory((prev) => [res, ...prev].slice(0, 10));
+      addToast('Manual copy trade triggered', 'success');
+      
+      // Reset form but keep some defaults
+      setManualTrade(prev => ({ ...prev, symbol: '', qty: '', price: 0 }));
+      setShowManualForm(false);
+    } catch (error) {
+      addToast(error.message, 'error');
+    } finally {
+      setTriggeringManual(false);
+    }
+  };
 
   const handleConnectMaster = async () => {
     if (!masterAccountId && !masterConnected) {
@@ -977,21 +1123,163 @@ const CopyTrading = () => {
       )}
 
       {masterConnected && (
-        <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-black/5 dark:bg-white/3 border border-border/40">
-          <div className="flex items-center gap-3">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Replication Active</p>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-black/5 dark:bg-white/3 border border-border/40">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Replication Active</p>
+                {engineStatus?.detectionMethod && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {Object.entries(engineStatus.detectionMethod).map(([broker, method]) => (
+                      <span key={broker} className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${getDetectionBadgeClass(method)}`}>
+                        {broker}: {method}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowManualForm(!showManualForm)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                  showManualForm 
+                    ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' 
+                    : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Zap className={`w-3.5 h-3.5 ${showManualForm ? 'fill-current' : ''}`} />
+                Manual Trigger
+              </button>
+              <div className="h-6 w-px bg-border/40" />
+              <ToggleSwitch checked={pollingEnabled} disabled={togglingPolling} onChange={handleTogglePolling} label="Auto-poll Engine" showStateText />
+              <button
+                onClick={handleResetPollingCache}
+                disabled={resettingCache}
+                className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-brand-purple transition-colors"
+              >
+                Reset Cache
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-6">
-            <ToggleSwitch checked={pollingEnabled} disabled={togglingPolling} onChange={handleTogglePolling} label="Auto-poll Engine" showStateText />
-            <button
-              onClick={handleResetPollingCache}
-              disabled={resettingCache}
-              className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-brand-purple transition-colors"
-            >
-              Reset Cache
-            </button>
-          </div>
+
+          <AnimatePresence>
+            {showManualForm && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <GlassCard className="border-brand-purple/20">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Symbol</label>
+                      <input
+                        type="text"
+                        value={manualTrade.symbol}
+                        onChange={(e) => setManualTrade({ ...manualTrade, symbol: e.target.value.toUpperCase() })}
+                        placeholder="e.g. NIFTY2651225000CE"
+                        className="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Quantity</label>
+                      <input
+                        type="number"
+                        value={manualTrade.qty}
+                        onChange={(e) => setManualTrade({ ...manualTrade, qty: e.target.value })}
+                        placeholder="Lot size"
+                        className="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Side</label>
+                      <div className="flex p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
+                        {['BUY', 'SELL'].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setManualTrade({ ...manualTrade, side: s })}
+                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                              manualTrade.side === s 
+                                ? s === 'BUY' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Exchange</label>
+                      <div className="flex p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
+                        {['NSE', 'BSE'].map((e) => (
+                          <button
+                            key={e}
+                            onClick={() => setManualTrade({ ...manualTrade, exchange: e })}
+                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                              manualTrade.exchange === e ? 'bg-brand-blue text-white' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            {e}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Product</label>
+                      <DivSelect
+                        value={manualTrade.product}
+                        onChange={(v) => setManualTrade({ ...manualTrade, product: v })}
+                        options={[
+                          { value: 'CNC', label: 'CNC (Delivery)' },
+                          { value: 'MIS', label: 'MIS (Intraday)' },
+                          { value: 'NRML', label: 'NRML (F&O)' },
+                        ]}
+                        triggerClassName="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Order Type</label>
+                      <DivSelect
+                        value={manualTrade.orderType}
+                        onChange={(v) => setManualTrade({ ...manualTrade, orderType: v })}
+                        options={[
+                          { value: 'MARKET', label: 'MARKET' },
+                          { value: 'LIMIT', label: 'LIMIT' },
+                        ]}
+                        triggerClassName="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                      />
+                    </div>
+                    {manualTrade.orderType === 'LIMIT' && (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Price</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={manualTrade.price}
+                          onChange={(e) => setManualTrade({ ...manualTrade, price: e.target.value })}
+                          className="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-end lg:col-start-4">
+                      <button
+                        onClick={handleManualCopyTrade}
+                        disabled={triggeringManual || !manualTrade.symbol || !manualTrade.qty}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-brand-purple/90 disabled:opacity-50 disabled:grayscale shadow-lg shadow-brand-purple/20"
+                      >
+                        {triggeringManual ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 fill-current" />}
+                        Trigger Copy
+                      </button>
+                    </div>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
@@ -1265,57 +1553,45 @@ const CopyTrading = () => {
               </div>
             )}
 
-            {/* Per-child results */}
-            {Array.isArray(copyResult.results) && copyResult.results.length > 0 && (
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 scrollbar-hide">
-                {copyResult.results.map((r, i) => {
-                  const cfg = getResultCfg(r.status);
-                  const Icon = cfg.icon;
-                  const maxLatency = Math.max(...copyResult.results.map((x) => x.latencyMs || 0));
-                  const latencyPct = maxLatency > 0 && r.latencyMs != null ? Math.round((r.latencyMs / maxLatency) * 100) : 0;
-                  return (
-                    <div key={r.childId || i} className={`flex items-start gap-4 px-4 py-3.5 rounded-2xl border-l-4 ${cfg.row}`}>
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${cfg.badge}`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-black uppercase tracking-tight truncate">{r.broker || r.childId || 'Child'}</span>
-                          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${cfg.badge}`}>
-                            {cfg.label}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.message || 'Processing complete'}</p>
-                        <div className="flex items-center gap-3 mt-2 flex-wrap">
-                          {r.scaledQty != null && (
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Qty: <span className="text-foreground">{r.scaledQty}</span></span>
-                          )}
-                          {r.latencyMs != null && r.latencyMs > 0 && (
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <Activity className="w-3 h-3 text-muted-foreground shrink-0" />
-                              <div className="flex items-center gap-1.5 flex-1">
-                                <div className="flex-1 h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden max-w-[60px]">
-                                  <div
-                                    className={`h-full rounded-full ${r.latencyMs < 200 ? 'bg-emerald-500' : r.latencyMs < 400 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                                    style={{ width: `${latencyPct}%` }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-black text-muted-foreground whitespace-nowrap">{r.latencyMs}ms</span>
-                              </div>
-                            </div>
-                          )}
-                          {r.placedAt && (
-                            <span className="text-[10px] font-bold text-muted-foreground">
-                              {new Date(r.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Trade Timeline */}
+            <div className="px-1">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Execution Timeline</h4>
               </div>
-            )}
+              <TradeTimeline data={copyResult} />
+            </div>
+
+            {/* Per-child results list (now secondary to timeline) */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Detailed Results</h4>
+              </div>
+              {Array.isArray(copyResult.results) && copyResult.results.length > 0 && (
+                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 scrollbar-hide">
+                  {copyResult.results.map((r, i) => {
+                    const cfg = getResultCfg(r.status);
+                    const Icon = cfg.icon;
+                    return (
+                      <div key={r.childId || i} className={`flex items-center gap-3 px-3 py-2 rounded-xl border-l-2 bg-black/5 dark:bg-white/5 ${cfg.row}`}>
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${cfg.badge}`}>
+                          <Icon className="w-3 h-3" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-tight truncate">{r.broker || r.childId || 'Child'}</span>
+                            <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${cfg.badge}`}>
+                              {cfg.label}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={() => setCopyResultModal(false)}

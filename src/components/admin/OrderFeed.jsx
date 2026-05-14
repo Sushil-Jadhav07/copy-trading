@@ -91,7 +91,7 @@ const OrderFeed = () => {
         <table className="min-w-full divide-y divide-border/50">
           <thead className="bg-black/5 dark:bg-white/5">
             <tr>
-              {['Instrument', 'Side', 'Type', 'Qty', 'Price', 'Status', 'Time', 'Broker', 'User', 'Message'].map((header) => (
+              {['Instrument', 'Side', 'Type', 'Qty', 'Price', 'Status', 'Latency', 'Time', 'Broker', 'User', 'Message'].map((header) => (
                 <th key={header} className="px-3 py-3.5 text-left text-sm font-semibold whitespace-nowrap">
                   {header}
                 </th>
@@ -114,6 +114,15 @@ const OrderFeed = () => {
                   <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(order)}`}>
                     {getStatusLabel(order)}
                   </span>
+                </td>
+                <td className="whitespace-nowrap px-3 py-4 text-sm">
+                  {order.latencyMs != null && order.latencyMs > 0 ? (
+                    <span className={`text-xs font-black tabular-nums ${order.latencyMs < 200 ? 'text-emerald-500' : order.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                      {order.latencyMs}ms
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </td>
                 <td className="whitespace-nowrap px-3 py-4 text-xs text-muted-foreground">
                   {formatRelativeTime(order.timestamp || order.raw?.timestamp || order.date)}

@@ -75,10 +75,18 @@ const extractList = (data) => {
 
 const extractPositionsList = (payload) => {
   if (Array.isArray(payload)) return payload;
+  
+  // Handle structures like { positions: { net: [...], day: [...] } }
+  if (Array.isArray(payload?.positions?.net)) return payload.positions.net;
+  if (Array.isArray(payload?.data?.positions?.net)) return payload.data.positions.net;
+  
   if (Array.isArray(payload?.positions)) return payload.positions;
   if (Array.isArray(payload?.data?.positions)) return payload.data.positions;
+  if (Array.isArray(payload?.net)) return payload.net;
+  
   if (Array.isArray(payload?.positions?.positions)) return payload.positions.positions;
   if (Array.isArray(payload?.data?.positions?.positions)) return payload.data.positions.positions;
+  
   return [];
 };
 
@@ -105,8 +113,8 @@ const normalizePosition = (raw = {}, index = 0) => ({
     ((Number(raw.debit_quantity ?? 0) > 0 || Number(raw.quantity ?? 0) > 0) ? 'BUY' : 'SELL')
   ).toUpperCase(),
   qty: Number(raw.qty ?? raw.quantity ?? raw.netQuantity ?? raw.net_quantity ?? raw.positionQty ?? raw.position_qty ?? 0),
-  pnl: Number(raw.pnl ?? raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
-  unrealizedPnl: Number(raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.pnl ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
+  pnl: Number(raw.pnl ?? raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.unrealised ?? raw.m2m ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
+  unrealizedPnl: Number(raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.unrealised ?? raw.m2m ?? raw.pnl ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
   ltp: Number(raw.ltp ?? raw.lastPrice ?? raw.last_price ?? raw.currentPrice ?? raw.current_price ?? raw.net_price ?? 0),
   avgPrice: Number(raw.avgPrice ?? raw.averagePrice ?? raw.average_price ?? raw.entryPrice ?? raw.entry_price ?? raw.net_price ?? raw.debit_price ?? raw.credit_price ?? 0),
   entry: Number(raw.entry ?? raw.entryPrice ?? raw.entry_price ?? raw.averagePrice ?? raw.average_price ?? raw.net_price ?? raw.debit_price ?? raw.credit_price ?? 0),
@@ -324,6 +332,7 @@ export const brokerService = {
         filledQuantity: Number(o.filled_quantity ?? 0),
         remainingQuantity: Number(o.remaining_quantity ?? 0),
         triggerPrice: Number(o.trigger_price ?? 0),
+        latencyMs: o.latencyMs != null ? Number(o.latencyMs) : (o.totalExecutionMs != null ? Number(o.totalExecutionMs) : null),
         raw: o,
       }));
     } catch (error) {
@@ -460,6 +469,7 @@ export const brokerService = {
           filledQuantity: Number(o.filled_quantity ?? 0),
           remainingQuantity: Number(o.remaining_quantity ?? 0),
           triggerPrice: Number(o.trigger_price ?? 0),
+          latencyMs: o.latencyMs != null ? Number(o.latencyMs) : (o.totalExecutionMs != null ? Number(o.totalExecutionMs) : null),
           raw: o,
         })),
         signal: data.signal || null,

@@ -57,6 +57,11 @@ const TradeLatencyCard = ({ copyResults = [], maxHistory = 10 }) => {
 
   // Latest overall execution time
   const latestResult = recentResults[recentResults.length - 1];
+  const avgExecutionTime = useMemo(() => {
+    const times = recentResults.map(r => r.totalExecutionMs).filter(t => t != null && t > 0);
+    return times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null;
+  }, [recentResults]);
+
   const maxAvg = Math.max(...brokerStats.map((s) => s.avg ?? 0), 1);
 
   if (brokerStats.length === 0) {
@@ -90,19 +95,33 @@ const TradeLatencyCard = ({ copyResults = [], maxHistory = 10 }) => {
   return (
     <GlassCard title="Copy Latency" subtitle={`Avg broker-level execution speed • last ${recentResults.length} trade${recentResults.length !== 1 ? 's' : ''}`}>
       <div className="space-y-3">
-        {/* Overall execution time */}
-        {latestResult?.totalExecutionMs != null && (
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-brand-purple/5 border border-brand-purple/15 mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-brand-purple" />
-              <span className="text-xs font-black uppercase tracking-widest text-brand-purple/80">Last Run</span>
+        {/* Overall execution stats */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {latestResult?.totalExecutionMs != null && (
+            <div className="flex flex-col px-4 py-3 rounded-xl bg-brand-purple/5 border border-brand-purple/15">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-3.5 h-3.5 text-brand-purple" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-brand-purple/80">Last Run</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-black text-brand-purple">{latestResult.totalExecutionMs}ms</span>
+                <span className="text-[10px] text-muted-foreground font-bold uppercase">total</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-lg font-black text-brand-purple">{latestResult.totalExecutionMs}ms</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5 font-bold">total</span>
+          )}
+          {avgExecutionTime != null && (
+            <div className="flex flex-col px-4 py-3 rounded-xl bg-brand-blue/5 border border-brand-blue/15">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="w-3.5 h-3.5 text-brand-blue" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-brand-blue/80">Average</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-black text-brand-blue">{avgExecutionTime}ms</span>
+                <span className="text-[10px] text-muted-foreground font-bold uppercase">total</span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Per-broker rows */}
         {brokerStats.map(({ broker, avg, min, max, success, failed, skipped, total, latencies }) => {

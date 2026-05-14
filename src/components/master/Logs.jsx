@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw } from 'lucide-react';
+import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw, Activity, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
@@ -207,7 +208,7 @@ const Logs = () => {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
-              {['Symbol', 'Seg', 'Qty', 'Master', 'Child', 'Latency', 'Skip Reason', 'Ref', 'Error', 'Date'].map((h) => (
+              {['Symbol', 'Side', 'Qty', 'Master ID', 'Master', 'Child', 'Latency', 'Skip Reason', 'Date'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -215,6 +216,11 @@ const Logs = () => {
           <tbody>
             {filteredCopyLogs.map((log, i) => {
               const cfg = getStatusCfg(log.childStatus);
+              const side = log.tradeType || log.side || (log.masterStatus?.includes('BUY') ? 'BUY' : 'SELL');
+              const isFailed = normalizeStatus(log.childStatus) === 'FAILED';
+              const isSkipped = normalizeStatus(log.childStatus) === 'SKIPPED';
+              const reason = log.errorMessage || log.skipReason || log.message || 'No details provided';
+
               return (
                 <motion.tr
                   key={log.id || i}
@@ -225,48 +231,93 @@ const Logs = () => {
                 >
                   <td className="px-4 py-3 text-sm font-bold">{log.symbol || 'N/A'}</td>
                   <td className="px-4 py-3">
-                    {log.segment ? (
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide ${log.segment === 'FNO' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                        {log.segment}
+                    {side ? (
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide ${side === 'BUY' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                        {side}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm">{log.qty || 0}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-[10px] font-mono text-muted-foreground bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[80px] inline-block" title={log.masterId}>
+                      {String(log.masterId || '—').slice(0, 8)}...
+                    </span>
+                  </td>
                   <td className="px-4 py-3"><MasterStatusPill status={log.masterStatus} /></td>
-                  <td className="px-4 py-3"><StatusPill status={log.childStatus} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <StatusPill status={log.childStatus} />
+                      {(isFailed || isSkipped) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[200px] text-[10px] font-bold uppercase tracking-wide leading-relaxed">
+                              {reason}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     {log.latencyMs != null && log.latencyMs > 0 ? (
-                      <span className={`text-xs font-black tabular-nums ${log.latencyMs < 200 ? 'text-emerald-500' : log.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
-                        {log.latencyMs}ms
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`text-xs font-black tabular-nums cursor-help flex flex-col ${log.latencyMs < 200 ? 'text-emerald-500' : log.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                              {log.latencyMs}ms
+                              {log.totalExecutionMs != null && (
+                                <span className="text-[9px] text-muted-foreground font-bold">Total: {log.totalExecutionMs}ms</span>
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="space-y-1.5 p-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/40 pb-1">Execution Timeline</p>
+                            <div className="space-y-1 text-[10px]">
+                              {log.masterTriggeredAt && (
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-muted-foreground">Triggered:</span>
+                                  <span className="font-bold">{new Date(log.masterTriggeredAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
+                                </div>
+                              )}
+                              {log.placedAt && (
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-muted-foreground">Placed:</span>
+                                  <span className="font-bold">{new Date(log.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
+                                </div>
+                              )}
+                              {log.completedAt && (
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-muted-foreground">Completed:</span>
+                                  <span className="font-bold">{new Date(log.completedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
+                                </div>
+                              )}
+                              {log.totalExecutionMs != null && (
+                                <div className="flex justify-between gap-4 pt-1 border-t border-border/40 mt-1">
+                                  <span className="text-brand-purple font-black uppercase">Total:</span>
+                                  <span className="font-black text-brand-purple">{log.totalExecutionMs}ms</span>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-amber-500 font-medium">
-                    {log.skipReason ? String(log.skipReason).replace(/_/g, ' ') : '-'}
+                  <td className="px-4 py-3 text-[10px] font-bold text-muted-foreground max-w-[120px] truncate" title={log.skipReason || '-'}>
+                    {log.skipReason || '—'}
                   </td>
-                  <td className="px-4 py-3 text-[10px] text-muted-foreground font-mono">{log.masterTradeId ? log.masterTradeId.slice(0, 8) + '...' : '-'}</td>
-                  <td className="px-4 py-3 text-xs max-w-[180px]">
-                    {log.errorCode === 'SESSION_EXPIRED' ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="text-amber-500 font-medium">Session expired</span>
-                        <button
-                          onClick={() => window.location.href = '/master/demat-accounts'}
-                          className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full hover:bg-amber-500/25 transition-colors"
-                        >
-                          Re-connect
-                        </button>
-                      </span>
-                    ) : (
-                      <span className="text-rose-500 truncate block" title={log.errorMessage || ''}>
-                        {log.errorMessage || '-'}
-                      </span>
-                    )}
+                  <td className="px-4 py-3 text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                    {formatDate(log.createdAt || log.timestamp || log.time)}
                   </td>
-                  <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatRelativeTime(log.createdAt)}</td>
                 </motion.tr>
               );
             })}

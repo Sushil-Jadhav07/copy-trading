@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { RefreshCw, WifiOff, Wifi } from 'lucide-react';
+import { RefreshCw, WifiOff, Wifi, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
@@ -234,7 +235,7 @@ const OrderBook = () => {
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
+                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status', 'Latency'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -275,16 +276,42 @@ const OrderBook = () => {
                       {order.price ? formatCurrency(order.price) : 'MARKET'}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        String(order.status).toUpperCase() === 'COMPLETE'
-                          ? 'bg-success/20 text-success'
-                          : ['PENDING', 'OPEN', 'TRIGGER PENDING'].includes(String(order.status).toUpperCase())
-                          ? 'bg-warning/20 text-warning'
-                          : 'bg-danger/20 text-danger'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            String(order.status).toUpperCase() === 'COMPLETE'
+                              ? 'bg-success/20 text-success'
+                              : ['PENDING', 'OPEN', 'TRIGGER PENDING'].includes(String(order.status).toUpperCase())
+                              ? 'bg-warning/20 text-warning'
+                              : 'bg-danger/20 text-danger'
+                          }`}>
+                            {order.status}
+                          </span>
+                          
+                          {(order.statusMessage || order.reason || order.message) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                    <Info className="h-3.5 w-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="max-w-[200px] text-xs font-medium">
+                                  {order.statusMessage || order.reason || order.message}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {order.latencyMs != null && order.latencyMs > 0 ? (
+                          <span className={`text-xs font-black tabular-nums ${order.latencyMs < 200 ? 'text-emerald-500' : order.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                            {order.latencyMs}ms
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
                   </motion.tr>
                 ))}
                 {orders.length === 0 && !showSessionWarning && (

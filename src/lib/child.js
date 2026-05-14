@@ -146,6 +146,8 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   // Latency & timing fields (added May 2026 API update)
   latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : null,
   placedAt: raw.placedAt || null,
+  masterTriggeredAt: raw.masterTriggeredAt || raw.triggeredAt || null,
+  masterOrderTime: raw.masterOrderTime || raw.rawMaster?.order_timestamp || raw.rawMaster?.orderTime || raw.rawMaster?.timestamp || null,
   exchange: raw.exchange || '',
   segment: raw.segment || '',
   product: raw.product || '',

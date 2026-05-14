@@ -38,6 +38,7 @@ import ChildOverview from '@/components/child/Overview';
 import FindMasters from '@/components/child/FindMasters';
 import PnLDashboard from '@/components/child/PnLDashboard';
 import OptionsStatus from '@/components/child/OptionsStatus';
+import ChildOpenPositions from '@/components/child/OpenPositions';
 
 
 
@@ -157,6 +158,7 @@ const AppRouter = () => {
                 <Route path="child/demat/:accountId" element={<ChildDematDetailWrapper />} />
                 <Route path="child/find-masters" element={<FindMasters />} />
                 <Route path="child/my-masters" element={<MyMasters />} />
+                <Route path="child/positions" element={<ChildOpenPositions />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
                 <Route path="child/options-status" element={<OptionsStatus />} />
                 <Route path="child/profile" element={<Profile />} />

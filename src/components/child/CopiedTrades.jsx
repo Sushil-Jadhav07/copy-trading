@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History, Info } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
 import { normalizeCopiedTrade } from '@/lib/child';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const fmtDateShort = (raw) => {
   if (!raw) return '-';
@@ -187,13 +188,13 @@ const CopiedTrades = () => {
                 <tr className="border-b border-border/40 bg-black/3 dark:bg-white/3">
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">#</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Instrument</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Master</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Side</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Broker</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">P&L</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Latency</th>
-                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Why Not Copied</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
                 </tr>
               </thead>
@@ -223,33 +224,59 @@ const CopiedTrades = () => {
                     >
                       <td className="px-6 py-5 text-sm font-bold text-muted-foreground">{idx + 1}</td>
                       <td className="px-6 py-5">
-                        <div className="flex flex-col gap-1.5">
-                          <p className="text-sm font-black uppercase tracking-tight">{symbol}</p>
-                          <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-black uppercase tracking-tight truncate max-w-[150px]">
+                            {symbol}
+                          </span>
+                          <div className="flex items-center gap-1.5">
                             {trade.exchange && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground uppercase">{trade.exchange}</span>
+                              <span className="text-[8px] font-bold text-muted-foreground px-1 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 uppercase">
+                                {trade.exchange}
+                              </span>
                             )}
                             {trade.segment && (
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-brand-blue/10 border border-brand-blue/20 text-brand-blue uppercase">{trade.segment}</span>
-                            )}
-                            {trade.product && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground uppercase">{trade.product}</span>
-                            )}
-                            {trade.orderType && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground uppercase">{trade.orderType}</span>
+                              <span className={`text-[8px] font-bold px-1 py-0.5 rounded border uppercase ${
+                                trade.segment === 'FNO' ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-black/5 text-muted-foreground border-border/30'
+                              }`}>
+                                {trade.segment}
+                              </span>
                             )}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className="text-xs font-black uppercase tracking-tight text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-1 rounded-lg border border-border/30">
+                          {trade.master || trade.masterName || 'Master'}
+                        </span>
                       </td>
                       <td className="px-6 py-5">
                         <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
                           {side}
                         </span>
                       </td>
-                      <td className={`px-6 py-5 text-xs font-black ${
-                        isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : 'text-muted-foreground'
-                      }`}>
-                        {childLabel}
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-black ${
+                            isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : 'text-muted-foreground'
+                          }`}>
+                            {childLabel}
+                          </span>
+                          
+                          {(isFailed || isSkipped) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                    <Info className="h-3.5 w-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[200px] text-xs font-medium">
+                                  {whyNotCopied}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
                       <td className="px-6 py-5 text-sm font-black">{qty}</td>
@@ -258,18 +285,26 @@ const CopiedTrades = () => {
                       </td>
                       <td className="px-6 py-5">
                         {trade.latencyMs != null && trade.latencyMs > 0 ? (
-                          <span className={`text-xs font-black ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
-                            {trade.latencyMs}ms
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className={`text-xs font-black tabular-nums ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                              {trade.latencyMs}ms
+                            </span>
+                            <div className="flex flex-col gap-0.5">
+                              {trade.placedAt && (
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                  Placed: {new Date(trade.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                              )}
+                              {trade.masterOrderTime && trade.masterTriggeredAt && (
+                                <span className="text-[8px] font-bold text-amber-500 uppercase">
+                                  Det: {Math.max(0, new Date(trade.masterTriggeredAt).getTime() - new Date(trade.masterOrderTime).getTime())}ms
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
-                      </td>
-                      <td
-                        className={`px-6 py-5 text-sm max-w-[360px] truncate ${isFailed ? 'text-rose-500' : 'text-amber-500'}`}
-                        title={whyNotCopied}
-                      >
-                        {whyNotCopied}
                       </td>
                       <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{fmtDateShort(trade.time)}</td>
                     </motion.tr>

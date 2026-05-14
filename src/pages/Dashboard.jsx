@@ -8,6 +8,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useToast } from '@/components/shared/Toast';
+import { connectChannel } from '@/lib/websocket';
 
 const CursorGlow = ({ position, isVisible }) => {
   if (!isVisible) return null;
@@ -26,6 +28,7 @@ const CursorGlow = ({ position, isVisible }) => {
 const Dashboard = () => {
   const { isAuthenticated, loading, user, role } = useAuth();
   const { isDark } = useTheme();
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -35,6 +38,43 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { position, isVisible } = useCursorGlow(isDark);
   const isOverviewRoute = /\/overview$/.test(location.pathname);
+
+  // ── Global WebSocket listener for order notifications ─────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const sub = connectChannel(
+      'trades',
+      (event, data) => {
+        // Master view: Notify when a trade is detected from their broker
+        if (role === 'Master') {
+          if (event === 'TRADE_DETECTED' || event === 'trade_detected') {
+            addToast(`New order detected on Master: ${data?.symbol} ${data?.side} x${data?.qty}`, 'info', 5000);
+          }
+          if (event === 'TRADE_COPIED' || event === 'copy_trade') {
+            addToast(`Successfully copied to follower: ${data?.symbol} ${data?.side}`, 'success', 5000);
+          }
+          if (event === 'TRADE_COPY_FAILED' || event === 'copy_trade_failed') {
+            addToast(`Copy failed: ${data?.reason || 'Unknown error'}`, 'error', 7000);
+          }
+        }
+
+        // Child view: Notify when a trade is copied to their account
+        if (role === 'Child') {
+          if (event === 'TRADE_COPIED' || event === 'copy_trade') {
+            addToast(`New order placed in your account: ${data?.symbol} ${data?.side} x${data?.qty}`, 'success', 6000);
+          }
+          if (event === 'TRADE_COPY_FAILED' || event === 'copy_trade_failed') {
+            addToast(`Copy trade failed: ${data?.reason || 'Unknown error'}`, 'error', 7000);
+          }
+        }
+      },
+      null,
+      null
+    );
+
+    return () => sub.close();
+  }, [isAuthenticated, role, addToast]);
 
   useEffect(() => {
     // Simulate initial loading

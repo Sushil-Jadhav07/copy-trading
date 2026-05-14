@@ -199,32 +199,72 @@ const Overview = () => {
             <table className="w-full min-w-[960px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['Time', 'Instrument', 'Action', 'Master Qty', 'My Qty', 'Price', 'My P&L', 'Status'].map((h) => (
+                  {['Time', 'Instrument', 'Action', 'Qty', 'Price', 'P&L', 'Latency', 'Status'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {copiedTrades.slice(0, 10).map((trade, idx) => (
-                  <tr key={trade.id || idx} className="border-b border-border/30 hover:bg-white/3 transition-colors">
-                    <td className="px-4 py-3 text-sm">{fmtTime(trade.time)}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.instrument || '-'}</td>
-                    <td className={`px-4 py-3 text-sm font-semibold ${String(trade.type).toUpperCase() === 'SELL' ? 'text-danger' : 'text-success'}`}>
-                      {String(trade.type || 'BUY').toUpperCase()}
-                    </td>
-                    <td className="px-4 py-3 text-sm">{trade.masterQty || 0}</td>
-                    <td className="px-4 py-3 text-sm">{trade.myQty || 0}</td>
-                    <td className="px-4 py-3 text-sm">{trade.entry ? `INR ${Number(trade.entry).toLocaleString('en-IN')}` : '-'}</td>
-                    <td className={`px-4 py-3 text-sm font-semibold ${Number(trade.pnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
-                      {Number(trade.pnl || 0) >= 0 ? '+' : ''}INR {Number(trade.pnl || 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-black/10 dark:bg-white/10 border border-border">
-                        {trade.status || 'EXECUTED'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {copiedTrades.slice(0, 10).map((trade, idx) => {
+                  const status = String(trade.status || '').toUpperCase();
+                  const isExecuted = ['EXECUTED', 'SUCCESS'].includes(status);
+                  const isFailed = status === 'FAILED';
+                  const isSkipped = status === 'SKIPPED';
+                  const latency = trade.latencyMs || 0;
+
+                  return (
+                    <tr key={trade.id || idx} className="border-b border-border/30 hover:bg-white/3 transition-colors">
+                      <td className="px-4 py-3 text-sm">{fmtTime(trade.time)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold">{trade.instrument || '-'}</span>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {trade.exchange && (
+                              <span className="text-[8px] font-bold text-muted-foreground px-1 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 uppercase">{trade.exchange}</span>
+                            )}
+                            {trade.segment && (
+                              <span className="text-[8px] font-bold text-brand-blue px-1 py-0.5 rounded bg-brand-blue/10 border border-brand-blue/20 uppercase">{trade.segment}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-semibold ${String(trade.type).toUpperCase() === 'SELL' ? 'text-danger' : 'text-success'}`}>
+                        {String(trade.type || 'BUY').toUpperCase()}
+                      </td>
+                      <td className="px-4 py-3 text-sm">{trade.myQty || trade.masterQty || 0}</td>
+                      <td className="px-4 py-3 text-sm">{trade.entry ? `₹${Number(trade.entry).toLocaleString('en-IN')}` : '-'}</td>
+                      <td className={`px-4 py-3 text-sm font-semibold ${Number(trade.pnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+                        {Number(trade.pnl || 0) >= 0 ? '+' : ''}₹{Number(trade.pnl || 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-3">
+                        {latency > 0 ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className={`text-xs font-black tabular-nums ${latency < 200 ? 'text-emerald-500' : latency < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                              {latency}ms
+                            </span>
+                            {trade.masterOrderTime && trade.masterTriggeredAt && (
+                              <span className="text-[8px] font-bold text-amber-500 uppercase tracking-tighter">
+                                Det: {Math.max(0, new Date(trade.masterTriggeredAt).getTime() - new Date(trade.masterOrderTime).getTime())}ms
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          isExecuted ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
+                          isFailed ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                          isSkipped ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                          'bg-black/10 dark:bg-white/10 border-border'
+                        }`}>
+                          {isExecuted ? 'SUCCESS' : isFailed ? 'FAILED' : isSkipped ? 'SKIPPED' : status || 'EXECUTED'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {copiedTrades.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
