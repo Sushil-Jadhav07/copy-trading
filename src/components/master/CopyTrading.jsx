@@ -19,7 +19,9 @@ import {
   SkipForward,
   Users,
   Search,
+  Info,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
@@ -64,6 +66,19 @@ const RESULT_CFG = {
 };
 
 const getResultCfg = (status) => RESULT_CFG[String(status || '').toUpperCase()] || RESULT_CFG.FAILED;
+
+const getLatencyClass = (latencyMs) => {
+  if (latencyMs == null || latencyMs <= 0) return 'text-muted-foreground';
+  if (latencyMs < 200) return 'text-emerald-500';
+  if (latencyMs < 500) return 'text-amber-500';
+  return 'text-rose-500';
+};
+
+const shortId = (value) => {
+  if (!value) return '';
+  const text = String(value);
+  return text.length > 14 ? `${text.slice(0, 8)}...${text.slice(-4)}` : text;
+};
 
 const getModeBadgeClass = (mode = '') => {
   const normalized = String(mode).toLowerCase();
@@ -165,6 +180,7 @@ const CopyTrading = () => {
     orderType: 'MARKET',
     exchange: 'NSE',
     price: 0,
+    triggerPrice: 0,
   });
   const [triggeringManual, setTriggeringManual] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -190,11 +206,11 @@ const CopyTrading = () => {
         const logs = await masterService.getCopyLogs();
         if (!isMounted || !Array.isArray(logs)) return;
 
-        // Group flat logs into executions (by masterTradeId or close timestamps)
+        // Group flat logs into executions (prefer backend copyGroupId, then older fallbacks).
         const executionsMap = new Map();
 
         logs.forEach((log) => {
-          const key = log.masterTradeId || log.createdAt || log.time;
+          const key = log.copyGroupId || log.masterTradeId || log.createdAt || log.time;
           if (!key) return;
 
           if (!executionsMap.has(key)) {
@@ -209,6 +225,7 @@ const CopyTrading = () => {
               null;
 
             executionsMap.set(key, {
+              copyGroupId: log.copyGroupId,
               symbol: log.symbol,
               side: log.side || (log.masterStatus?.includes('BUY') ? 'BUY' : 'SELL'),
               exchange: log.exchange,
@@ -223,25 +240,37 @@ const CopyTrading = () => {
               childrenTotal: 0,
               success: 0,
               failed: 0,
+              skipped: 0,
               results: [],
             });
           }
 
           const exec = executionsMap.get(key);
-          const status = String(log.childStatus || '').toUpperCase() === 'EXECUTED' ? 'SUCCESS' : 'FAILED';
+          const normalizedStatus = String(log.childStatus || '').toUpperCase();
+          const status = ['EXECUTED', 'SUCCESS', 'COMPLETE', 'COMPLETED'].includes(normalizedStatus)
+            ? 'SUCCESS'
+            : normalizedStatus === 'SKIPPED'
+              ? 'SKIPPED'
+              : 'FAILED';
           
           exec.results.push({
               childId: log.childId,
+              copyGroupId: log.copyGroupId,
               status,
               message: log.errorMessage || log.childStatus,
               broker: log.broker || log.brokerName,
               scaledQty: log.qty,
               latencyMs: log.latencyMs,
-              placedAt: log.createdAt || log.placedAt,
+              engineReceivedAt: log.engineReceivedAt,
+              childPlacedAt: log.childPlacedAt,
+              placedAt: log.childPlacedAt || log.createdAt || log.placedAt,
+              skipReason: log.skipReason,
+              orderKey: log.orderKey,
             });
 
             exec.childrenTotal += 1;
             if (status === 'SUCCESS') exec.success += 1;
+            else if (status === 'SKIPPED') exec.skipped += 1;
             else exec.failed += 1;
 
             // Update top-level if missing
@@ -536,13 +565,26 @@ const CopyTrading = () => {
       return;
     }
 
+    if (['SL', 'SL-M'].includes(manualTrade.orderType) && !Number(manualTrade.triggerPrice || 0)) {
+      addToast('Please enter a trigger price for SL orders', 'error');
+      return;
+    }
+
     setTriggeringManual(true);
     try {
       const res = await engineService.manualCopyTrade({
         ...manualTrade,
         qty: Number(manualTrade.qty),
         price: Number(manualTrade.price || 0),
+        triggerPrice: ['SL', 'SL-M'].includes(manualTrade.orderType) ? Number(manualTrade.triggerPrice || 0) : 0,
       });
+
+      if (res?.duplicate) {
+        addToast('Trade already processed', 'info');
+        setCopyResult(res);
+        setCopyResultModal(true);
+        return;
+      }
       
       setCopyResult(res);
       setCopyResultModal(true);
@@ -550,7 +592,7 @@ const CopyTrading = () => {
       addToast('Manual copy trade triggered', 'success');
       
       // Reset form but keep some defaults
-      setManualTrade(prev => ({ ...prev, symbol: '', qty: '', price: 0 }));
+      setManualTrade(prev => ({ ...prev, symbol: '', qty: '', price: 0, triggerPrice: 0 }));
       setShowManualForm(false);
     } catch (error) {
       addToast(error.message, 'error');
@@ -1249,11 +1291,13 @@ const CopyTrading = () => {
                         options={[
                           { value: 'MARKET', label: 'MARKET' },
                           { value: 'LIMIT', label: 'LIMIT' },
+                          { value: 'SL', label: 'SL' },
+                          { value: 'SL-M', label: 'SL-M' },
                         ]}
                         triggerClassName="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
                       />
                     </div>
-                    {manualTrade.orderType === 'LIMIT' && (
+                    {['LIMIT', 'SL'].includes(manualTrade.orderType) && (
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Price</label>
                         <input
@@ -1261,6 +1305,18 @@ const CopyTrading = () => {
                           step="0.05"
                           value={manualTrade.price}
                           onChange={(e) => setManualTrade({ ...manualTrade, price: e.target.value })}
+                          className="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                        />
+                      </div>
+                    )}
+                    {['SL', 'SL-M'].includes(manualTrade.orderType) && (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Trigger Price</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={manualTrade.triggerPrice}
+                          onChange={(e) => setManualTrade({ ...manualTrade, triggerPrice: e.target.value })}
                           className="w-full rounded-xl border border-border bg-black/5 px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
                         />
                       </div>
@@ -1505,11 +1561,19 @@ const CopyTrading = () => {
                 {copyResult.orderType && (
                   <span className="text-[10px] font-bold text-muted-foreground px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 uppercase">{copyResult.orderType}</span>
                 )}
+                {copyResult.copyGroupId && (
+                  <span
+                    className="ml-auto text-[10px] font-mono font-bold text-brand-purple px-2 py-0.5 rounded-full bg-brand-purple/10 border border-brand-purple/20"
+                    title={copyResult.copyGroupId}
+                  >
+                    Trade ID: {shortId(copyResult.copyGroupId)}
+                  </span>
+                )}
               </div>
             )}
 
             {/* Stats row */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="text-center p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-border/40">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Total</p>
                 <p className="text-2xl font-black">{copyResult.childrenTotal ?? 0}</p>
@@ -1521,6 +1585,10 @@ const CopyTrading = () => {
               <div className="text-center p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
                 <p className="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-1.5">Failed</p>
                 <p className="text-2xl font-black text-rose-500">{copyResult.failed ?? 0}</p>
+              </div>
+              <div className="text-center p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1.5">Skipped</p>
+                <p className="text-2xl font-black text-amber-500">{copyResult.skipped ?? 0}</p>
               </div>
             </div>
 
@@ -1581,10 +1649,38 @@ const CopyTrading = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[11px] font-black uppercase tracking-tight truncate">{r.broker || r.childId || 'Child'}</span>
-                            <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${cfg.badge}`}>
-                              {cfg.label}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {r.latencyMs != null && r.latencyMs > 0 && (
+                                <span className={`text-[9px] font-black tabular-nums ${getLatencyClass(Number(r.latencyMs))}`}>
+                                  {r.latencyMs}ms
+                                </span>
+                              )}
+                              <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${cfg.badge}`}>
+                                {cfg.label}
+                              </span>
+                              {(r.skipReason || r.message) && String(r.status).toUpperCase() !== 'SUCCESS' && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                        <Info className="h-3 w-3" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[220px] text-[10px] font-bold leading-relaxed">
+                                      {r.skipReason === 'NO_POSITION'
+                                        ? "SELL skipped because this child did not have a copied BUY position for this instrument."
+                                        : r.skipReason || r.message}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                           </div>
+                          {(r.copyGroupId || r.orderKey) && (
+                            <p className="mt-0.5 text-[9px] font-mono text-muted-foreground truncate">
+                              {r.copyGroupId ? `Trade ID ${shortId(r.copyGroupId)}` : `Order ${r.orderKey}`}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );

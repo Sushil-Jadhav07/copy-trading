@@ -43,6 +43,7 @@ const normalizeUser = (payload = {}) => {
     name: source.name || source.fullName || fullName || source.username || 'User',
     email: source.email || '',
     phone: source.phone || source.mobile || '',
+    telegramChatId: source.telegramChatId || source.telegram_chat_id || '',
     role: pickRole(source.role || source.userType),
     status: source.status || '',
     createdAt: source.createdAt || source.created_at || null,
@@ -84,6 +85,12 @@ const getErrorMessage = (error, fallback) =>
   error?.response?.data?.details ||
   error?.message ||
   fallback;
+
+const getErrorCode = (error) =>
+  error?.response?.data?.error ||
+  error?.response?.data?.errorCode ||
+  error?.errorCode ||
+  null;
 
 const extractTwoFactorState = (payload = {}) => {
   const source = payload?.data || payload;
@@ -244,7 +251,9 @@ export const authService = {
       const response = await api.post('/api/v1/auth/verify-otp', { phone, otp, purpose }, { skipAuthRefresh: true });
       const payload = response?.data || {};
       if (payload?.success === false) {
-        throw new Error(payload?.message || payload?.error || 'OTP verification failed');
+        const error = new Error(payload?.message || payload?.error || 'OTP verification failed');
+        error.errorCode = payload?.error || payload?.errorCode || null;
+        throw error;
       }
       const token = extractAccessToken(response.data);
       const refreshToken = extractRefreshToken(response.data);
@@ -253,7 +262,9 @@ export const authService = {
       const user = response.data?.user ? normalizeUser(response.data) : await this.getMe();
       return { user };
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'OTP verification failed'));
+      const wrapped = new Error(getErrorMessage(error, 'OTP verification failed'));
+      wrapped.errorCode = getErrorCode(error);
+      throw wrapped;
     }
   },
 
@@ -274,6 +285,19 @@ export const authService = {
       );
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Registration failed'));
+    }
+  },
+
+  async validatePassword(password) {
+    try {
+      const response = await api.post(
+        '/api/v1/auth/validate-password',
+        { password },
+        { skipAuthRefresh: true },
+      );
+      return response.data?.data || response.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to validate password'));
     }
   },
 
@@ -327,6 +351,10 @@ export const authService = {
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to disable 2FA'));
     }
+  },
+
+  async disableTwoFactor({ password, otp }) {
+    return this.disable2FA(password, otp);
   },
 
   async logout() {

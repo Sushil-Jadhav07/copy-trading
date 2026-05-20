@@ -11,6 +11,12 @@ import { useAuth } from '@/context/AuthContext';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 
+const formatBrokerName = (value) => {
+  const broker = String(value || '').trim();
+  if (!broker || /^[\uFFFD\s-]+$/.test(broker)) return 'N/A';
+  return broker;
+};
+
 const Overview = () => {
   const { addToast } = useToast();
   const { user } = useAuth();
@@ -57,7 +63,7 @@ const Overview = () => {
   const childrenPerformance = children.map((child, index) => ({
     id: child.id || child.childId || index,
     name: child.name || child.childName || 'Unknown',
-    broker: child.broker || child.brokerName || '—',
+    broker: formatBrokerName(child.broker || child.brokerName),
     scaling: Number(child.multiplier || 1),
     pnl: Number(child.totalPnL || child.pnl || 0),
     status: String(child.status || (child.tradingEnabled ? 'ACTIVE' : 'PAUSED')).toUpperCase(),
@@ -164,7 +170,7 @@ const Overview = () => {
                   const pnlPct = base > 0 ? (pnl / base) * 100 : 0;
                   return (
                     <tr key={pos.id || `${symbol}-${idx}`} className="border-b border-border/30 last:border-b-0">
-                      <td className="px-3 py-2 text-sm font-medium">{symbol || '—'}</td>
+                      <td className="px-3 py-2 text-sm font-medium">{symbol || '-'}</td>
                       <td className="px-3 py-2 text-sm">{marketLabel}</td>
                       <td className={`px-3 py-2 text-sm font-semibold ${String(pos.type || '').toUpperCase() === 'BUY' ? 'text-success' : 'text-danger'}`}>
                         {String(pos.type || 'BUY').toUpperCase()}

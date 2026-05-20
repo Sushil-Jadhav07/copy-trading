@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Fingerprint, Phone, Shield, User, Users } from 'lucide-react';
+import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
 import { useAuth } from '@/context/AuthContext';
@@ -19,6 +19,7 @@ const Profile = () => {
     lastName: '',
     email: '',
     phone: '',
+    telegramChatId: '',
   });
   const [security, setSecurity] = useState({
     currentPassword: '',
@@ -83,6 +84,7 @@ const Profile = () => {
       lastName,
       email: user?.email || '',
       phone: user?.phone || '',
+      telegramChatId: user?.telegramChatId || '',
     });
   }, [user]);
 
@@ -110,6 +112,7 @@ const Profile = () => {
           lastName,
           email: latestUser?.email || '',
           phone: latestUser?.phone || '',
+          telegramChatId: latestUser?.telegramChatId || '',
         });
       } catch (error) {
         if (isMounted) {
@@ -139,6 +142,7 @@ const Profile = () => {
       await updateProfile({
         name: fullName,
         phone: settings.phone,
+        telegramChatId: settings.telegramChatId,
       });
       addToast('Profile saved successfully', 'success');
     } catch (error) {
@@ -352,6 +356,30 @@ const Profile = () => {
                       disabled={loadingProfile}
                     />
                   </div>
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <label className="block text-sm font-medium">Telegram Chat ID</label>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+                        settings.telegramChatId
+                          ? 'bg-emerald-500/10 text-emerald-500'
+                          : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {settings.telegramChatId ? 'Telegram Linked' : 'Not Linked'}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={settings.telegramChatId}
+                        onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value.replace(/[^\d-]/g, '') })}
+                        placeholder="123456789"
+                        className="w-full rounded-xl border border-black/10 bg-black/5 py-2.5 pl-10 pr-4 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                        disabled={loadingProfile}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">Use the chat ID returned by your Telegram bot or @userinfobot.</p>
+                  </div>
                 </div>
               </div>
 
@@ -417,6 +445,12 @@ const Profile = () => {
                     <span className="text-muted-foreground">Two-Factor Auth</span>
                     <span className={user?.twoFactorEnabled ? 'font-medium text-emerald-400' : 'font-medium text-amber-400'}>
                       {user?.twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                    <span className="text-muted-foreground">Telegram</span>
+                    <span className={user?.telegramChatId ? 'font-medium text-emerald-400' : 'font-medium text-amber-400'}>
+                      {user?.telegramChatId ? 'Linked' : 'Not Linked'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">

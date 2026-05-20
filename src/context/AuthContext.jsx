@@ -83,8 +83,12 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: 'Passwords do not match' };
     }
 
-    if (password.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters' };
+    if (
+      password.length < 8 ||
+      !/[0-9]/.test(password) ||
+      !/[^a-zA-Z0-9]/.test(password)
+    ) {
+      return { success: false, error: 'Password must be at least 8 characters and include a number and special character.' };
     }
 
     try {
@@ -175,7 +179,8 @@ export const AuthProvider = ({ children }) => {
         };
       }
       const retryAfter = data?.data?.retryAfter ?? null;
-      return { success: true, retryAfter };
+      const expiresIn = data?.data?.expiresIn ?? null;
+      return { success: true, retryAfter, expiresIn };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -188,7 +193,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       return { success: true, user: result.user };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, errorCode: error.errorCode || null };
     }
   }, []);
 

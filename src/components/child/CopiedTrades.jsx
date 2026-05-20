@@ -24,7 +24,7 @@ const fmtDateShort = (raw) => {
 };
 
 const CopiedTrades = () => {
-  const { trades: copiedTrades, loading, error } = useChildCopiedTrades();
+  const { trades: copiedTrades, loading, error, refetch } = useChildCopiedTrades();
   const { addToast } = useToast();
 
   const [filter, setFilter] = useState('All');
@@ -39,6 +39,13 @@ const CopiedTrades = () => {
   useEffect(() => {
     setTrades(Array.isArray(copiedTrades) ? copiedTrades : []);
   }, [copiedTrades]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      refetch();
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [refetch]);
 
   useEffect(() => {
     let sub = null;
@@ -82,7 +89,10 @@ const CopiedTrades = () => {
 
   const getSkipReason = (trade) => {
     if (String(trade.status).toUpperCase() !== 'SKIPPED') return '-';
-    return trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
+    const reason = trade.skipReason || trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
+    if (reason === 'NO_POSITION') return "SELL skipped because you did not have a copied BUY position for this instrument.";
+    if (reason === 'ZERO_QUANTITY') return 'Skipped because the scaled quantity rounded to zero.';
+    return reason;
   };
 
   const filtered = useMemo(() => {
@@ -93,18 +103,45 @@ const CopiedTrades = () => {
       const matchesStatus =
         filter === 'All' ||
         (filter === 'EXECUTED' && ['EXECUTED', 'SUCCESS'].includes(status)) ||
-        (filter === 'FAILED' && status === 'FAILED');
+        (filter === 'FAILED' && status === 'FAILED') ||
+        (filter === 'SKIPPED' && status === 'SKIPPED');
 
       if (!matchesStatus) return false;
 
       const instrument = String(trade.instrument || '').toLowerCase();
       const master = String(trade.master || trade.masterName || '').toLowerCase();
-      const ref = String(trade.reference || trade.id || '').toLowerCase();
+      const ref = String(trade.reference || trade.copyGroupId || trade.id || '').toLowerCase();
       const query = String(searchQuery || '').toLowerCase();
 
       return instrument.includes(query) || master.includes(query) || ref.includes(query);
     });
   }, [trades, filter, timeFilter, searchQuery]);
+
+  const groupedFiltered = useMemo(() => {
+    const groups = [];
+    const groupMap = new Map();
+
+    filtered.forEach((trade) => {
+      const groupId = trade.copyGroupId || `single-${trade.id || Math.random()}`;
+      if (!groupMap.has(groupId)) {
+        const group = { groupId, rows: [] };
+        groupMap.set(groupId, group);
+        groups.push(group);
+      }
+      groupMap.get(groupId).rows.push(trade);
+    });
+
+    let offset = 0;
+    return groups.map((group) => {
+      const withIndex = {
+        ...group,
+        startIndex: offset,
+        isCopyGroup: Boolean(group.rows[0]?.copyGroupId),
+      };
+      offset += group.rows.length;
+      return withIndex;
+    });
+  }, [filtered]);
 
   const executedCount = trades.filter((t) => ['EXECUTED', 'SUCCESS'].includes(String(t.status).toUpperCase())).length;
   const failedCount = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
@@ -123,7 +160,7 @@ const CopiedTrades = () => {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
-            {['All', 'EXECUTED', 'FAILED'].map((v) => (
+            {['All', 'EXECUTED', 'FAILED', 'SKIPPED'].map((v) => (
               <button
                 key={v}
                 onClick={() => setFilter(v)}
@@ -131,7 +168,7 @@ const CopiedTrades = () => {
                   filter === v ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {v === 'EXECUTED' ? 'Success' : v === 'FAILED' ? 'Failed' : 'All'}
+                {v === 'EXECUTED' ? 'Success' : v === 'FAILED' ? 'Failed' : v === 'SKIPPED' ? 'Skipped' : 'All'}
               </button>
             ))}
           </div>
@@ -193,6 +230,8 @@ const CopiedTrades = () => {
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Broker</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Entry</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">LTP</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">P&L</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Latency</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
@@ -200,7 +239,23 @@ const CopiedTrades = () => {
               </thead>
 
               <tbody className="divide-y divide-border/20">
-                {filtered.map((trade, idx) => {
+                {groupedFiltered.map((group) => (
+                  <React.Fragment key={group.groupId}>
+                    {group.isCopyGroup && (
+                      <tr className="bg-brand-purple/5">
+                        <td colSpan={12} className="px-6 py-2">
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-purple">
+                            <span>Copy Group</span>
+                            <span className="font-mono normal-case tracking-normal text-muted-foreground">{group.groupId}</span>
+                            <span className="rounded-full bg-black/5 px-2 py-0.5 text-muted-foreground dark:bg-white/5">
+                              {group.rows.length} trade{group.rows.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {group.rows.map((trade, groupIdx) => {
+                      const idx = group.startIndex + groupIdx;
                   const status = String(trade.status || '').toUpperCase();
                   const isExecuted = ['EXECUTED', 'SUCCESS'].includes(status);
                   const isFailed = status === 'FAILED';
@@ -211,6 +266,8 @@ const CopiedTrades = () => {
                   const side = String(trade.type || trade.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
                   const broker = trade.broker || trade.raw?.broker || '-';
                   const pnl = Number(trade.pnl || 0);
+                  const entry = Number(trade.entry || 0);
+                  const ltp = Number(trade.ltp || trade.current || 0);
                   const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : status || 'Pending';
                   const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
 
@@ -245,9 +302,14 @@ const CopiedTrades = () => {
                         </div>
                       </td>
                       <td className="px-6 py-5">
-                        <span className="text-xs font-black uppercase tracking-tight text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-1 rounded-lg border border-border/30">
-                          {trade.master || trade.masterName || 'Master'}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-black uppercase tracking-tight text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-1 rounded-lg border border-border/30">
+                            {trade.masterName || trade.master || 'Master'}
+                          </span>
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                            Copied from master
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-5">
                         <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
@@ -280,19 +342,26 @@ const CopiedTrades = () => {
                       </td>
                       <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
                       <td className="px-6 py-5 text-sm font-black">{qty}</td>
+                      <td className="px-6 py-5 text-sm font-black tabular-nums">{entry ? entry.toFixed(2) : '-'}</td>
+                      <td className="px-6 py-5 text-sm font-black tabular-nums">{ltp ? ltp.toFixed(2) : '-'}</td>
                       <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
                       </td>
                       <td className="px-6 py-5">
                         {trade.latencyMs != null && trade.latencyMs > 0 ? (
                           <div className="flex flex-col gap-1">
-                            <span className={`text-xs font-black tabular-nums ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                            <span className={`text-xs font-black tabular-nums ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 500 ? 'text-amber-500' : 'text-rose-500'}`}>
                               {trade.latencyMs}ms
                             </span>
                             <div className="flex flex-col gap-0.5">
-                              {trade.placedAt && (
+                              {trade.engineReceivedAt && (
                                 <span className="text-[9px] font-bold text-muted-foreground uppercase">
-                                  Placed: {new Date(trade.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  Engine: {new Date(trade.engineReceivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                              )}
+                              {(trade.childPlacedAt || trade.placedAt) && (
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                  Placed: {new Date(trade.childPlacedAt || trade.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                 </span>
                               )}
                               {trade.masterOrderTime && trade.masterTriggeredAt && (
@@ -309,7 +378,9 @@ const CopiedTrades = () => {
                       <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{fmtDateShort(trade.time)}</td>
                     </motion.tr>
                   );
-                })}
+                    })}
+                  </React.Fragment>
+                ))}
               </tbody>
             </table>
 

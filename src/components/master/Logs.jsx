@@ -38,11 +38,6 @@ const StatusPill = ({ status }) => {
   );
 };
 
-const MasterStatusPill = ({ status }) => {
-  const cfg = getStatusCfg(status);
-  return <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.cls}`}>{cfg.label}</span>;
-};
-
 const EmptyState = ({ icon: Icon = FileText, title = 'No logs found', sub = 'Logs will appear here once trades are copied' }) => (
   <div className="py-16 text-center">
     <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center mx-auto mb-3">
@@ -57,6 +52,12 @@ const formatDate = (value) => {
   if (!value) return 'N/A';
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? 'N/A' : d.toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+};
+
+const shortId = (value) => {
+  if (!value) return '-';
+  const text = String(value);
+  return text.length > 12 ? `${text.slice(0, 8)}...` : text;
 };
 
 const TABS = [
@@ -155,8 +156,9 @@ const Logs = () => {
     copyLogs.filter((l) =>
       (statusFilter === 'all' ||
         (statusFilter === 'success' && normalizeStatus(l.childStatus) === 'EXECUTED') ||
-        (statusFilter === 'failed' && normalizeStatus(l.childStatus) === 'FAILED')) &&
-      (!search || `${l.symbol || ''} ${l.childId || ''}`.toLowerCase().includes(search.toLowerCase())) &&
+        (statusFilter === 'failed' && normalizeStatus(l.childStatus) === 'FAILED') ||
+        (statusFilter === 'skipped' && normalizeStatus(l.childStatus) === 'SKIPPED')) &&
+      (!search || `${l.symbol || ''} ${l.childId || ''} ${l.childName || ''} ${l.masterName || ''} ${l.copyGroupId || ''}`.toLowerCase().includes(search.toLowerCase())) &&
       matchesTimeFilter(l.createdAt || l.timestamp || l.time)
     ),
     [copyLogs, search, timeFilter, statusFilter]);
@@ -208,7 +210,7 @@ const Logs = () => {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
-              {['Symbol', 'Side', 'Qty', 'Master ID', 'Master', 'Child', 'Latency', 'Skip Reason', 'Date'].map((h) => (
+              {['Symbol', 'Side', 'Qty', 'Trade ID', 'Child', 'Status', 'Latency', 'Skip Reason', 'Date'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -241,11 +243,18 @@ const Logs = () => {
                   </td>
                   <td className="px-4 py-3 text-sm">{log.qty || 0}</td>
                   <td className="px-4 py-3">
-                    <span className="text-[10px] font-mono text-muted-foreground bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[80px] inline-block" title={log.masterId}>
-                      {String(log.masterId || '—').slice(0, 8)}...
+                    <span className="text-[10px] font-mono text-muted-foreground bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[96px] inline-block" title={log.copyGroupId || log.masterId}>
+                      {shortId(log.copyGroupId || log.masterId)}
                     </span>
                   </td>
-                  <td className="px-4 py-3"><MasterStatusPill status={log.masterStatus} /></td>
+                  <td className="px-4 py-3">
+                    <div className="min-w-[120px]">
+                      <p className="text-xs font-black uppercase tracking-tight truncate">{log.childName || log.childId || 'Child'}</p>
+                      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                        Master: {log.masterName || 'You'}
+                      </p>
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <StatusPill status={log.childStatus} />
@@ -270,7 +279,7 @@ const Logs = () => {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className={`text-xs font-black tabular-nums cursor-help flex flex-col ${log.latencyMs < 200 ? 'text-emerald-500' : log.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
+                            <span className={`text-xs font-black tabular-nums cursor-help flex flex-col ${log.latencyMs < 200 ? 'text-emerald-500' : log.latencyMs < 500 ? 'text-amber-500' : 'text-rose-500'}`}>
                               {log.latencyMs}ms
                               {log.totalExecutionMs != null && (
                                 <span className="text-[9px] text-muted-foreground font-bold">Total: {log.totalExecutionMs}ms</span>
@@ -280,16 +289,16 @@ const Logs = () => {
                           <TooltipContent side="top" className="space-y-1.5 p-3">
                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/40 pb-1">Execution Timeline</p>
                             <div className="space-y-1 text-[10px]">
-                              {log.masterTriggeredAt && (
+                              {(log.masterTriggeredAt || log.engineReceivedAt) && (
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-muted-foreground">Triggered:</span>
-                                  <span className="font-bold">{new Date(log.masterTriggeredAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
+                                  <span className="text-muted-foreground">Engine:</span>
+                                  <span className="font-bold">{new Date(log.engineReceivedAt || log.masterTriggeredAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
                                 </div>
                               )}
-                              {log.placedAt && (
+                              {(log.childPlacedAt || log.placedAt) && (
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-muted-foreground">Placed:</span>
-                                  <span className="font-bold">{new Date(log.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
+                                  <span className="text-muted-foreground">Child placed:</span>
+                                  <span className="font-bold">{new Date(log.childPlacedAt || log.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
                                 </div>
                               )}
                               {log.completedAt && (
@@ -415,6 +424,7 @@ const Logs = () => {
               { key: 'all', label: 'All' },
               { key: 'success', label: 'Success' },
               { key: 'failed', label: 'Failed' },
+              { key: 'skipped', label: 'Skipped' },
             ].map((v) => (
               <button
                 key={v.key}

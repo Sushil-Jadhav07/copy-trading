@@ -31,9 +31,11 @@ const Login = () => {
   const [showPass, setShowPass]     = useState(false);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [otpCode, setOtpCode]       = useState('');
   const [otpSent, setOtpSent]       = useState(false);
   const [cooldown, setCooldown]     = useState(0);
+  const [otpExpiresIn, setOtpExpiresIn] = useState(0);
 
   /* ---------- redirect helper ---------- */
   const redirectAfterLogin = (user) => {
@@ -50,25 +52,41 @@ const Login = () => {
     return () => clearInterval(t);
   }, [cooldown]);
 
+  useEffect(() => {
+    if (otpExpiresIn <= 0) return;
+    const t = setInterval(() => setOtpExpiresIn((p) => Math.max(p - 1, 0)), 1000);
+    return () => clearInterval(t);
+  }, [otpExpiresIn]);
+
+  useEffect(() => {
+    if (!location.state?.message) return;
+    setSuccessMessage(location.state.message);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   /* ---------- Phone → Send OTP ---------- */
   const handlePhoneSend = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
     const fullPhone = `${form.countryCode}${form.phone}`;
+    if (!/^\+[1-9]\d{9,14}$/.test(fullPhone)) {
+      setError('Enter a valid phone number with country code.');
+      setLoading(false);
+      return;
+    }
     const res = await sendOtp(fullPhone);
     if (res.success) {
       setStep('otp-verify');
       setOtpSent(true);
-      setCooldown(res.retryAfter ?? 30);
+      setCooldown(res.retryAfter ?? 60);
+      setOtpExpiresIn(res.expiresIn ?? 300);
       setOtpCode('');
     } else {
       if (res.errorCode === 'RATE_LIMITED') {
         setError(`Too many requests. Please wait ${res.retryAfter ?? 60} seconds before trying again.`);
         if (res.retryAfter) setCooldown(res.retryAfter);
-      } else if (res.errorCode === 'PHONE_NOT_REGISTERED') {
-        setError('No account found with this phone number. Please register first.');
       } else {
-        setError(res.error || 'Failed to send OTP');
+        setError('We couldn\'t verify your credentials. Please check your details or use Forgot Password.');
       }
     }
     setLoading(false);
@@ -84,7 +102,12 @@ const Login = () => {
       if (res.user?.twoFactorEnabled) { setStep('2fa'); setOtpCode(''); }
       else                            { redirectAfterLogin(res.user); }
     } else {
-      setError(res.error || 'Invalid OTP');
+      const otpErrors = {
+        INVALID_OTP: 'Invalid OTP code.',
+        OTP_EXPIRED: 'OTP expired. Request a new code.',
+        TOO_MANY_ATTEMPTS: 'Too many attempts. Request a new OTP.',
+      };
+      setError(otpErrors[res.errorCode] || res.error || 'Invalid OTP');
     }
     setLoading(false);
   };
@@ -119,7 +142,8 @@ const Login = () => {
     setLoading(true); setError('');
     const res = await sendOtp(`${form.countryCode}${form.phone}`);
     if (res.success) {
-      setCooldown(res.retryAfter ?? 30);
+      setCooldown(res.retryAfter ?? 60);
+      setOtpExpiresIn(res.expiresIn ?? 300);
       setOtpSent(true);
     } else {
       setError(res.error || 'Failed to resend');
@@ -141,6 +165,12 @@ const Login = () => {
     `flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
       active ? '' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
     }`;
+
+  const formatOtpTimer = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds % 60;
+    return `${minutes}:${String(rest).padStart(2, '0')}`;
+  };
 
   const BtnSubmit = ({ disabled, children }) => (
     <motion.button
@@ -198,7 +228,7 @@ const Login = () => {
         >
           {/* Logo & Header */}
           <div className="text-center mb-8">
-            <div className="h-12 mb-6 flex justify-center">
+            <div className="h-16 mb-6 flex justify-center">
               <img src={logomain} alt="Logo" className="h-full w-auto object-contain drop-shadow-md" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 tracking-tight">
@@ -251,6 +281,11 @@ const Login = () => {
                 <form onSubmit={handleOtpVerify} className="space-y-5">
                   <OtpInput value={otpCode} onChange={setOtpCode} isDark={isDark} />
                   <div className="flex items-center justify-end text-xs">
+                    {otpExpiresIn > 0 && (
+                      <span className="mr-auto text-slate-400">
+                        Expires in {formatOtpTimer(otpExpiresIn)}
+                      </span>
+                    )}
                     <button type="button" onClick={handleResend} disabled={cooldown > 0}
                       className="text-emerald-400 hover:underline disabled:opacity-50 disabled:no-underline">
                       {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
@@ -279,86 +314,117 @@ const Login = () => {
                   ))}
                 </div>
 
-                {location.state?.message && !error && (
+                {successMessage && !error && (
                   <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm">
-                    {location.state.message}
+                    {successMessage}
                   </div>
                 )}
                 {error && <ErrorBox className="mb-6">{error}</ErrorBox>}
 
-                {/* Phone form */}
-                {loginMethod === 'phone' && (
-                  <form onSubmit={handlePhoneSend} className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Phone Number
-                      </label>
-                      <PhoneInput
-                        value={form.phone}
-                        onChange={(d) => setForm({ ...form, phone: d })}
-                        countryCode={form.countryCode}
-                        onCountryChange={(c) => setForm({ ...form, countryCode: c })}
-                        inputStyle={inputCls(isDark)}
-                        maxLength={10}
-                        required
-                        placeholder="10-digit number"
-                      />
-                    </div>
-                    <BtnSubmit>
-                      Send OTP <ArrowRight className="w-4 h-4 ml-1" />
-                    </BtnSubmit>
-                    <p className="text-center text-xs text-slate-500">
-                      A one-time code will be sent to your phone.
-                    </p>
-                  </form>
-                )}
+                <div style={{ minHeight: '160px' }}>
+                  <AnimatePresence mode="wait">
+                    {/* Phone form */}
+                    {loginMethod === 'phone' && (
+                      <motion.form
+                        key="phone-form"
+                        onSubmit={handlePhoneSend}
+                        className="space-y-5"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">
+                            Phone Number
+                          </label>
+                          <PhoneInput
+                            value={form.phone}
+                            onChange={(d) => setForm({ ...form, phone: d })}
+                            countryCode={form.countryCode}
+                            onCountryChange={(c) => setForm({ ...form, countryCode: c })}
+                            inputStyle={inputCls(isDark)}
+                            maxLength={10}
+                            required
+                            placeholder="10-digit number"
+                          />
+                        </div>
+                        <BtnSubmit>
+                          Send OTP <ArrowRight className="w-4 h-4 ml-1" />
+                        </BtnSubmit>
+                        <p className="text-center text-xs text-slate-500">
+                          A one-time code will be sent to your phone.
+                        </p>
+                      </motion.form>
+                    )}
 
-                {/* Email form */}
-                {loginMethod === 'email' && (
-                  <form onSubmit={handleEmailLogin} className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Email Address
-                      </label>
-                      <div className="relative group">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
-                        <input
-                          type="email" value={form.email}
-                          onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          placeholder="Enter your email"
-                          className={`${inputBase} pl-11 pr-4 py-3 bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:bg-white/10`}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-slate-300">Password</label>
-                        <button type="button" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                          onClick={() => navigate('/forgot-password')}>
-                          Forgot Password?
+                    {/* Email form */}
+                    {loginMethod === 'email' && (
+                      <motion.form
+                        key="email-form"
+                        onSubmit={handleEmailLogin}
+                        className="space-y-5"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">
+                            Email Address
+                          </label>
+                          <div className="relative group">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                            <input
+                              type="email" value={form.email}
+                              onChange={(e) => setForm({ ...form, email: e.target.value })}
+                              placeholder="Enter your email"
+                              className={`${inputBase} pl-11 pr-4 py-3 bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:bg-white/10`}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-slate-300">Password</label>
+                            <button type="button" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                              onClick={() => navigate('/forgot-password')}>
+                              Forgot Password?
+                            </button>
+                          </div>
+                          <div className="relative group">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                            <input
+                              type={showPass ? 'text' : 'password'} value={form.password}
+                              onChange={(e) => setForm({ ...form, password: e.target.value })}
+                              placeholder="Enter your password"
+                              className={`${inputBase} pl-11 pr-12 py-3 bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:bg-white/10`}
+                              required
+                            />
+                            <button type="button" onClick={() => setShowPass(!showPass)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                              {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                        <BtnSubmit>
+                          Sign In <ArrowRight className="w-4 h-4 ml-1" />
+                        </BtnSubmit>
+                        <div className="relative flex items-center my-2">
+                          <div className="flex-1 h-px bg-white/10" />
+                          <span className="px-3 text-xs text-slate-500">or</span>
+                          <div className="flex-1 h-px bg-white/10" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {/* TODO: Google OAuth */}}
+                          className="w-full py-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center gap-3 text-sm font-semibold text-white"
+                        >
+                          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                          Continue with Google
                         </button>
-                      </div>
-                      <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
-                        <input
-                          type={showPass ? 'text' : 'password'} value={form.password}
-                          onChange={(e) => setForm({ ...form, password: e.target.value })}
-                          placeholder="Enter your password"
-                          className={`${inputBase} pl-11 pr-12 py-3 bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:bg-white/10`}
-                          required
-                        />
-                        <button type="button" onClick={() => setShowPass(!showPass)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
-                          {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <BtnSubmit>
-                      Sign In <ArrowRight className="w-4 h-4 ml-1" />
-                    </BtnSubmit>
-                  </form>
-                )}
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+                </div>
 
                 <p className="mt-8 text-center text-sm text-slate-400">
                   New to Ascentra Capital?{' '}

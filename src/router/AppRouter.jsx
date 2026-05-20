@@ -39,6 +39,7 @@ import FindMasters from '@/components/child/FindMasters';
 import PnLDashboard from '@/components/child/PnLDashboard';
 import OptionsStatus from '@/components/child/OptionsStatus';
 import ChildOpenPositions from '@/components/child/OpenPositions';
+import RiskSettings from '@/components/child/RiskSettings';
 
 
 
@@ -161,6 +162,7 @@ const AppRouter = () => {
                 <Route path="child/positions" element={<ChildOpenPositions />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
                 <Route path="child/options-status" element={<OptionsStatus />} />
+                <Route path="child/risk-settings" element={<RiskSettings />} />
                 <Route path="child/profile" element={<Profile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
 

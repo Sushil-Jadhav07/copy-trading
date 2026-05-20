@@ -11,15 +11,6 @@ import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 
-const parseActive = (v) => {
-  if (v === true || v === 1) return true;
-  if (typeof v === 'string') {
-    const u = v.trim().toUpperCase();
-    return ['TRUE', '1', 'ACTIVE', 'SESSION_ACTIVE', 'CONNECTED', 'LOGGED_IN', 'AUTHORIZED'].includes(u);
-  }
-  return false;
-};
-
 const ChildOpenPositions = () => {
   const { addToast } = useToast();
 
@@ -33,6 +24,7 @@ const ChildOpenPositions = () => {
 
   // Positions
   const [positions, setPositions]           = useState([]);
+  const [positionsMeta, setPositionsMeta]   = useState({});
   const [loading, setLoading]               = useState(false);
   const [refreshing, setRefreshing]         = useState(false);
 
@@ -59,34 +51,15 @@ const ChildOpenPositions = () => {
   }, [addToast]);
 
   // ── 2. Check session + load positions whenever account changes ───────────────
-  const loadPositions = useCallback(async (accountId, silent = false) => {
-    if (!accountId) return;
+  const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
 
     try {
-      let isActive = false;
-      try {
-        const statusData = await brokerService.getAccountStatus(accountId);
-        isActive =
-          parseActive(statusData?.sessionActive) ||
-          parseActive(statusData?.isSessionActive) ||
-          parseActive(statusData?.status) ||
-          parseActive(statusData?.sessionStatus) ||
-          parseActive(statusData?.connectionHealth);
-      } catch {
-        isActive = true;
-      }
-
-      setSessionActive(isActive);
-
-      if (!isActive) {
-        setPositions([]);
-        return;
-      }
-
-      const data = await brokerService.getPositions(accountId);
-      setPositions(data);
+      const data = await childService.getPositions();
+      setPositionsMeta(data);
+      setPositions(Array.isArray(data.positions) ? data.positions : []);
+      setSessionActive(!data.errorCode);
     } catch (e) {
       const msg = e.message || '';
       if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('login')) {
@@ -103,12 +76,18 @@ const ChildOpenPositions = () => {
   }, [addToast]);
 
   useEffect(() => {
-    if (selectedAccountId) {
-      setSessionActive(null);
-      setPositions([]);
-      loadPositions(selectedAccountId);
-    }
+    setSessionActive(null);
+    setPositions([]);
+    loadPositions(selectedAccountId);
   }, [selectedAccountId, loadPositions]);
+
+  useEffect(() => {
+    if (sessionActive !== true) return undefined;
+    const interval = window.setInterval(() => {
+      loadPositions(selectedAccountId, true);
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [selectedAccountId, sessionActive, loadPositions]);
 
   // ── 3. WebSocket for real-time updates ──────────────────────────────────────
   useEffect(() => {
@@ -147,26 +126,10 @@ const ChildOpenPositions = () => {
     loadPositions(selectedAccountId, true);
   };
 
-  const totalUnrealized = positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
+  const totalUnrealized = Number.isFinite(Number(positionsMeta.totalPnl))
+    ? Number(positionsMeta.totalPnl)
+    : positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
   const selectedAccount = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
-
-  if (accounts.length === 0 && !loading && !sessionLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Monitor your live positions and Unrealized P&L</p>
-        </div>
-        <GlassCard>
-          <div className="py-16 text-center">
-            <WifiOff className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p className="text-sm font-medium">No broker accounts connected</p>
-            <p className="text-xs text-muted-foreground mt-1">Go to Demat Accounts and connect your broker first.</p>
-          </div>
-        </GlassCard>
-      </div>
-    );
-  }
 
   const showSessionWarning = sessionActive === false && !sessionLoading;
 
@@ -207,7 +170,11 @@ const ChildOpenPositions = () => {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-400">Broker session expired</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Your session has expired. Go to Demat Accounts and reconnect to see live positions.
+              {positionsMeta.error || 'Your broker session is not active. Go to Demat Accounts and connect your broker.'}
+              {' '}
+              <a href="/child/demat" className="underline text-brand-purple">
+                {positionsMeta.action === 'LOGIN_BROKER' ? 'Connect Broker' : 'Re-login to broker'}
+              </a>
             </p>
           </div>
         </div>
@@ -216,7 +183,7 @@ const ChildOpenPositions = () => {
       {sessionActive === true && (
         <div className="flex items-center gap-2 text-xs text-emerald-500">
           <Wifi className="w-3.5 h-3.5" />
-          <span>Live — reading positions from {selectedAccount?.broker || 'broker'}</span>
+          <span>Live - reading positions from {positionsMeta.brokerId || selectedAccount?.broker || 'broker'}; auto-refresh every 15s</span>
         </div>
       )}
 

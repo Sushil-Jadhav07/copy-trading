@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { normalizePosition } from '@/lib/broker';
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.error ||
@@ -207,6 +208,22 @@ const normalizeEarnings = (raw = {}) => ({
   })),
   raw,
 });
+
+const normalizePositionsPayload = (raw = {}) => {
+  const payload = raw?.data || raw || {};
+  const positions = Array.isArray(payload.positions) ? payload.positions : [];
+  return {
+    positions: positions.map(normalizePosition),
+    totalPnl: toNumber(payload.totalPnl, payload.totalPnL),
+    count: toNumber(payload.count, positions.length),
+    brokerAccountId: payload.brokerAccountId || '',
+    brokerId: payload.brokerId || '',
+    error: payload.error || '',
+    errorCode: payload.errorCode || null,
+    action: payload.action || null,
+    raw: payload,
+  };
+};
 
 export const masterService = {
   async getChildren() {
@@ -453,6 +470,15 @@ export const masterService = {
       return res.data?.logs || res.data || [];
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
+    }
+  },
+
+  async getPositions() {
+    try {
+      const res = await api.get('/api/v1/master/positions');
+      return normalizePositionsPayload(res.data);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load positions'));
     }
   },
 };

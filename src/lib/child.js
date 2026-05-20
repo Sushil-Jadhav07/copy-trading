@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { normalizePosition } from '@/lib/broker';
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.error ||
@@ -125,10 +126,11 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   // API returns: { id, masterId, childId, type, status, message, broker, reference, createdAt }
   id: raw.id || raw.tradeId || `trade-${index}`,
   master: raw.master || raw.masterName || raw.masterId || 'Unknown',
+  masterName: raw.masterName || raw.master || '',
   // Prefer instrument/symbol; fallback to reference.
   instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.reference || 'N/A',
   // API "type" = REPLICATED/MANUAL, not BUY/SELL
-  type: String(raw.type || raw.side || raw.action || 'REPLICATED').toUpperCase(),
+  type: String(raw.type || raw.side || raw.action || raw.tradeType || 'REPLICATED').toUpperCase(),
   masterQty: toNumber(raw.masterQty, raw.quantity, raw.masterQuantity),
   myQty: toNumber(raw.myQty, raw.childQty, raw.quantityCopied),
   entry: toNumber(raw.entry, raw.entryPrice, raw.avgPrice),
@@ -141,12 +143,16 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   broker: raw.broker || raw.brokerName || '',
   message: raw.message || '',
   reference: raw.reference || '',
+  copyGroupId: raw.copyGroupId || raw.copy_group_id || '',
+  skipReason: raw.skipReason || raw.skip_reason || null,
   masterId: raw.masterId || '',
   childId: raw.childId || '',
   // Latency & timing fields (added May 2026 API update)
   latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : null,
-  placedAt: raw.placedAt || null,
-  masterTriggeredAt: raw.masterTriggeredAt || raw.triggeredAt || null,
+  engineReceivedAt: raw.engineReceivedAt || raw.engine_received_at || null,
+  childPlacedAt: raw.childPlacedAt || raw.child_placed_at || null,
+  placedAt: raw.childPlacedAt || raw.placedAt || raw.time || null,
+  masterTriggeredAt: raw.masterTriggeredAt || raw.masterPlacedAt || raw.triggeredAt || null,
   masterOrderTime: raw.masterOrderTime || raw.rawMaster?.order_timestamp || raw.rawMaster?.orderTime || raw.rawMaster?.timestamp || null,
   exchange: raw.exchange || '',
   segment: raw.segment || '',
@@ -203,6 +209,22 @@ const normalizeChildAnalytics = (raw = {}) => {
       failedReplications: toNumber(masterComparison.failedReplications, raw.failedReplications),
     },
     raw,
+  };
+};
+
+const normalizePositionsPayload = (raw = {}) => {
+  const payload = raw?.data || raw || {};
+  const positions = Array.isArray(payload.positions) ? payload.positions : [];
+  return {
+    positions: positions.map(normalizePosition),
+    totalPnl: toNumber(payload.totalPnl, payload.totalPnL),
+    count: toNumber(payload.count, positions.length),
+    brokerAccountId: payload.brokerAccountId || '',
+    brokerId: payload.brokerId || '',
+    error: payload.error || '',
+    errorCode: payload.errorCode || null,
+    action: payload.action || null,
+    raw: payload,
   };
 };
 
@@ -342,6 +364,15 @@ export const childService = {
       return res.data?.logs || res.data || [];
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
+    }
+  },
+
+  async getPositions() {
+    try {
+      const res = await api.get('/api/v1/child/positions');
+      return normalizePositionsPayload(res.data);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load positions'));
     }
   },
 };

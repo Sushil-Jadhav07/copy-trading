@@ -220,6 +220,7 @@ const childSidebarItems = [
         { to: '/child/positions', icon: Activity, label: 'Open Positions' },
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
         { to: '/child/options-status', icon: Target, label: 'Options Status' },
+        { to: '/child/risk-settings', icon: Shield, label: 'Risk Settings' },
         { to: '/child/pnl-dashboard', icon: BarChart2, label: 'P&L Dashboard' },
       ],
     },

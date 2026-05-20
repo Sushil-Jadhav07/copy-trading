@@ -33,6 +33,7 @@ const OpenPositions = () => {
 
   // Positions
   const [positions, setPositions]           = useState([]);
+  const [positionsMeta, setPositionsMeta]   = useState({});
   const [loading, setLoading]               = useState(false);
   const [refreshing, setRefreshing]         = useState(false);
 
@@ -68,12 +69,20 @@ const OpenPositions = () => {
   }, [addToast]);
 
   // ── 2. Check session + load positions whenever account changes ───────────────
-  const loadPositions = useCallback(async (accountId, silent = false) => {
-    if (!accountId) return;
+  const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
 
     try {
+      const liveData = await masterService.getPositions().catch(() => null);
+      if (liveData) {
+        setPositionsMeta(liveData);
+        setPositions(Array.isArray(liveData.positions) ? liveData.positions : []);
+        setSessionActive(!liveData.errorCode);
+        return;
+      }
+
+      const accountId = _accountId;
       let isActive = false;
       try {
         const statusData = await brokerService.getAccountStatus(accountId);
@@ -121,12 +130,20 @@ const OpenPositions = () => {
   }, [addToast]);
 
   useEffect(() => {
-    if (selectedAccountId) {
-      setSessionActive(null);
-      setPositions([]);
-      loadPositions(selectedAccountId);
-    }
+    setSessionActive(null);
+    setPositions([]);
+    loadPositions(selectedAccountId);
   }, [selectedAccountId, loadPositions]);
+
+  useEffect(() => {
+    if (sessionActive !== true) return undefined;
+
+    const interval = window.setInterval(() => {
+      loadPositions(selectedAccountId, true);
+    }, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [selectedAccountId, sessionActive, loadPositions]);
 
   // ── 3. WebSocket for real-time updates ──────────────────────────────────────
   useEffect(() => {
@@ -136,7 +153,26 @@ const OpenPositions = () => {
       (event, data) => {
         if (['POSITION_UPDATE', 'position_update', 'POSITION_UPDATED', 'MESSAGE'].includes(event)) {
           setPositions((prev) =>
-            prev.map((p) => (p.symbol === data?.symbol ? { ...p, ...data } : p))
+            prev.map((p) => {
+              const incomingSymbol = data?.symbol || data?.instrument || data?.tradingSymbol || data?.tradingsymbol;
+              if (p.symbol !== incomingSymbol && p.instrument !== incomingSymbol) return p;
+
+              const ltp = Number(data?.ltp ?? data?.lastPrice ?? data?.last_price ?? p.ltp ?? 0);
+              const avgPrice = Number(data?.avgPrice ?? data?.averagePrice ?? data?.average_price ?? p.avgPrice ?? 0);
+              const qty = Number(data?.qty ?? data?.quantity ?? p.qty ?? 0);
+              const rawPnl = data?.unrealizedPnl ?? data?.unrealized_pnl ?? data?.unrealised ?? data?.pnl ?? data?.m2m ?? data?.mtm;
+              const nextPnl = rawPnl != null
+                ? Number(rawPnl)
+                : (ltp && avgPrice && qty ? (ltp - avgPrice) * Math.abs(qty) : p.unrealizedPnl);
+
+              return {
+                ...p,
+                ...data,
+                ltp,
+                avgPrice,
+                unrealizedPnl: Number.isFinite(nextPnl) ? nextPnl : p.unrealizedPnl,
+              };
+            })
           );
         }
       },
@@ -188,12 +224,14 @@ const OpenPositions = () => {
   };
 
   // ── Derived stats ─────────────────────────────────────────────────────────────
-  const totalUnrealized   = positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
+  const totalUnrealized   = Number.isFinite(Number(positionsMeta.totalPnl))
+    ? Number(positionsMeta.totalPnl)
+    : positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
   const followersCount    = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
   const selectedAccount   = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
 
   // ── Render: No accounts ───────────────────────────────────────────────────────
-  if (accounts.length === 0 && !loading && !sessionLoading) {
+  if (accounts.length === 0 && !loading && !sessionLoading && positionsMeta.errorCode === 'LEGACY_NO_ACCOUNTS') {
     return (
       <div className="space-y-6">
         <div>
@@ -254,9 +292,11 @@ const OpenPositions = () => {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-400">Broker session expired</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Your {selectedAccount?.broker || 'broker'} session has expired. Go to{' '}
-              <a href="/master/demat" className="underline text-brand-purple">Demat Accounts</a>{' '}
-              and click <strong>Connect</strong> to re-login and see live positions.
+              {positionsMeta.error || `Your ${selectedAccount?.broker || 'broker'} session is not active.`}
+              {' '}
+              <a href="/master/demat" className="underline text-brand-purple">
+                {positionsMeta.action === 'LOGIN_BROKER' ? 'Connect Broker' : 'Re-login to broker'}
+              </a>
             </p>
           </div>
         </div>
@@ -266,7 +306,7 @@ const OpenPositions = () => {
       {sessionActive === true && (
         <div className="flex items-center gap-2 text-xs text-emerald-500">
           <Wifi className="w-3.5 h-3.5" />
-          <span>Live — reading positions from {selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}</span>
+          <span>Live - reading positions from {positionsMeta.brokerId || selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}; auto-refresh every 15s</span>
         </div>
       )}
 

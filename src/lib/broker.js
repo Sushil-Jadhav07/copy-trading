@@ -100,31 +100,52 @@ const extractOrdersList = (payload) => {
   return [];
 };
 
-const normalizePosition = (raw = {}, index = 0) => ({
-  id: raw.id || raw.positionId || raw.position_id || `${raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'position'}-${index}`,
-  symbol: raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
-  instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
-  type: String(
+const firstNumber = (...values) => {
+  for (const value of values) {
+    if (value == null || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+export const normalizePosition = (raw = {}, index = 0) => {
+  const qty = firstNumber(raw.qty, raw.quantity, raw.netQuantity, raw.net_quantity, raw.positionQty, raw.position_qty) ?? 0;
+  const ltp = firstNumber(raw.ltp, raw.lastPrice, raw.last_price, raw.lastTradedPrice, raw.last_traded_price, raw.currentPrice, raw.current_price, raw.net_price) ?? 0;
+  const avgPrice = firstNumber(raw.avgPrice, raw.averagePrice, raw.average_price, raw.entryPrice, raw.entry_price, raw.net_price, raw.debit_price, raw.credit_price) ?? 0;
+  const rawPnl = firstNumber(raw.unrealizedPnl, raw.unrealized_pnl, raw.unrealised, raw.unrealised_pnl, raw.unrealized, raw.m2m, raw.mtM, raw.mtm, raw.pnl, raw.realised_pnl);
+  const type = String(
     raw.type ||
     raw.side ||
     raw.transactionType ||
     raw.transaction_type ||
     raw.action ||
-    ((Number(raw.debit_quantity ?? 0) > 0 || Number(raw.quantity ?? 0) > 0) ? 'BUY' : 'SELL')
-  ).toUpperCase(),
-  qty: Number(raw.qty ?? raw.quantity ?? raw.netQuantity ?? raw.net_quantity ?? raw.positionQty ?? raw.position_qty ?? 0),
-  pnl: Number(raw.pnl ?? raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.unrealised ?? raw.m2m ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
-  unrealizedPnl: Number(raw.unrealizedPnl ?? raw.unrealized_pnl ?? raw.unrealised ?? raw.m2m ?? raw.pnl ?? raw.mtM ?? raw.mtm ?? raw.realised_pnl ?? 0),
-  ltp: Number(raw.ltp ?? raw.lastPrice ?? raw.last_price ?? raw.currentPrice ?? raw.current_price ?? raw.net_price ?? 0),
-  avgPrice: Number(raw.avgPrice ?? raw.averagePrice ?? raw.average_price ?? raw.entryPrice ?? raw.entry_price ?? raw.net_price ?? raw.debit_price ?? raw.credit_price ?? 0),
-  entry: Number(raw.entry ?? raw.entryPrice ?? raw.entry_price ?? raw.averagePrice ?? raw.average_price ?? raw.net_price ?? raw.debit_price ?? raw.credit_price ?? 0),
-  current: Number(raw.current ?? raw.currentPrice ?? raw.current_price ?? raw.ltp ?? raw.lastPrice ?? raw.last_price ?? raw.net_price ?? 0),
-  change: Number(raw.change ?? raw.changePct ?? raw.change_pct ?? raw.pnlPercent ?? raw.pnl_percent ?? 0),
-  exchange: raw.exchange || raw.exch || raw.exchange_code || '',
-  market: raw.market || raw.segment || '',
-  children: raw.children || raw.copiedAccounts || [],
-  raw,
-});
+    ((Number(raw.debit_quantity ?? 0) > 0 || qty > 0) ? 'BUY' : 'SELL')
+  ).toUpperCase();
+  const calculatedPnl = ltp && avgPrice && qty
+    ? (type === 'SELL' ? (avgPrice - ltp) : (ltp - avgPrice)) * Math.abs(qty)
+    : 0;
+  const pnl = rawPnl ?? calculatedPnl;
+
+  return {
+    id: raw.id || raw.positionId || raw.position_id || `${raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'position'}-${index}`,
+    symbol: raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
+    instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
+    type,
+    qty,
+    pnl,
+    unrealizedPnl: pnl,
+    ltp,
+    avgPrice,
+    entry: firstNumber(raw.entry, raw.entryPrice, raw.entry_price, raw.averagePrice, raw.average_price, raw.net_price, raw.debit_price, raw.credit_price) ?? avgPrice,
+    current: firstNumber(raw.current, raw.currentPrice, raw.current_price, raw.ltp, raw.lastPrice, raw.last_price, raw.net_price) ?? ltp,
+    change: firstNumber(raw.change, raw.changePct, raw.change_pct, raw.pnlPercent, raw.pnl_percent) ?? (avgPrice ? ((ltp - avgPrice) / avgPrice) * 100 : 0),
+    exchange: raw.exchange || raw.exch || raw.exchange_code || '',
+    market: raw.market || raw.segment || '',
+    children: raw.children || raw.copiedAccounts || [],
+    raw,
+  };
+};
 
 // ─── Signal normalizer ────────────────────────────────────────────────────────
 const normalizeSignal = (raw = {}) => ({

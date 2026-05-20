@@ -25,6 +25,30 @@ export const riskService = {
     }
   },
 
+  async updateRules(body) {
+    try {
+      const payload = {
+        maxTradesPerDay: Number(body?.maxTradesPerDay ?? 50),
+        maxOpenPositions: Number(body?.maxOpenPositions ?? 20),
+        maxCapitalExposure: Number(body?.maxCapitalExposure ?? 80),
+        marginCheckEnabled: Boolean(body?.marginCheckEnabled),
+      };
+      const res = await api.put('/api/v1/risk/rules', payload);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to update risk rules'));
+    }
+  },
+
+  async checkRisk() {
+    try {
+      const res = await api.get('/api/v1/risk/check');
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to check risk status'));
+    }
+  },
+
   async checkMargin({ brokerAccountId, instrument, quantity, orderType }) {
     try {
       const res = await api.get('/api/v1/risk/margin-check', {

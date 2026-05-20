@@ -15,6 +15,7 @@ const TradeTimeline = ({ data }) => {
 
   const {
     masterTriggeredAt,
+    engineReceivedAt,
     masterOrderTime, // Broker's original order timestamp
     completedAt,
     totalExecutionMs,
@@ -82,7 +83,7 @@ const TradeTimeline = ({ data }) => {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className={`text-[10px] font-black uppercase tracking-widest ${isExternal ? 'text-amber-500' : 'text-brand-purple'}`}>
-              {isExternal ? 'Platform Detected' : 'Master Triggered'}
+            {isExternal ? 'Platform Detected' : 'Master Triggered'}
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs font-bold text-foreground">
@@ -96,7 +97,7 @@ const TradeTimeline = ({ data }) => {
             </div>
           </div>
           <p className="text-[10px] font-mono text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded border border-border/40">
-            {formatTime(masterTriggeredAt || data.detectedAt || data.time)}
+            {formatTime(masterTriggeredAt || engineReceivedAt || data.detectedAt || data.time)}
           </p>
         </div>
       </div>
@@ -107,6 +108,13 @@ const TradeTimeline = ({ data }) => {
           const latency = result.latencyMs || 0;
           const isSlow = latency > 400;
           const isFast = latency > 0 && latency < 200;
+          const resultStatus = String(result.status || '').toUpperCase();
+          const dotClass =
+            resultStatus === 'SUCCESS'
+              ? 'bg-emerald-500'
+              : resultStatus === 'SKIPPED'
+                ? 'bg-amber-500'
+                : 'bg-rose-500';
 
           return (
             <motion.div 
@@ -117,7 +125,7 @@ const TradeTimeline = ({ data }) => {
               className="relative"
             >
               <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-background border-2 border-border z-10 flex items-center justify-center">
-                <div className={`w-1 h-1 rounded-full ${result.status === 'SUCCESS' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <div className={`w-1 h-1 rounded-full ${dotClass}`} />
               </div>
               
               <div className="flex items-start justify-between gap-4">
@@ -141,7 +149,7 @@ const TradeTimeline = ({ data }) => {
                       </span>
                     )}
                     <p className="text-[10px] font-mono text-muted-foreground">
-                      {formatTime(result.placedAt)}
+                      {formatTime(result.childPlacedAt || result.placedAt)}
                     </p>
                   </div>
                   {result.scaledQty && (
