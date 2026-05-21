@@ -34,6 +34,7 @@ const BrokerStatus = () => {
           latency: Number(service.latency || service.responseTime || 0),
           uptime: service.uptime || service.availability || 'N/A',
           ordersToday: Number(service.ordersToday || service.requestsToday || 0),
+          lastOrderDetectedAt: service.lastOrderDetectedAt || service.lastOrderAt || null,
         }))
       );
       setLastRefresh(new Date().toLocaleTimeString('en-IN'));
@@ -141,6 +142,15 @@ const BrokerStatus = () => {
                     <p className="text-xs text-muted-foreground">Orders Today</p>
                     <p className="mt-1 text-sm font-semibold">{service.ordersToday || 0}</p>
                   </div>
+                </div>
+                <div className="rounded-lg bg-black/5 p-3 dark:bg-white/5">
+                  <p className="text-xs text-muted-foreground">Last Order</p>
+                  <p className="mt-1 text-xs font-bold text-muted-foreground">
+                    {service.lastOrderDetectedAt
+                      ? new Date(service.lastOrderDetectedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                      : <span className="text-rose-400">Never</span>
+                    }
+                  </p>
                 </div>
               </div>
             </div>

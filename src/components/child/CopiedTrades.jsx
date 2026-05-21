@@ -90,8 +90,18 @@ const CopiedTrades = () => {
   const getSkipReason = (trade) => {
     if (String(trade.status).toUpperCase() !== 'SKIPPED') return '-';
     const reason = trade.skipReason || trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
-    if (reason === 'NO_POSITION') return "SELL skipped because you did not have a copied BUY position for this instrument.";
-    if (reason === 'ZERO_QUANTITY') return 'Skipped because the scaled quantity rounded to zero.';
+    if (reason === 'NO_POSITION') return 'SELL skipped - you had no copied BUY position for this instrument.';
+    if (reason === 'NO_POSITION_LIVE_CHECK') return 'SELL skipped - live broker position check shows your account is flat. Your broker may have auto-squared your position at 3:20 PM.';
+    if (reason === 'ZERO_QUANTITY') return 'Skipped - scaled quantity rounded to zero. Increase your multiplier.';
+    if (reason === 'BELOW_LOT_SIZE') return `Skipped - your scaled quantity is below 1 lot. Increase your multiplier to trade this instrument.`;
+    if (reason === 'DAILY_LIMIT_REACHED') return 'Skipped - you have reached your maximum trades per day limit.';
+    if (reason === 'MAX_POSITIONS_REACHED') return 'Skipped - you have reached your maximum open positions limit.';
+    if (reason === 'CAPITAL_EXPOSURE_EXCEEDED') return 'Skipped - this trade would exceed your maximum capital exposure limit.';
+    if (reason === 'MARGIN_CHECK_FAILED') return 'Skipped - insufficient margin in your broker account for this trade.';
+    if (reason === 'SEGMENT_DISABLED') return 'Skipped - this segment (e.g. F&O) is disabled for your account.';
+    if (reason === 'SELL_NOT_ALLOWED') return 'Skipped - your Copy Direction is set to BUY only. Enable SELL copying in Risk Settings to copy SELL orders.';
+    if (reason === 'SESSION_INACTIVE') return 'Skipped - your broker session is expired. Please re-login to your broker account.';
+    if (reason === 'SYMBOL_TRANSLATION_FAILED') return 'Skipped - could not translate this symbol for your broker. Contact support.';
     return reason;
   };
 
@@ -104,7 +114,8 @@ const CopiedTrades = () => {
         filter === 'All' ||
         (filter === 'EXECUTED' && ['EXECUTED', 'SUCCESS'].includes(status)) ||
         (filter === 'FAILED' && status === 'FAILED') ||
-        (filter === 'SKIPPED' && status === 'SKIPPED');
+        (filter === 'SKIPPED' && status === 'SKIPPED') ||
+        (filter === 'PARTIAL' && ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(status));
 
       if (!matchesStatus) return false;
 
@@ -146,6 +157,7 @@ const CopiedTrades = () => {
   const executedCount = trades.filter((t) => ['EXECUTED', 'SUCCESS'].includes(String(t.status).toUpperCase())).length;
   const failedCount = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
   const skippedCount = trades.filter((t) => String(t.status).toUpperCase() === 'SKIPPED').length;
+  const partialCount = trades.filter((t) => ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(String(t.status).toUpperCase())).length;
   const pendingCount = trades.filter((t) => ['PENDING', 'QUEUED', 'PROCESSING'].includes(String(t.status).toUpperCase())).length;
 
   return (
@@ -160,7 +172,7 @@ const CopiedTrades = () => {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
-            {['All', 'EXECUTED', 'FAILED', 'SKIPPED'].map((v) => (
+            {['All', 'EXECUTED', 'FAILED', 'SKIPPED', 'PARTIAL'].map((v) => (
               <button
                 key={v}
                 onClick={() => setFilter(v)}
@@ -168,7 +180,7 @@ const CopiedTrades = () => {
                   filter === v ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {v === 'EXECUTED' ? 'Success' : v === 'FAILED' ? 'Failed' : v === 'SKIPPED' ? 'Skipped' : 'All'}
+                {v === 'PARTIAL' ? 'Partial' : v === 'EXECUTED' ? 'Success' : v === 'FAILED' ? 'Failed' : v === 'SKIPPED' ? 'Skipped' : 'All'}
               </button>
             ))}
           </div>
@@ -217,6 +229,7 @@ const CopiedTrades = () => {
               <span className="text-emerald-500">Executed ({executedCount})</span>
               <span className="text-rose-500">Failed ({failedCount})</span>
               <span className="text-amber-500">Skipped ({skippedCount})</span>
+              <span className="text-brand-blue">Partial ({partialCount})</span>
               <span className="text-muted-foreground">Pending ({pendingCount})</span>
             </div>
 
@@ -231,6 +244,7 @@ const CopiedTrades = () => {
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Broker</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Entry</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Trigger</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">LTP</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">P&L</th>
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Latency</th>
@@ -243,7 +257,7 @@ const CopiedTrades = () => {
                   <React.Fragment key={group.groupId}>
                     {group.isCopyGroup && (
                       <tr className="bg-brand-purple/5">
-                        <td colSpan={12} className="px-6 py-2">
+                        <td colSpan={13} className="px-6 py-2">
                           <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-purple">
                             <span>Copy Group</span>
                             <span className="font-mono normal-case tracking-normal text-muted-foreground">{group.groupId}</span>
@@ -260,6 +274,7 @@ const CopiedTrades = () => {
                   const isExecuted = ['EXECUTED', 'SUCCESS'].includes(status);
                   const isFailed = status === 'FAILED';
                   const isSkipped = status === 'SKIPPED';
+                  const isPartial = ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(status);
 
                   const symbol = (trade.instrument && trade.instrument !== 'N/A') ? trade.instrument : (trade.reference || 'UNKNOWN');
                   const qty = trade.myQty ?? trade.masterQty ?? 0;
@@ -268,7 +283,7 @@ const CopiedTrades = () => {
                   const pnl = Number(trade.pnl || 0);
                   const entry = Number(trade.entry || 0);
                   const ltp = Number(trade.ltp || trade.current || 0);
-                  const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : status || 'Pending';
+                  const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : isPartial ? 'Partial' : status || 'Pending';
                   const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
 
                   return (
@@ -298,6 +313,21 @@ const CopiedTrades = () => {
                                 {trade.segment}
                               </span>
                             )}
+                            {(() => {
+                              const s = String(trade.instrument || '').toUpperCase();
+                              const itype = s.endsWith('CE') ? 'CE' : s.endsWith('PE') ? 'PE' : s.includes('FUT') ? 'FUT' : 'EQ';
+                              const cfg = {
+                                CE: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                                PE: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+                                FUT: 'bg-brand-blue/10 text-brand-blue border-brand-blue/20',
+                                EQ: 'bg-black/5 text-muted-foreground border-border/30 dark:bg-white/5',
+                              }[itype];
+                              return (
+                                <span className={`text-[8px] font-bold px-1 py-0.5 rounded border uppercase ${cfg}`}>
+                                  {itype}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -319,7 +349,7 @@ const CopiedTrades = () => {
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-black ${
-                            isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : 'text-muted-foreground'
+                            isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : isPartial ? 'text-brand-blue' : 'text-muted-foreground'
                           }`}>
                             {childLabel}
                           </span>
@@ -343,6 +373,14 @@ const CopiedTrades = () => {
                       <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
                       <td className="px-6 py-5 text-sm font-black">{qty}</td>
                       <td className="px-6 py-5 text-sm font-black tabular-nums">{entry ? entry.toFixed(2) : '-'}</td>
+                      <td className="px-6 py-5 text-sm font-black tabular-nums text-muted-foreground">
+                        {(['SL', 'SL-M', 'SL_M', 'STOPLOSS', 'STOPLOSS_LIMIT', 'STOPLOSS_MARKET'].includes(String(trade.orderType || trade.raw?.orderType || '').toUpperCase()))
+                          ? (Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || trade.raw?.triggerprice || 0) > 0
+                              ? Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || 0).toFixed(2)
+                              : '-')
+                          : '-'
+                        }
+                      </td>
                       <td className="px-6 py-5 text-sm font-black tabular-nums">{ltp ? ltp.toFixed(2) : '-'}</td>
                       <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}

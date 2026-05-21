@@ -58,6 +58,24 @@ const normalizeBrokerAccount = (raw = {}) => {
     pnl: Number(raw.pnl || raw.totalPnL || raw.dayPnL || 0),
     positions: Number(raw.positions || raw.positionCount || 0),
     orders: Number(raw.orders || raw.orderCount || 0),
+    tokenExpiresAt: raw.tokenExpiresAt || raw.expiresAt || null,
+    tokenExpiresInHours: (() => {
+      const exp = raw.tokenExpiresAt || raw.expiresAt;
+      if (!exp) return null;
+      return Math.round((new Date(exp).getTime() - Date.now()) / 3600000);
+    })(),
+    isTokenExpiringSoon: (() => {
+      const exp = raw.tokenExpiresAt || raw.expiresAt;
+      if (!exp) return false;
+      const hours = Math.round((new Date(exp).getTime() - Date.now()) / 3600000);
+      return hours >= 0 && hours < 24;
+    })(),
+    isTokenExpired: (() => {
+      const exp = raw.tokenExpiresAt || raw.expiresAt;
+      if (!exp) return false;
+      return new Date(exp).getTime() < Date.now();
+    })(),
+    lastOrderDetectedAt: raw.lastOrderDetectedAt || raw.lastOrderAt || null,
     raw,
   };
 };
@@ -143,6 +161,20 @@ export const normalizePosition = (raw = {}, index = 0) => {
     exchange: raw.exchange || raw.exch || raw.exchange_code || '',
     market: raw.market || raw.segment || '',
     children: raw.children || raw.copiedAccounts || [],
+    triggerPrice: (
+      raw.triggerPrice != null ? Number(raw.triggerPrice) :
+      raw.trigger_price != null ? Number(raw.trigger_price) :
+      raw.stopPrice != null ? Number(raw.stopPrice) :
+      raw.triggerprice != null ? Number(raw.triggerprice) : 0
+    ),
+    orderType: raw.orderType || raw.order_type || raw.type || '',
+    instrumentType: (() => {
+      const s = String(raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || '').toUpperCase();
+      if (s.endsWith('CE')) return 'CE';
+      if (s.endsWith('PE')) return 'PE';
+      if (s.includes('FUT')) return 'FUT';
+      return 'EQ';
+    })(),
     raw,
   };
 };

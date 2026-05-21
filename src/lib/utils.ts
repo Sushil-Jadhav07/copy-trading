@@ -58,3 +58,17 @@ export const formatRelativeTime = (value?: string | number | Date | null) => {
 
   return `${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, ${timeStr}`
 }
+
+export function getInstrumentType(symbol: string): 'EQ' | 'FUT' | 'CE' | 'PE' {
+  if (!symbol) return 'EQ';
+  const s = symbol.toUpperCase();
+  if (s.endsWith('CE')) return 'CE';
+  if (s.endsWith('PE')) return 'PE';
+  if (s.includes('FUT')) return 'FUT';
+  return 'EQ';
+}
+
+export function isTradeFilled(status: string): boolean {
+  const s = String(status || '').toUpperCase();
+  return ['FILLED', 'COMPLETE', 'TRADED', 'EXECUTED', 'COMPLETED', 'SUCCESS'].includes(s);
+}

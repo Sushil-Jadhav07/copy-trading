@@ -332,6 +332,29 @@ const OpenPositions = () => {
         ))}
       </div>
 
+      {(() => {
+        const now = new Date();
+        const day = now.getDay();
+        const isWeekday = day >= 1 && day <= 5;
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const afterAutoSquare = isWeekday && (hours > 15 || (hours === 15 && minutes >= 20));
+        if (!afterAutoSquare) return null;
+        return (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+            <svg className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div>
+              <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Auto-Square-Off May Have Occurred</p>
+              <p className="text-[11px] text-amber-500/80 mt-0.5">
+                Brokers auto-square all MIS/intraday positions at 3:20 PM. Your positions below may not reflect the actual state of your broker account. Refresh to see current live positions.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Table */}
       <GlassCard noPadding>
         {(loading || sessionLoading) ? (

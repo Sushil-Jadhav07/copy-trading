@@ -282,6 +282,72 @@ const Profile = () => {
         ))}
       </div>
 
+      {Array.isArray(user?.brokerAccounts) && user.brokerAccounts.length > 0 && (
+        <GlassCard>
+          <p className="mb-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Broker Sessions</p>
+          <div className="space-y-3">
+            {user.brokerAccounts.map((account) => {
+              const tokenExpiresAt = account.tokenExpiresAt || account.expiresAt;
+              const expiresInHours = tokenExpiresAt
+                ? Math.round((new Date(tokenExpiresAt).getTime() - Date.now()) / 3600000)
+                : null;
+              const isExpired = expiresInHours !== null && expiresInHours < 0;
+              const isExpiringSoon = expiresInHours !== null && expiresInHours >= 0 && expiresInHours < 24;
+              const sessionActive = account.sessionActive ?? account.isActive ?? false;
+
+              return (
+                <div
+                  key={account.accountId || account.id}
+                  className="flex flex-col gap-2 rounded-xl border border-border/50 bg-black/5 dark:bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-xs font-black ${
+                      isExpired ? 'bg-rose-500/10 text-rose-500' :
+                      isExpiringSoon ? 'bg-amber-500/10 text-amber-500' :
+                      sessionActive ? 'bg-emerald-500/10 text-emerald-500' :
+                      'bg-muted/10 text-muted-foreground'
+                    }`}>
+                      {String(account.broker || account.brokerName || '?').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">{account.broker || account.brokerName || account.brokerId}</p>
+                      <p className="text-xs text-muted-foreground">{account.clientId || account.nickname || account.accountId}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {isExpired ? (
+                      <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-rose-500">
+                        Session Expired
+                      </span>
+                    ) : isExpiringSoon ? (
+                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-500">
+                        Expires in {expiresInHours}h
+                      </span>
+                    ) : sessionActive ? (
+                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-border bg-muted/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        Not Connected
+                      </span>
+                    )}
+                    {(isExpired || isExpiringSoon || !sessionActive) && (
+                      <a
+                        href="/platform/dematconnected"
+                        className="rounded-xl bg-brand-purple px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white hover:opacity-90 transition-opacity"
+                      >
+                        Re-Login
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </GlassCard>
+      )}
+
       <GlassCard>
         {activeTab === 'profile' && (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
