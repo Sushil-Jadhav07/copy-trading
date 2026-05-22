@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee, Settings } from 'lucide-react';
+import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee, Settings, ShieldAlert, Play, Pause } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -9,12 +9,27 @@ import DivSelect from '@/components/shared/DivSelect';
 import { useChildSubscriptions } from '@/hooks/useChild';
 import { useBrokerAccounts } from '@/hooks/useBroker';
 import { childService } from '@/lib/child';
+import { engineService } from '@/lib/engine';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
 const clampMultiplier = (value) => Math.min(10, Math.max(0.01, Number(value) || 1));
 const normalizeStatus = (status) => String(status || 'INACTIVE').toUpperCase();
+
+// Skip reason labels from spec
+const SKIP_REASON_LABELS = {
+  ZERO_QUANTITY: 'Scaled quantity is zero',
+  SUB_LOT_SIZE: 'Below one F&O lot after scaling',
+  RISK_LIMIT: 'Risk limit reached',
+  MAX_CAPITAL_EXPOSURE: 'Margin utilization too high',
+  NO_POSITION: 'No copied buy position for this symbol',
+  INSUFFICIENT_POSITION: 'Not enough shares to sell',
+  SELL_BLOCKED: 'Sell not allowed for this subscription',
+  MARKET_CLOSED: 'Intraday copy blocked after market close',
+  COPY_PAUSED: 'Copy trading paused',
+  SESSION_EXPIRED: 'Broker session expired',
+};
 
 const getStatusMeta = (status) => {
   switch (normalizeStatus(status)) {
@@ -32,6 +47,13 @@ const getStatusMeta = (status) => {
   }
 };
 
+// Copy sides options (fallback if metadata not loaded)
+const DEFAULT_COPY_SIDES_OPTIONS = [
+  { id: 'BUY_ONLY', label: 'Buy only (safe default)', description: 'Copy BUY; SELL only with copied BUY + live position' },
+  { id: 'BUY_AND_SELL', label: 'Buy and sell', description: 'Copy BUY and SELL when child has live long qty' },
+  { id: 'MIRROR', label: 'Mirror master', description: 'Copy all sides; optional naked short if allowShortSelling' },
+];
+
 const MyMasters = () => {
   const { addToast } = useToast();
   const { subscriptions, setSubscriptions, loading, refetch, error } = useChildSubscriptions();
@@ -40,13 +62,25 @@ const MyMasters = () => {
   const [unfollowModal, setUnfollowModal] = useState(false);
   const [selectedMaster, setSelectedMaster] = useState(null);
   const [togglingMasters, setTogglingMasters] = useState({});
+  const [copySidesOptions, setCopySidesOptions] = useState(DEFAULT_COPY_SIDES_OPTIONS);
 
   // Settings Modal State
   const [settingsModal, setSettingsModal] = useState(false);
   const [editingMaster, setEditingMaster] = useState(null);
   const [newBrokerAccountId, setNewBrokerAccountId] = useState('');
   const [newMultiplier, setNewMultiplier] = useState(1.0);
+  const [newCopySides, setNewCopySides] = useState('BUY_ONLY');
+  const [newAllowShortSelling, setNewAllowShortSelling] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Load engine metadata for copySidesOptions
+  useEffect(() => {
+    engineService.getMetadata().then((meta) => {
+      if (Array.isArray(meta?.copySidesOptions) && meta.copySidesOptions.length > 0) {
+        setCopySidesOptions(meta.copySidesOptions);
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleBulkUnfollow = async () => {
     if (!masters.length) {
@@ -86,6 +120,9 @@ const MyMasters = () => {
           allocation: s.allocation || s.allocationAmount || 0,
           status,
           copyingStatus: status,
+          // New fields from May 2026 API
+          copySides: s.copySides || s.raw?.copySides || 'BUY_ONLY',
+          allowShortSelling: Boolean(s.allowShortSelling ?? s.raw?.allowShortSelling ?? false),
         };
       })
     );
@@ -141,6 +178,8 @@ const MyMasters = () => {
     setEditingMaster(master);
     setNewBrokerAccountId(master.brokerAccountId || '');
     setNewMultiplier(master.multiplier || 1.0);
+    setNewCopySides(master.copySides || 'BUY_ONLY');
+    setNewAllowShortSelling(Boolean(master.allowShortSelling));
     setSettingsModal(true);
   };
 
@@ -155,8 +194,10 @@ const MyMasters = () => {
 
     const brokerChanged = newBrokerAccountId && newBrokerAccountId !== editingMaster.brokerAccountId;
     const scalingChanged = newMultiplier !== editingMaster.multiplier;
+    const copySidesChanged = newCopySides !== editingMaster.copySides;
+    const allowShortChanged = newAllowShortSelling !== editingMaster.allowShortSelling;
 
-    if (!brokerChanged && !scalingChanged) {
+    if (!brokerChanged && !scalingChanged && !copySidesChanged && !allowShortChanged) {
       addToast('No changes to save', 'info');
       setSavingSettings(false);
       setSettingsModal(false);
@@ -183,11 +224,26 @@ const MyMasters = () => {
       );
     }
 
+    // NEW: Update copySides / allowShortSelling via PATCH /child/subscriptions/copy-settings
+    if (copySidesChanged || allowShortChanged) {
+      tasks.push(
+        childService
+          .updateCopySettings({
+            masterId: editingMaster.id,
+            copySides: newCopySides,
+            allowShortSelling: newAllowShortSelling,
+          })
+          .then(() => ({ type: 'copySides', success: true }))
+          .catch((e) => ({ type: 'copySides', success: false, message: e.message }))
+      );
+    }
+
     try {
       const results = await Promise.all(tasks);
 
       const brokerResult = results.find((r) => r.type === 'broker');
       const scalingResult = results.find((r) => r.type === 'scaling');
+      const copySidesResult = results.find((r) => r.type === 'copySides');
 
       if (brokerResult?.success) {
         addToast('Broker account switched successfully', 'success');
@@ -206,6 +262,12 @@ const MyMasters = () => {
         addToast('Scaling factor updated', 'success');
       } else if (scalingResult && !scalingResult.success) {
         addToast(scalingResult.message || 'Failed to update scaling', 'error');
+      }
+
+      if (copySidesResult?.success) {
+        addToast('Copy settings updated', 'success');
+      } else if (copySidesResult && !copySidesResult.success) {
+        addToast(copySidesResult.message || 'Failed to update copy settings', 'error');
       }
 
       const allFailed = results.every((r) => !r.success);
@@ -243,6 +305,12 @@ const MyMasters = () => {
 
   const totalPnL = masters.reduce((sum, m) => sum + m.totalPnL, 0);
   const active = masters.filter((m) => normalizeStatus(m.status) === 'ACTIVE').length;
+
+  // Helper: get display label for copySides value
+  const getCopySidesLabel = (val) => {
+    const opt = copySidesOptions.find((o) => o.id === val);
+    return opt?.label || val || 'Buy only';
+  };
 
   return (
     <div className="space-y-6">
@@ -367,6 +435,14 @@ const MyMasters = () => {
                     </div>
                   ))}
 
+                  {/* Copy Sides display */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Copy Mode</span>
+                    <span className="text-xs font-semibold text-brand-purple">
+                      {getCopySidesLabel(master.copySides)}
+                    </span>
+                  </div>
+
                   {isPending ? (
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Multiplier</span>
@@ -456,7 +532,7 @@ const MyMasters = () => {
         </div>
       </Modal>
 
-      {/* Settings Modal */}
+      {/* Settings Modal — now includes Copy Sides + Allow Short Selling */}
       <Modal
         isOpen={settingsModal}
         onClose={() => setSettingsModal(false)}
@@ -470,6 +546,8 @@ const MyMasters = () => {
                 Note: This subscription is pending master approval
               </div>
             )}
+
+            {/* Broker Account */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Broker Account</label>
               <DivSelect
@@ -484,11 +562,12 @@ const MyMasters = () => {
               <p className="text-[10px] text-muted-foreground">Trades will be copied to this account</p>
               {newBrokerAccountId && newBrokerAccountId !== editingMaster?.brokerAccountId && (
                 <p className="text-xs text-amber-400 mt-1">
-                  ⚡ Broker account will be switched instantly - no need to unsubscribe
+                  ⚡ Broker account will be switched instantly
                 </p>
               )}
             </div>
 
+            {/* Multiplier */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Multiplier (Scaling)</label>
               <div className="flex items-center gap-4">
@@ -508,6 +587,69 @@ const MyMasters = () => {
                 <span className="text-[10px] text-muted-foreground">10x (Aggressive)</span>
               </div>
             </div>
+
+            {/* NEW: Copy Sides picker */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>
+              <div className="space-y-2">
+                {copySidesOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setNewCopySides(opt.id);
+                      if (opt.id !== 'MIRROR') setNewAllowShortSelling(false);
+                    }}
+                    className={`w-full text-left rounded-xl border p-3 transition-all text-sm ${
+                      newCopySides === opt.id
+                        ? 'border-brand-purple/50 bg-brand-purple/10 text-foreground'
+                        : 'border-border/50 bg-black/5 dark:bg-white/5 text-muted-foreground hover:border-brand-purple/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{opt.label}</span>
+                      <span className={`h-3 w-3 rounded-full border-2 ${
+                        newCopySides === opt.id ? 'border-brand-purple bg-brand-purple' : 'border-muted-foreground/40'
+                      }`} />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">{opt.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* NEW: Allow Short Selling (only for MIRROR mode) */}
+            {newCopySides === 'MIRROR' && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">Allow Short Selling</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Enable naked short positions in MIRROR mode</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newAllowShortSelling}
+                      onChange={(e) => setNewAllowShortSelling(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-11 h-6 rounded-full transition-colors peer-checked:bg-amber-500 ${
+                      newAllowShortSelling ? 'bg-amber-500' : 'bg-muted-foreground/30'
+                    }`}>
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        newAllowShortSelling ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </div>
+                  </label>
+                </div>
+                {newAllowShortSelling && (
+                  <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
+                    <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>Short positions can result in unlimited losses. Use only if you understand the risk.</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button

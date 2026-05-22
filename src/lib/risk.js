@@ -16,9 +16,10 @@ export const riskService = {
     }
   },
 
-  async getExposure() {
+  async getExposure(brokerAccountId) {
     try {
-      const res = await api.get('/api/v1/risk/exposure');
+      const params = brokerAccountId ? { brokerAccountId } : {};
+      const res = await api.get('/api/v1/risk/exposure', { params });
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Failed to fetch risk exposure'));
@@ -32,7 +33,6 @@ export const riskService = {
         maxOpenPositions: Number(body?.maxOpenPositions ?? 20),
         maxCapitalExposure: Number(body?.maxCapitalExposure ?? 80),
         marginCheckEnabled: Boolean(body?.marginCheckEnabled),
-        allowedSides: body?.allowedSides ?? 'BUY_ONLY',
       };
       const res = await api.put('/api/v1/risk/rules', payload);
       return res.data?.data || res.data;
@@ -41,12 +41,55 @@ export const riskService = {
     }
   },
 
-  async checkRisk() {
+  async checkRisk(brokerAccountId) {
     try {
-      const res = await api.get('/api/v1/risk/check');
+      const params = brokerAccountId ? { brokerAccountId } : {};
+      const res = await api.get('/api/v1/risk/check', { params });
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Failed to check risk status'));
+    }
+  },
+
+  // NEW: Full risk status dashboard card
+  async getStatus(brokerAccountId) {
+    try {
+      const params = brokerAccountId ? { brokerAccountId } : {};
+      const res = await api.get('/api/v1/risk/status', { params });
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to fetch risk status'));
+    }
+  },
+
+  // NEW: Pre-check a hypothetical trade
+  async checkTrade(body, brokerAccountId) {
+    try {
+      const params = brokerAccountId ? { brokerAccountId } : {};
+      const res = await api.post('/api/v1/risk/check-trade', body, { params });
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Pre-trade risk check failed'));
+    }
+  },
+
+  // NEW: Emergency pause copying
+  async pauseCopying(body = {}) {
+    try {
+      const res = await api.post('/api/v1/risk/pause', body);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to pause copying'));
+    }
+  },
+
+  // NEW: Resume copying
+  async resumeCopying() {
+    try {
+      const res = await api.post('/api/v1/risk/resume');
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to resume copying'));
     }
   },
 

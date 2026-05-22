@@ -29,6 +29,7 @@ import Logs from '@/components/master/Logs';
 import FollowRequests from '@/components/master/FollowRequests';
 import PnLAnalytics from '@/components/master/PnLAnalytics';
 import MasterOptionsStatus from '@/components/master/OptionsStatus';
+import LatencyHistory from '@/components/master/LatencyHistory';
 // ──────────────────────────────────────────────────────────
 
 // Child Components
@@ -40,6 +41,7 @@ import PnLDashboard from '@/components/child/PnLDashboard';
 import OptionsStatus from '@/components/child/OptionsStatus';
 import ChildOpenPositions from '@/components/child/OpenPositions';
 import RiskSettings from '@/components/child/RiskSettings';
+import ChildTradeTimeline from '@/components/child/TradeTimeline';
 
 
 
@@ -145,6 +147,7 @@ const AppRouter = () => {
                 <Route path="master/demat/:accountId" element={<DematDetailWrapper />} />
                 <Route path="master/copy-trading" element={<CopyTrading />} />
                 <Route path="master/follow-requests" element={<FollowRequests />} />
+                <Route path="master/latency-history" element={<LatencyHistory />} />
                 <Route path="master/logs" element={<Logs />} />
                 <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
                 <Route path="master/options-status" element={<MasterOptionsStatus />} />
@@ -161,6 +164,7 @@ const AppRouter = () => {
                 <Route path="child/my-masters" element={<MyMasters />} />
                 <Route path="child/positions" element={<ChildOpenPositions />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
+                <Route path="child/trade-timeline" element={<ChildTradeTimeline />} />
                 <Route path="child/options-status" element={<OptionsStatus />} />
                 <Route path="child/risk-settings" element={<RiskSettings />} />
                 <Route path="child/profile" element={<Profile />} />

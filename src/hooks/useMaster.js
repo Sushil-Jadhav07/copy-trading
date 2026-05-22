@@ -122,6 +122,30 @@ export const useMasterTradeHistory = () => {
   return { trades, loading, error, refetch: load };
 };
 
+export const useMasterTradePnl = () => {
+  const [tradePnl, setTradePnl] = useState({ summary: {}, trades: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setTradePnl(await masterService.getTradePnl());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { tradePnl, loading, error, refetch: load };
+};
+
 export const usePendingFollowCount = () => {
   const [count, setCount] = useState(0);
 

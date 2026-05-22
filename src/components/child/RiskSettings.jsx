@@ -8,6 +8,10 @@ import {
   Save,
   Shield,
   SlidersHorizontal,
+  Pause,
+  Play,
+  Clock,
+  TrendingUp,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
@@ -111,10 +115,11 @@ const RiskSettings = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const [rulesResponse, statusResponse, exposureResponse] = await Promise.all([
+      const [rulesResponse, statusResponse, exposureResponse, fullStatusResponse] = await Promise.all([
         riskService.getRules().catch(() => DEFAULT_RULES),
         riskService.checkRisk().catch(() => ({ allowed: true, reason: null })),
         riskService.getExposure().catch(() => null),
+        riskService.getStatus().catch(() => null),
       ]);
 
       setRules({
@@ -124,10 +129,24 @@ const RiskSettings = () => {
         allowedSides: rulesResponse?.allowedSides || 'BUY_ONLY',
       });
       setRiskStatus({
-        allowed: Boolean(statusResponse?.allowed ?? true),
-        reason: statusResponse?.reason || null,
+        allowed: Boolean((fullStatusResponse ?? statusResponse)?.allowed ?? true),
+        reason: (fullStatusResponse ?? statusResponse)?.reason || null,
+        marginBlocked: Boolean(fullStatusResponse?.marginBlocked),
+        copyPaused: Boolean(fullStatusResponse?.copyPaused),
+        pausedUntil: fullStatusResponse?.pausedUntil || null,
+        tradesToday: fullStatusResponse?.tradesToday ?? null,
+        tradesRemaining: fullStatusResponse?.tradesRemaining ?? null,
+        openPositions: fullStatusResponse?.openPositions ?? null,
+        positionsRemaining: fullStatusResponse?.positionsRemaining ?? null,
       });
-      setExposure(exposureResponse);
+      setExposure(exposureResponse || {
+        totalCapital: fullStatusResponse?.totalFunds,
+        deployedCapital: fullStatusResponse?.usedMargin,
+        exposurePercent: fullStatusResponse?.marginUtilizationPct,
+        openPositions: fullStatusResponse?.openPositions,
+        tradesPlacedToday: fullStatusResponse?.tradesToday,
+        marginAvailable: fullStatusResponse?.availableMargin,
+      });
     } catch (error) {
       addToast(error.message || 'Unable to load risk settings', 'error');
     } finally {
@@ -168,15 +187,47 @@ const RiskSettings = () => {
   const refreshStatus = async () => {
     setChecking(true);
     try {
-      const response = await riskService.checkRisk();
-      setRiskStatus({
-        allowed: Boolean(response?.allowed ?? true),
-        reason: response?.reason || null,
-      });
+      const [checkRes, statusRes] = await Promise.all([
+        riskService.checkRisk().catch(() => null),
+        riskService.getStatus().catch(() => null),
+      ]);
+      const resp = statusRes || checkRes;
+      setRiskStatus((prev) => ({
+        ...prev,
+        allowed: Boolean(resp?.allowed ?? true),
+        reason: resp?.reason || null,
+        marginBlocked: Boolean(resp?.marginBlocked),
+        copyPaused: Boolean(resp?.copyPaused),
+        pausedUntil: resp?.pausedUntil || null,
+        tradesToday: resp?.tradesToday ?? prev.tradesToday,
+        tradesRemaining: resp?.tradesRemaining ?? prev.tradesRemaining,
+        openPositions: resp?.openPositions ?? prev.openPositions,
+        positionsRemaining: resp?.positionsRemaining ?? prev.positionsRemaining,
+      }));
     } catch (error) {
       addToast(error.message || 'Unable to refresh risk status', 'error');
     } finally {
       setChecking(false);
+    }
+  };
+
+  const handlePauseCopying = async () => {
+    try {
+      await riskService.pauseCopying({ reason: 'Manual pause via Risk Settings' });
+      setRiskStatus((prev) => ({ ...prev, copyPaused: true }));
+      addToast('Copy trading paused', 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to pause', 'error');
+    }
+  };
+
+  const handleResumeCopying = async () => {
+    try {
+      await riskService.resumeCopying();
+      setRiskStatus((prev) => ({ ...prev, copyPaused: false, pausedUntil: null }));
+      addToast('Copy trading resumed', 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to resume', 'error');
     }
   };
 
@@ -251,6 +302,24 @@ const RiskSettings = () => {
               {riskStatus.allowed ? 'Risk OK' : 'Limit Reached'}
             </span>
           </div>
+          {/* Pause / Resume buttons */}
+          {riskStatus.copyPaused ? (
+            <button
+              onClick={handleResumeCopying}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-emerald-500 transition-colors hover:bg-emerald-500/20"
+            >
+              <Play className="h-4 w-4" />
+              Resume Copying
+            </button>
+          ) : (
+            <button
+              onClick={handlePauseCopying}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 transition-colors hover:bg-amber-500/20"
+            >
+              <Pause className="h-4 w-4" />
+              Pause Copying
+            </button>
+          )}
           <button
             onClick={refreshStatus}
             disabled={checking}
@@ -262,7 +331,31 @@ const RiskSettings = () => {
         </div>
       </div>
 
-      {riskStatus.reason && (
+      {/* Red banner for blocked or margin issues */}
+      {(riskStatus.marginBlocked || !riskStatus.allowed) && (
+        <div className="flex items-start gap-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {riskStatus.marginBlocked
+              ? 'Copy trading blocked — margin utilization has exceeded your maximum capital exposure limit.'
+              : 'Risk limit reached — copies are blocked until your limits are within range.'}
+          </span>
+        </div>
+      )}
+
+      {riskStatus.copyPaused && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-500">
+          <Pause className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Copy trading is currently paused.
+            {riskStatus.pausedUntil && ` Resumes at ${new Date(riskStatus.pausedUntil).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}.`}
+            {' '}
+            <button onClick={handleResumeCopying} className="underline font-black">Resume now</button>
+          </span>
+        </div>
+      )}
+
+      {riskStatus.reason && !riskStatus.marginBlocked && riskStatus.allowed && (
         <div className="flex items-start gap-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-500">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{riskStatus.reason}</span>

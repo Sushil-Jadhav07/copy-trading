@@ -87,22 +87,35 @@ const CopiedTrades = () => {
     return trade.message || trade.raw?.message || trade.raw?.error || trade.raw?.errorMessage || trade.raw?.reason || 'Order failed (reason not provided by API)';
   };
 
+  // Skip reason labels — aligned with May 2026 API spec skipReasons
+  const SKIP_REASON_UI_MAP = {
+    ZERO_QUANTITY: 'Scaled quantity is zero — increase your multiplier.',
+    SUB_LOT_SIZE: 'Below one F&O lot after scaling — increase multiplier.',
+    RISK_LIMIT: 'Risk limit reached — daily trades or position limit hit.',
+    MAX_CAPITAL_EXPOSURE: 'Margin utilization too high — reduce exposure.',
+    NO_POSITION: 'No copied BUY position for this symbol — SELL skipped.',
+    INSUFFICIENT_POSITION: 'Not enough shares to sell at current quantity.',
+    SELL_BLOCKED: 'Sell not allowed for this subscription (BUY_ONLY mode).',
+    MARKET_CLOSED: 'Intraday copy blocked — market closed after 15:20 IST.',
+    COPY_PAUSED: 'Copy trading is currently paused.',
+    SESSION_EXPIRED: 'Broker session expired — please re-login.',
+    // Legacy reasons (kept for backward compat)
+    NO_POSITION_LIVE_CHECK: 'SELL skipped - live position check shows flat. Broker may have auto-squared at 3:20 PM.',
+    BELOW_LOT_SIZE: 'Scaled quantity is below 1 lot. Increase your multiplier.',
+    DAILY_LIMIT_REACHED: 'Daily trade limit reached.',
+    MAX_POSITIONS_REACHED: 'Max open positions limit reached.',
+    CAPITAL_EXPOSURE_EXCEEDED: 'This trade would exceed your capital exposure limit.',
+    MARGIN_CHECK_FAILED: 'Insufficient margin for this trade.',
+    SEGMENT_DISABLED: 'This segment (e.g. F&O) is disabled for your account.',
+    SELL_NOT_ALLOWED: 'Copy Direction is BUY_ONLY — enable SELL in Risk Settings.',
+    SESSION_INACTIVE: 'Broker session expired — please re-login.',
+    SYMBOL_TRANSLATION_FAILED: 'Could not translate this symbol for your broker.',
+  };
+
   const getSkipReason = (trade) => {
     if (String(trade.status).toUpperCase() !== 'SKIPPED') return '-';
     const reason = trade.skipReason || trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
-    if (reason === 'NO_POSITION') return 'SELL skipped - you had no copied BUY position for this instrument.';
-    if (reason === 'NO_POSITION_LIVE_CHECK') return 'SELL skipped - live broker position check shows your account is flat. Your broker may have auto-squared your position at 3:20 PM.';
-    if (reason === 'ZERO_QUANTITY') return 'Skipped - scaled quantity rounded to zero. Increase your multiplier.';
-    if (reason === 'BELOW_LOT_SIZE') return `Skipped - your scaled quantity is below 1 lot. Increase your multiplier to trade this instrument.`;
-    if (reason === 'DAILY_LIMIT_REACHED') return 'Skipped - you have reached your maximum trades per day limit.';
-    if (reason === 'MAX_POSITIONS_REACHED') return 'Skipped - you have reached your maximum open positions limit.';
-    if (reason === 'CAPITAL_EXPOSURE_EXCEEDED') return 'Skipped - this trade would exceed your maximum capital exposure limit.';
-    if (reason === 'MARGIN_CHECK_FAILED') return 'Skipped - insufficient margin in your broker account for this trade.';
-    if (reason === 'SEGMENT_DISABLED') return 'Skipped - this segment (e.g. F&O) is disabled for your account.';
-    if (reason === 'SELL_NOT_ALLOWED') return 'Skipped - your Copy Direction is set to BUY only. Enable SELL copying in Risk Settings to copy SELL orders.';
-    if (reason === 'SESSION_INACTIVE') return 'Skipped - your broker session is expired. Please re-login to your broker account.';
-    if (reason === 'SYMBOL_TRANSLATION_FAILED') return 'Skipped - could not translate this symbol for your broker. Contact support.';
-    return reason;
+    return SKIP_REASON_UI_MAP[reason] || reason || 'Skipped (reason not provided)';
   };
 
   const filtered = useMemo(() => {

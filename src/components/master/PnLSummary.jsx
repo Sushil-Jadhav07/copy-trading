@@ -1,18 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
 import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
-import { useMasterAnalytics } from '@/hooks/useMaster';
+import { useMasterAnalytics, useMasterTradePnl } from '@/hooks/useMaster';
 import { formatCurrency } from '@/lib/utils';
+import { useToast } from '@/components/shared/Toast';
 
 const PnLSummary = () => {
+  const { addToast } = useToast();
   const { analytics } = useMasterAnalytics();
+  const { tradePnl, error: tradePnlError } = useMasterTradePnl();
   const monthlyPnL = analytics.pnl || analytics.pnlSummary || [];
-  const totalPnL = monthlyPnL.reduce((sum, m) => sum + m.netPnL, 0);
-  const totalTrades = monthlyPnL.reduce((sum, m) => sum + m.trades, 0);
-  const avgWinRate = monthlyPnL.length
+  const summary = tradePnl?.summary || {};
+  const totalPnLFromSummary = Number(summary.totalRealisedPnl || 0) + Number(summary.totalUnrealisedPnl || 0);
+  const totalPnL = totalPnLFromSummary || monthlyPnL.reduce((sum, m) => sum + Number(m.netPnL || 0), 0);
+  const totalTrades = Number(summary.totalTrades || 0) || monthlyPnL.reduce((sum, m) => sum + Number(m.trades || 0), 0);
+  const avgWinRate = Number(summary.winRate || 0) || (monthlyPnL.length
     ? monthlyPnL.reduce((sum, m) => sum + (m.winRate || 0), 0) / monthlyPnL.length
-    : 0;
+    : 0);
+
+  useEffect(() => {
+    if (tradePnlError) addToast(tradePnlError, 'error');
+  }, [tradePnlError, addToast]);
 
   const columns = [
     { header: 'Month', accessor: 'month' },
@@ -65,6 +74,27 @@ const PnLSummary = () => {
         <GlassCard>
           <p className="text-sm text-muted-foreground">Avg Win Rate</p>
           <p className="text-2xl font-bold">{avgWinRate.toFixed(1)}%</p>
+        </GlassCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <GlassCard>
+          <p className="text-sm text-muted-foreground">Realised P&L</p>
+          <p className={`text-xl font-bold ${summary.totalRealisedPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+            {summary.totalRealisedPnl >= 0 ? '+' : ''}{formatCurrency(summary.totalRealisedPnl || 0)}
+          </p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-sm text-muted-foreground">Unrealised P&L</p>
+          <p className={`text-xl font-bold ${summary.totalUnrealisedPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+            {summary.totalUnrealisedPnl >= 0 ? '+' : ''}{formatCurrency(summary.totalUnrealisedPnl || 0)}
+          </p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-sm text-muted-foreground">Today P&L</p>
+          <p className={`text-xl font-bold ${summary.todayPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+            {summary.todayPnl >= 0 ? '+' : ''}{formatCurrency(summary.todayPnl || 0)}
+          </p>
         </GlassCard>
       </div>
 

@@ -9,6 +9,7 @@ import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildMasters, useChildSubscriptions } from '@/hooks/useChild';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
+import { engineService } from '@/lib/engine';
 import { formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
@@ -50,6 +51,13 @@ const FindMasters = () => {
   const [selectedMasters, setSelectedMasters] = useState([]);
   const [bulkSubscribeModal, setBulkSubscribeModal] = useState(false);
   const [subscribeSuccess, setSubscribeSuccess]     = useState(false);
+  const [copySides, setCopySides]                   = useState('BUY_ONLY');
+  const [allowShortSelling, setAllowShortSelling]   = useState(false);
+  const [copySidesOptions, setCopySidesOptions]     = useState([
+    { id: 'BUY_ONLY', label: 'Buy only (safe default)', description: 'Copy BUY; SELL only with copied BUY + live position' },
+    { id: 'BUY_AND_SELL', label: 'Buy and sell', description: 'Copy BUY and SELL when child has live long qty' },
+    { id: 'MIRROR', label: 'Mirror master', description: 'Copy all sides; optional naked short if allowShortSelling' },
+  ]);
   const [subscribing, setSubscribing]               = useState(false);
 
   useEffect(() => { if (error) addToast(error, 'error'); }, [error, addToast]);
@@ -130,11 +138,22 @@ const FindMasters = () => {
     await handleOpenSubscribeModal(master);
   };
 
+  // Load copySides options from engine metadata on mount
+  useEffect(() => {
+    engineService.getMetadata().then((meta) => {
+      if (Array.isArray(meta?.copySidesOptions) && meta.copySidesOptions.length > 0) {
+        setCopySidesOptions(meta.copySidesOptions);
+      }
+    }).catch(() => {});
+  }, []);
+
   const openBulkSubscribe = async () => {
     if (!selectedMasters.length) { addToast('Select at least one master', 'error'); return; }
     const activeAccounts = await loadBrokerAccounts();
     if (!activeAccounts.length) { addToast('Connect a broker account with an active session first', 'error'); return; }
     setMultiplier(1.0);
+    setCopySides('BUY_ONLY');
+    setAllowShortSelling(false);
     setBulkSubscribeModal(true);
   };
 
@@ -146,6 +165,8 @@ const FindMasters = () => {
         masterId: subscribeMaster.id || subscribeMaster.masterId,
         brokerAccountId: selectedBrokerAccountId,
         scalingFactor: multiplier,
+        copySides,
+        allowShortSelling: copySides === 'MIRROR' ? allowShortSelling : false,
       });
       await refetchSubscriptions();
       setSubscribeSuccess(true);
@@ -164,7 +185,13 @@ const FindMasters = () => {
     try {
       const results = await Promise.allSettled(
         selectedMasters.map((masterId) =>
-          childService.subscribe({ masterId, brokerAccountId: selectedBrokerAccountId, scalingFactor: multiplier })
+          childService.subscribe({
+            masterId,
+            brokerAccountId: selectedBrokerAccountId,
+            scalingFactor: multiplier,
+            copySides,
+            allowShortSelling: copySides === 'MIRROR' ? allowShortSelling : false,
+          })
         )
       );
       const failed = results.filter((r) => r.status === 'rejected');
@@ -407,6 +434,50 @@ const FindMasters = () => {
 
                 <MultiplierControl />
 
+                {/* NEW: Copy Mode selector */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>
+                  <div className="space-y-2">
+                    {copySidesOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setCopySides(opt.id);
+                          if (opt.id !== 'MIRROR') setAllowShortSelling(false);
+                        }}
+                        className={`w-full text-left rounded-xl border p-3 transition-all text-sm ${
+                          copySides === opt.id
+                            ? 'border-brand-purple/50 bg-brand-purple/10 text-foreground'
+                            : 'border-border/50 bg-black/5 dark:bg-white/5 text-muted-foreground hover:border-brand-purple/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-xs">{opt.label}</span>
+                          <span className={`h-3 w-3 rounded-full border-2 shrink-0 ${
+                            copySides === opt.id ? 'border-brand-purple bg-brand-purple' : 'border-muted-foreground/40'
+                          }`} />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">{opt.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                  {copySides === 'MIRROR' && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold">Allow Short Selling</p>
+                        <p className="text-[11px] text-muted-foreground">Enable naked shorts in MIRROR mode</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" checked={allowShortSelling} onChange={(e) => setAllowShortSelling(e.target.checked)} className="sr-only" />
+                        <div className={`w-9 h-5 rounded-full transition-colors ${allowShortSelling ? 'bg-amber-500' : 'bg-muted-foreground/30'}`}>
+                          <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${allowShortSelling ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
                 {/* Approval flow info */}
                 <div className="p-3 bg-amber-500/8 border border-amber-500/18 rounded-xl">
                   <div className="flex items-start gap-2">
@@ -455,6 +526,49 @@ const FindMasters = () => {
             />
           </div>
           <MultiplierControl />
+          {/* Copy Mode selector */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>
+            <div className="space-y-2">
+              {copySidesOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setCopySides(opt.id);
+                    if (opt.id !== 'MIRROR') setAllowShortSelling(false);
+                  }}
+                  className={`w-full text-left rounded-xl border p-3 transition-all text-sm ${
+                    copySides === opt.id
+                      ? 'border-brand-purple/50 bg-brand-purple/10 text-foreground'
+                      : 'border-border/50 bg-black/5 dark:bg-white/5 text-muted-foreground hover:border-brand-purple/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs">{opt.label}</span>
+                    <span className={`h-3 w-3 rounded-full border-2 shrink-0 ${
+                      copySides === opt.id ? 'border-brand-purple bg-brand-purple' : 'border-muted-foreground/40'
+                    }`} />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">{opt.description}</p>
+                </button>
+              ))}
+            </div>
+            {copySides === 'MIRROR' && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold">Allow Short Selling</p>
+                  <p className="text-[11px] text-muted-foreground">Enable naked shorts in MIRROR mode</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input type="checkbox" checked={allowShortSelling} onChange={(e) => setAllowShortSelling(e.target.checked)} className="sr-only" />
+                  <div className={`w-9 h-5 rounded-full transition-colors ${allowShortSelling ? 'bg-amber-500' : 'bg-muted-foreground/30'}`}>
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${allowShortSelling ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
+                </label>
+              </div>
+            )}
+          </div>
           <div className="flex gap-3 pt-1">
             <button onClick={() => setBulkSubscribeModal(false)} className="flex-1 py-2.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
             <button onClick={confirmBulkSubscribe} disabled={subscribing || loadingBrokers || !selectedBrokerAccountId || brokerAccounts.length === 0}
@@ -470,4 +584,3 @@ const FindMasters = () => {
 };
 
 export default FindMasters;
-

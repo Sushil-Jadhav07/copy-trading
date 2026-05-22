@@ -209,6 +209,22 @@ const normalizeEarnings = (raw = {}) => ({
   raw,
 });
 
+const normalizeTradePnl = (raw = {}) => {
+  const payload = raw?.data || raw || {};
+  const summary = payload.summary || {};
+  return {
+    summary: {
+      totalRealisedPnl: toNumber(summary.totalRealisedPnl, summary.totalRealizedPnl, summary.realisedPnl, summary.realizedPnl),
+      totalUnrealisedPnl: toNumber(summary.totalUnrealisedPnl, summary.totalUnrealizedPnl, summary.unrealisedPnl, summary.unrealizedPnl),
+      todayPnl: toNumber(summary.todayPnl, summary.todayPnL, summary.dailyPnl),
+      totalTrades: toNumber(summary.totalTrades, summary.tradeCount),
+      winRate: toNumber(summary.winRate),
+    },
+    trades: Array.isArray(payload.trades) ? payload.trades.map(normalizeTrade) : [],
+    raw: payload,
+  };
+};
+
 const normalizePositionsPayload = (raw = {}) => {
   const payload = raw?.data || raw || {};
   const positions = Array.isArray(payload.positions) ? payload.positions : [];
@@ -370,6 +386,15 @@ export const masterService = {
       return list.map(normalizeTrade);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load trade history'));
+    }
+  },
+
+  async getTradePnl() {
+    try {
+      const res = await api.get('/api/v1/master/trade-pnl');
+      return normalizeTradePnl(res.data?.data || res.data || {});
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load trade P&L'));
     }
   },
 

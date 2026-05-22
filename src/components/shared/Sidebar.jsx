@@ -181,6 +181,7 @@ const masterSidebarItems = [
       items: [
         { to: '/master/user-management', icon: LayoutGrid, label: 'Demat Accounts' },
         { to: '/master/copy-trading', icon: Copy, label: 'Copy Trading' },
+        { to: '/master/latency-history', icon: Clock, label: 'Latency & History' },
         { to: '/master/logs', icon: FileText, label: 'Logs' },
         { to: '/master/pnl-analytics', icon: TrendingUp, label: 'P&L Analytics' },
       ],
@@ -219,6 +220,7 @@ const childSidebarItems = [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },
         { to: '/child/positions', icon: Activity, label: 'Open Positions' },
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
+        { to: '/child/trade-timeline', icon: Clock, label: 'Trade Timeline' },
         { to: '/child/options-status', icon: Target, label: 'Options Status' },
         { to: '/child/risk-settings', icon: Shield, label: 'Risk Settings' },
         { to: '/child/pnl-dashboard', icon: BarChart2, label: 'P&L Dashboard' },

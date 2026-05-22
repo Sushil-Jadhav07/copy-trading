@@ -118,6 +118,8 @@ const normalizeSubscription = (raw = {}) => {
     tradingEnabled: status === 'ACTIVE',
     brokerAccountId: raw.brokerAccountId || '',
     subscribedAt: raw.subscribedAt || raw.createdAt || null,
+    copySides: raw.copySides || raw.copy_sides || 'BUY_ONLY',
+    allowShortSelling: Boolean(raw.allowShortSelling ?? raw.allow_short_selling ?? false),
     raw,
   };
 };
@@ -129,8 +131,8 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   masterName: raw.masterName || raw.master || '',
   // Prefer instrument/symbol; fallback to reference.
   instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.reference || 'N/A',
-  // API "type" = REPLICATED/MANUAL, not BUY/SELL
-  type: String(raw.type || raw.side || raw.action || raw.tradeType || 'REPLICATED').toUpperCase(),
+  // Prefer side/action for table direction; API "type" can be REPLICATED/MANUAL.
+  type: String(raw.side || raw.action || raw.tradeSide || raw.type || raw.tradeType || 'BUY').toUpperCase(),
   masterQty: toNumber(raw.masterQty, raw.quantity, raw.masterQuantity),
   myQty: toNumber(raw.myQty, raw.childQty, raw.quantityCopied),
   entry: toNumber(raw.entry, raw.entryPrice, raw.avgPrice),
@@ -148,7 +150,7 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   masterId: raw.masterId || '',
   childId: raw.childId || '',
   // Latency & timing fields (added May 2026 API update)
-  latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : null,
+  latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : raw.totalChildLatencyMs != null ? Number(raw.totalChildLatencyMs) : null,
   engineReceivedAt: raw.engineReceivedAt || raw.engine_received_at || null,
   childPlacedAt: raw.childPlacedAt || raw.child_placed_at || null,
   placedAt: raw.childPlacedAt || raw.placedAt || raw.time || null,
@@ -158,6 +160,22 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   segment: raw.segment || '',
   product: raw.product || '',
   orderType: raw.orderType || '',
+  raw,
+});
+
+const normalizeTradeTimelineItem = (raw = {}, index = 0) => ({
+  eventId: raw.eventId || raw.copyGroupId || raw.id || `timeline-${index}`,
+  masterName: raw.masterName || raw.master || raw.masterUserName || 'Master',
+  symbol: raw.symbol || raw.instrument || raw.tradingSymbol || 'UNKNOWN',
+  side: String(raw.side || raw.action || raw.type || 'BUY').toUpperCase(),
+  masterTriggeredAt: raw.masterTriggeredAt || raw.masterOrderTime || raw.triggeredAt || raw.createdAt || null,
+  myOrderPlacedAt: raw.myOrderPlacedAt || raw.childPlacedAt || raw.placedAt || raw.orderPlacedAt || null,
+  totalChildLatencyMs: raw.totalChildLatencyMs ?? raw.latencyMs ?? raw.brokerLatencyMs ?? null,
+  status: String(raw.status || raw.tradeStatus || 'UNKNOWN').toUpperCase(),
+  skipReason: raw.skipReason || raw.skip_reason || null,
+  qty: toNumber(raw.qty, raw.quantity, raw.myQty, raw.childQty),
+  orderId: raw.orderId || raw.brokerOrderId || '',
+  broker: raw.broker || raw.brokerName || '',
   raw,
 });
 
@@ -260,6 +278,8 @@ export const childService = {
         masterId: body?.masterId,
         brokerAccountId: body?.brokerAccountId,
         scalingFactor: body?.scalingFactor ?? 1.0,
+        ...(body?.copySides ? { copySides: body.copySides } : {}),
+        ...(body?.allowShortSelling != null ? { allowShortSelling: Boolean(body.allowShortSelling) } : {}),
       };
       const res = await api.post('/api/v1/child/subscriptions', payload);
       cacheSubscriptionAllocation(body?.masterId, body?.allocationAmount || body?.allocation);
@@ -375,4 +395,35 @@ export const childService = {
       throw new Error(getErrorMessage(error, 'Unable to load positions'));
     }
   },
+
+  // Additions for May 2026 API update
+
+  // NEW (May 2026): Update copy sides / allowShortSelling for an existing subscription
+  async updateCopySettings(body) {
+    try {
+      const payload = {
+        masterId: body?.masterId,
+        ...(body?.copySides ? { copySides: body.copySides } : {}),
+        ...(body?.allowShortSelling != null ? { allowShortSelling: Boolean(body.allowShortSelling) } : {}),
+      };
+      const res = await api.patch('/api/v1/child/subscriptions/copy-settings', payload);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to update copy settings'));
+    }
+  },
+
+  // NEW (May 2026): Child copy timeline with latency info
+  async getTradeTimeline() {
+    try {
+      const res = await api.get('/api/v1/child/trade-timeline');
+      const trades = res.data?.trades || res.data?.data?.trades || [];
+      return Array.isArray(trades) ? trades.map(normalizeTradeTimelineItem) : [];
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load trade timeline'));
+    }
+  },
 };
+
+// Export normalizeSubscription for external use
+export { normalizeSubscription };

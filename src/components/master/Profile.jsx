@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users } from 'lucide-react';
+import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users, RefreshCw, TrendingUp, AlertCircle } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
 import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/lib/auth';
+import { userProfileService } from '@/lib/userProfile';
+import TelegramSettings from '@/components/shared/TelegramSettings';
 
 const Profile = () => {
   const { addToast } = useToast();
@@ -32,6 +34,9 @@ const Profile = () => {
     setupKey: '',
   });
   const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [brokerProfiles, setBrokerProfiles] = useState([]);
+  const [loadingBrokers, setLoadingBrokers] = useState(false);
+  const [refreshingBroker, setRefreshingBroker] = useState({});
   const [disableTwoFactorForm, setDisableTwoFactorForm] = useState({
     password: '',
     otp: '',
@@ -139,16 +144,49 @@ const Profile = () => {
       const fullName = [settings.firstName, settings.middleName, settings.lastName]
         .filter(Boolean)
         .join(' ');
-      await updateProfile({
-        name: fullName,
-        phone: settings.phone,
-        telegramChatId: settings.telegramChatId,
-      });
+      // Try new profile endpoint first, fall back to auth endpoint
+      try {
+        await userProfileService.updateProfile({ displayName: fullName });
+      } catch {
+        await updateProfile({
+          name: fullName,
+          phone: settings.phone,
+          telegramChatId: settings.telegramChatId,
+        });
+      }
       addToast('Profile saved successfully', 'success');
     } catch (error) {
       addToast(error.message || 'Unable to save profile', 'error');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const loadBrokerProfiles = async () => {
+    setLoadingBrokers(true);
+    try {
+      const profile = await userProfileService.getProfile();
+      setBrokerProfiles(profile.brokerAccounts || []);
+    } catch (e) {
+      // Fall back to user.brokerAccounts if available
+      setBrokerProfiles(Array.isArray(user?.brokerAccounts) ? user.brokerAccounts : []);
+    } finally {
+      setLoadingBrokers(false);
+    }
+  };
+
+  const handleRefreshBroker = async (accountId) => {
+    setRefreshingBroker((prev) => ({ ...prev, [accountId]: true }));
+    try {
+      const updated = await userProfileService.refreshBrokerProfile(accountId);
+      setBrokerProfiles((prev) => prev.map((acc) =>
+        acc.accountId === accountId ? { ...acc, ...updated } : acc
+      ));
+      addToast('Broker profile refreshed', 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to refresh broker profile', 'error');
+    } finally {
+      setRefreshingBroker((prev) => ({ ...prev, [accountId]: false }));
     }
   };
 
@@ -237,6 +275,8 @@ const Profile = () => {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: Shield },
+    { id: 'telegram', label: 'Telegram', icon: MessageCircle },
+    { id: 'brokers', label: 'Broker Accounts', icon: Users },
   ];
 
   return (
@@ -250,7 +290,10 @@ const Profile = () => {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              if (tab.id === 'brokers' && brokerProfiles.length === 0) loadBrokerProfiles();
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'bg-brand-purple text-white'
@@ -348,9 +391,10 @@ const Profile = () => {
         </GlassCard>
       )}
 
-      <GlassCard>
-        {activeTab === 'profile' && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {(activeTab === 'profile' || activeTab === 'security') && (
+        <GlassCard>
+          {activeTab === 'profile' && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-6">
               <div className="rounded-2xl border border-emerald-500/15 bg-black/10 p-4 sm:p-5">
                 <div className="mb-5 flex items-start justify-between gap-4">
@@ -702,7 +746,141 @@ const Profile = () => {
             </div>
           </div>
         )}
-      </GlassCard>
+        </GlassCard>
+      )}
+
+      {/* Telegram Tab */}
+      {activeTab === 'telegram' && (
+        <TelegramSettings />
+      )}
+
+      {/* Broker Accounts Tab */}
+      {activeTab === 'brokers' && (
+        <GlassCard>
+          <div className="flex items-center justify-between gap-4 mb-5">
+            <div>
+              <h2 className="text-base font-black tracking-tight">Broker Accounts</h2>
+              <p className="text-xs text-muted-foreground mt-1">Live margin, session status, and positions from each linked broker</p>
+            </div>
+            <button
+              onClick={loadBrokerProfiles}
+              disabled={loadingBrokers}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-black/5 dark:bg-white/5 text-xs font-bold uppercase tracking-wider hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingBrokers ? 'animate-spin' : ''}`} />
+              Refresh All
+            </button>
+          </div>
+
+          {brokerProfiles.length === 0 && !loadingBrokers ? (
+            <div className="py-12 text-center">
+              <Users className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-sm font-bold uppercase">No Broker Accounts</p>
+              <p className="text-xs text-muted-foreground mt-1">Link a broker from the Demat Accounts section.</p>
+              <button
+                onClick={loadBrokerProfiles}
+                className="mt-4 text-xs font-bold text-brand-purple hover:underline"
+              >
+                Load accounts
+              </button>
+            </div>
+          ) : loadingBrokers ? (
+            <div className="space-y-3">
+              {[1,2].map(i => <div key={i} className="h-28 rounded-2xl bg-black/5 dark:bg-white/5 animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {brokerProfiles.map((acc) => {
+                const statusColor = acc.fundsUtilizationStatus === 'RED'
+                  ? 'border-rose-500/30 bg-rose-500/5'
+                  : acc.fundsUtilizationStatus === 'YELLOW'
+                  ? 'border-amber-500/30 bg-amber-500/5'
+                  : 'border-emerald-500/20 bg-emerald-500/5';
+                const marginColor = acc.fundsUtilizationStatus === 'RED'
+                  ? 'text-rose-500 bg-rose-500'
+                  : acc.fundsUtilizationStatus === 'YELLOW'
+                  ? 'text-amber-500 bg-amber-500'
+                  : 'text-emerald-500 bg-emerald-500';
+
+                return (
+                  <div key={acc.accountId} className={`rounded-2xl border p-4 ${statusColor}`}>
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-black/10 dark:bg-white/10 flex items-center justify-center font-black text-sm">
+                          {(acc.broker || '?')[0]}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black">{acc.broker || '—'}</p>
+                          <p className="text-xs text-muted-foreground">{acc.clientId || acc.fullName || '—'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${
+                          acc.sessionActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+                        }`}>
+                          {acc.sessionActive ? 'Active' : 'Expired'}
+                        </span>
+                        {acc.isTokenExpired && (
+                          <span className="flex items-center gap-1 text-xs text-rose-500 font-bold">
+                            <AlertCircle className="w-3.5 h-3.5" /> Token expired
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleRefreshBroker(acc.accountId)}
+                          disabled={refreshingBroker[acc.accountId]}
+                          className="p-1.5 rounded-lg border border-border hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+                          title="Refresh"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${refreshingBroker[acc.accountId] ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Margin bar */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground font-bold">Margin Used</span>
+                        <span className={`font-black ${marginColor.split(' ')[0]}`}>
+                          {acc.marginUsedPercent?.toFixed(1) ?? 0}%
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${marginColor.split(' ')[1]}`}
+                          style={{ width: `${Math.min(100, acc.marginUsedPercent || 0)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <p className="text-muted-foreground font-bold">Available</p>
+                        <p className="font-black">₹{(acc.marginAvailable || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground font-bold">Used</p>
+                        <p className="font-black">₹{(acc.marginUsed || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground font-bold">Positions</p>
+                        <p className="font-black">{acc.openPositionsCount ?? 0}</p>
+                      </div>
+                    </div>
+
+                    {acc.tokenExpiresInHours != null && !acc.isTokenExpired && (
+                      <p className="mt-2 text-[10px] text-muted-foreground">
+                        Session expires in {acc.tokenExpiresInHours}h
+                        {acc.lastSyncedAt && ` · Synced ${new Date(acc.lastSyncedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </GlassCard>
+      )}
+
     </div>
   );
 };
