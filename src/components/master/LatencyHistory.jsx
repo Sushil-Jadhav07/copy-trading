@@ -1,86 +1,176 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity, CheckCircle2, AlertCircle, Clock, RefreshCw, ChevronDown, ChevronRight,
-  TrendingUp, Users, Zap, BarChart3
+  Activity,
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  TrendingUp,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import DivSelect from '@/components/shared/DivSelect';
 import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 
+const RANGE_OPTIONS = [
+  { key: 'today', label: 'Today', days: 1 },
+  { key: 'yesterday', label: 'Yesterday', days: 1 },
+  { key: '7d', label: '7D', days: 7 },
+  { key: '30d', label: '30D', days: 30 },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'ALL', label: 'All Events' },
+  { value: 'SUCCESS', label: 'Has Success' },
+  { value: 'FAILED', label: 'Has Failed' },
+  { value: 'PARTIAL', label: 'Partial' },
+];
+
+const SIDE_OPTIONS = [
+  { value: 'ALL', label: 'All Sides' },
+  { value: 'BUY', label: 'BUY' },
+  { value: 'SELL', label: 'SELL' },
+];
+
+const toApiIso = (date) => date.toISOString();
+
+const getRange = (key) => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  if (key === 'today') return { from: todayStart, to: todayEnd, statsDays: 1 };
+
+  if (key === 'yesterday') {
+    const from = new Date(todayStart);
+    from.setDate(from.getDate() - 1);
+    const to = new Date(from);
+    to.setHours(23, 59, 59, 999);
+    return { from, to, statsDays: 1 };
+  }
+
+  const days = key === '30d' ? 30 : 7;
+  const from = new Date(todayStart);
+  from.setDate(from.getDate() - (days - 1));
+  return { from, to: todayEnd, statsDays: days };
+};
+
 const fmtTime = (iso) => {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (isNaN(d)) return String(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
 const fmtDate = (iso) => {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (isNaN(d)) return String(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return `Today ${fmtTime(iso)}`;
-  return `${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} ${fmtTime(iso)}`;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((today.getTime() - day.getTime()) / 86400000);
+  const prefix = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  return `${prefix}, ${fmtTime(iso)}`;
 };
 
 const LatencyBar = ({ ms, maxMs = 1000 }) => {
-  if (ms == null) return <span className="text-muted-foreground text-xs">—</span>;
-  const pct = Math.min(100, Math.round((ms / maxMs) * 100));
-  const color = ms < 300 ? 'bg-emerald-500' : ms < 600 ? 'bg-amber-500' : 'bg-rose-500';
-  const textColor = ms < 300 ? 'text-emerald-500' : ms < 600 ? 'text-amber-500' : 'text-rose-500';
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value <= 0) return <span className="text-xs text-muted-foreground">-</span>;
+  const pct = Math.min(100, Math.round((value / maxMs) * 100));
+  const color = value < 300 ? 'bg-emerald-500' : value < 600 ? 'bg-amber-500' : 'bg-rose-500';
+  const textColor = value < 300 ? 'text-emerald-500' : value < 600 ? 'text-amber-500' : 'text-rose-500';
+
   return (
-    <div className="flex items-center gap-2 min-w-[120px]">
-      <div className="flex-1 h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+    <div className="flex min-w-[120px] items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          className={`h-full rounded-full ${color}`}
+        />
       </div>
-      <span className={`text-xs font-black tabular-nums shrink-0 ${textColor}`}>{ms}ms</span>
+      <span className={`shrink-0 text-xs font-black tabular-nums ${textColor}`}>{value}ms</span>
     </div>
   );
 };
 
-const StatCard = ({ label, value, sub, icon: Icon, color = 'text-brand-purple' }) => (
-  <GlassCard hover={false} className="border-border/60">
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className={`text-2xl font-black mt-1 tabular-nums ${color}`}>{value ?? '—'}</p>
-        {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
-      </div>
-      {Icon && (
-        <div className={`w-9 h-9 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-center shrink-0`}>
-          <Icon className={`w-4.5 h-4.5 ${color}`} />
+const StatCard = ({ label, value, sub, icon: Icon, accent = 'emerald' }) => {
+  const tone =
+    accent === 'rose' ? 'text-rose-500' :
+    accent === 'amber' ? 'text-amber-500' :
+    accent === 'cyan' ? 'text-cyan-500' :
+    'text-emerald-500';
+
+  return (
+  <motion.div
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.22, ease: 'easeOut' }}
+  >
+    <GlassCard hover={false} className="border-border/60 transition-colors duration-200 hover:border-emerald-500/20">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
+          <p className={`mt-1 text-2xl font-black tabular-nums ${tone}`}>{value ?? '-'}</p>
+          {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
         </div>
-      )}
-    </div>
-  </GlassCard>
-);
+        {Icon && (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/5 dark:bg-white/5">
+            <Icon className={`h-4.5 w-4.5 ${tone}`} />
+          </div>
+        )}
+      </div>
+    </GlassCard>
+  </motion.div>
+  );
+};
 
 const LatencyHistory = () => {
   const { addToast } = useToast();
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState({ content: [], totalElements: 0 });
   const [page, setPage] = useState(0);
-  const [days, setDays] = useState(7);
+  const [rangeKey, setRangeKey] = useState('7d');
+  const [sideFilter, setSideFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedEvent, setExpandedEvent] = useState(null);
   const [eventDetail, setEventDetail] = useState({});
 
-  const loadStats = useCallback(async (d) => {
+  const selectedRange = useMemo(() => getRange(rangeKey), [rangeKey]);
+
+  const loadStats = useCallback(async (range) => {
     try {
-      const res = await engineService.getLatencyStats(d);
+      const res = await engineService.getLatencyStats(range.statsDays === 30 ? 30 : 7);
       setStats(res);
     } catch (e) {
       addToast(e.message || 'Failed to load latency stats', 'error');
     }
   }, [addToast]);
 
-  const loadHistory = useCallback(async (p = 0) => {
+  const loadHistory = useCallback(async (p = 0, range = selectedRange, side = sideFilter) => {
     setLoadingHistory(true);
     try {
-      const res = await engineService.getTradeHistory({ page: p, size: 20 });
+      const params = {
+        page: p,
+        size: 20,
+        from: toApiIso(range.from),
+        to: toApiIso(range.to),
+        ...(side !== 'ALL' ? { side } : {}),
+      };
+      const res = await engineService.getTradeHistory(params);
       setHistory(res);
       setPage(p);
     } catch (e) {
@@ -88,20 +178,79 @@ const LatencyHistory = () => {
     } finally {
       setLoadingHistory(false);
     }
-  }, [addToast]);
+  }, [addToast, selectedRange, sideFilter]);
 
-  const loadAll = useCallback(async (d = 7) => {
+  const loadAll = useCallback(async (range = selectedRange) => {
     setLoading(true);
-    await Promise.all([loadStats(d), loadHistory(0)]);
+    await Promise.all([loadStats(range), loadHistory(0, range, sideFilter)]);
     setLoading(false);
-  }, [loadStats, loadHistory]);
+  }, [loadStats, loadHistory, selectedRange, sideFilter]);
 
-  useEffect(() => { loadAll(days); }, []);
+  useEffect(() => {
+    loadAll(selectedRange);
+  }, []);
 
-  const handleDaysChange = (d) => {
-    setDays(d);
-    loadStats(d);
+  const handleRangeChange = (nextKey) => {
+    const nextRange = getRange(nextKey);
+    setRangeKey(nextKey);
+    setExpandedEvent(null);
+    loadAll(nextRange);
   };
+
+  const handleSideChange = (nextSide) => {
+    setSideFilter(nextSide);
+    setExpandedEvent(null);
+    loadHistory(0, selectedRange, nextSide);
+  };
+
+  const filteredEvents = useMemo(() => {
+    const search = query.trim().toLowerCase();
+    return (history.content || []).filter((event) => {
+      const childrenTotal = Number(event.childrenTotal || 0);
+      const childrenSucceeded = Number(event.childrenSucceeded || 0);
+      const childrenFailed = Number(event.childrenFailed || 0);
+      const eventStatus =
+        childrenTotal > 0 && childrenSucceeded === childrenTotal
+          ? 'SUCCESS'
+          : childrenSucceeded > 0 && childrenFailed > 0
+          ? 'PARTIAL'
+          : childrenFailed > 0
+          ? 'FAILED'
+          : 'UNKNOWN';
+
+      if (statusFilter !== 'ALL' && eventStatus !== statusFilter) return false;
+
+      if (!search) return true;
+      return [
+        event.symbol,
+        event.side,
+        event.eventId,
+        event.masterQty,
+      ].some((value) => String(value || '').toLowerCase().includes(search));
+    });
+  }, [history.content, query, statusFilter]);
+
+  const displayStats = useMemo(() => {
+    const latencies = filteredEvents
+      .map((event) => Number(event.avgChildLatencyMs))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const avgLatency = latencies.length
+      ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length)
+      : null;
+    const totalChildren = filteredEvents.reduce((sum, event) => sum + Number(event.childrenTotal || 0), 0);
+    const succeeded = filteredEvents.reduce((sum, event) => sum + Number(event.childrenSucceeded || 0), 0);
+    const failed = filteredEvents.reduce((sum, event) => sum + Number(event.childrenFailed || 0), 0);
+    const successRate = totalChildren ? (succeeded / totalChildren) * 100 : null;
+
+    return {
+      avgLatency,
+      successRate,
+      failed,
+      eventCount: filteredEvents.length,
+      p95: stats?.p95LatencyMs,
+      max: Math.max(1000, stats?.maxTotalLatencyMs || 1000, ...latencies),
+    };
+  }, [filteredEvents, stats]);
 
   const toggleEventDetail = async (eventId) => {
     if (expandedEvent === eventId) {
@@ -113,7 +262,7 @@ const LatencyHistory = () => {
       try {
         const detail = await engineService.getTradeHistoryEvent(eventId);
         setEventDetail((prev) => ({ ...prev, [eventId]: detail }));
-      } catch (e) {
+      } catch {
         addToast('Failed to load event detail', 'error');
       }
     }
@@ -121,90 +270,123 @@ const LatencyHistory = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold sm:text-2xl">Latency & Trade History</h1>
-          <p className="text-sm text-muted-foreground">Master copy execution speed and per-child breakdown</p>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/8 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+            <Clock className="h-3.5 w-3.5" />
+            Master Copy Events
+          </div>
+          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Latency & Trade History</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Filter copy events by day, side, status, symbol, or event ID.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40">
-            {[7, 30].map((d) => (
+        <button
+          onClick={() => loadAll(selectedRange)}
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-black/5 px-4 py-2 text-xs font-black uppercase tracking-widest transition-colors duration-200 hover:bg-black/10 disabled:opacity-50 dark:bg-white/5 dark:hover:bg-white/10"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      <GlassCard hover={false} className="border-border/60 bg-black/[0.02] dark:bg-white/[0.02]">
+        <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <SlidersHorizontal className="h-4 w-4 text-emerald-500" />
+            <div>
+              <p className="text-sm font-bold">Filters</p>
+              <p className="text-xs text-muted-foreground">Choose a window, side, status, or event.</p>
+            </div>
+          </div>
+          <div className="text-xs font-semibold text-muted-foreground">
+              {filteredEvents.length} visible
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+          <div className="flex flex-wrap gap-2">
+            {RANGE_OPTIONS.map((option) => (
               <button
-                key={d}
-                onClick={() => handleDaysChange(d)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                  days === d ? 'bg-brand-purple text-white' : 'text-muted-foreground hover:text-foreground'
+                key={option.key}
+                onClick={() => handleRangeChange(option.key)}
+                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold transition-colors duration-200 ${
+                  rangeKey === option.key
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500'
+                    : 'border-border/60 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:text-foreground'
                 }`}
               >
-                {d}d
+                <CalendarDays className="h-3 w-3" />
+                {option.label}
               </button>
             ))}
           </div>
-          <button
-            onClick={() => loadAll(days)}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-black/5 dark:bg-white/5 text-xs font-bold uppercase hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </div>
 
-      {/* Stats Grid */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Side</span>
+              <DivSelect
+                value={sideFilter}
+                onChange={handleSideChange}
+                includeEmptyOption={false}
+                options={SIDE_OPTIONS}
+                triggerClassName="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm font-semibold outline-none transition-colors focus:border-emerald-500"
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</span>
+              <DivSelect
+                value={statusFilter}
+                onChange={setStatusFilter}
+                includeEmptyOption={false}
+                options={STATUS_OPTIONS}
+                triggerClassName="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm font-semibold outline-none transition-colors focus:border-emerald-500"
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Search</span>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Symbol or event"
+                  className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-emerald-500"
+                />
+              </div>
+            </label>
+          </div>
+        </div>
+      </GlassCard>
+
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-2xl bg-black/5 dark:bg-white/5 animate-pulse" />
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />
           ))}
         </div>
-      ) : stats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Avg Latency"
-            value={stats.avgTotalLatencyMs != null ? `${stats.avgTotalLatencyMs}ms` : '—'}
-            sub={`p50: ${stats.p50LatencyMs ?? '—'}ms`}
-            icon={Clock}
-            color="text-brand-purple"
-          />
-          <StatCard
-            label="Success Rate"
-            value={stats.successRate != null ? `${stats.successRate.toFixed(1)}%` : '—'}
-            sub={`${stats.tradeCount ?? 0} trades`}
-            icon={CheckCircle2}
-            color="text-emerald-500"
-          />
-          <StatCard
-            label="p95 Latency"
-            value={stats.p95LatencyMs != null ? `${stats.p95LatencyMs}ms` : '—'}
-            sub={`p99: ${stats.p99LatencyMs ?? '—'}ms`}
-            icon={TrendingUp}
-            color={stats.p95LatencyMs > 600 ? 'text-rose-500' : 'text-amber-500'}
-          />
-          <StatCard
-            label="Range"
-            value={stats.minTotalLatencyMs != null ? `${stats.minTotalLatencyMs}–${stats.maxTotalLatencyMs}ms` : '—'}
-            sub="min–max"
-            icon={BarChart3}
-            color="text-brand-blue"
-          />
+      ) : (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <StatCard label="Avg Latency" value={displayStats.avgLatency != null ? `${displayStats.avgLatency}ms` : '-'} sub={`${displayStats.eventCount} filtered events`} icon={Clock} accent="cyan" />
+          <StatCard label="Success Rate" value={displayStats.successRate != null ? `${displayStats.successRate.toFixed(1)}%` : '-'} sub="Per-child outcomes" icon={CheckCircle2} accent="emerald" />
+          <StatCard label="p95 Latency" value={displayStats.p95 != null ? `${displayStats.p95}ms` : '-'} sub={`Stats window: ${rangeKey}`} icon={TrendingUp} accent="amber" />
+          <StatCard label="Failed Children" value={displayStats.failed} sub="Across filtered events" icon={AlertCircle} accent="rose" />
         </div>
-      ) : null}
+      )}
 
-      {/* Trade History Table */}
       <GlassCard noPadding>
-        <div className="border-b border-border/40 px-5 py-4 flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 border-b border-border/40 px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-purple/10 flex items-center justify-center">
-              <Activity className="w-4.5 h-4.5 text-brand-purple" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-purple/10">
+              <Activity className="h-4.5 w-4.5 text-brand-purple" />
             </div>
             <div>
               <h2 className="text-sm font-black">Copy Event Log</h2>
-              <p className="text-xs text-muted-foreground">{history.totalElements ?? 0} total events</p>
+              <p className="text-xs text-muted-foreground">
+                Showing {filteredEvents.length} of {history.totalElements ?? 0} events
+              </p>
             </div>
           </div>
-          {loadingHistory && <RefreshCw className="w-4 h-4 text-muted-foreground animate-spin" />}
+          {loadingHistory && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
 
         {loadingHistory && page === 0 ? (
@@ -216,148 +398,179 @@ const LatencyHistory = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/40 bg-black/3 dark:bg-white/3">
-                  {['Symbol', 'Side', 'Master Qty', 'Triggered', 'Avg Latency', 'Children', 'Actions'].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">{h}</th>
+                  {['Symbol', 'Side', 'Master Qty', 'Triggered', 'Avg Latency', 'Children', 'Actions'].map((heading) => (
+                    <th key={heading} className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      {heading}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20">
-                {(history.content || []).map((event, idx) => {
-                  const isOpen = expandedEvent === event.eventId;
-                  const detail = eventDetail[event.eventId];
-                  const successRate = event.childrenTotal > 0
-                    ? Math.round((event.childrenSucceeded / event.childrenTotal) * 100)
-                    : 0;
+                <AnimatePresence initial={false}>
+                  {filteredEvents.map((event, idx) => {
+                    const isOpen = expandedEvent === event.eventId;
+                    const detail = eventDetail[event.eventId];
+                    const successRate = event.childrenTotal > 0
+                      ? Math.round((event.childrenSucceeded / event.childrenTotal) * 100)
+                      : 0;
 
-                  return (
-                    <React.Fragment key={event.eventId || idx}>
-                      <motion.tr
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.03 }}
-                        className="hover:bg-black/5 dark:hover:bg-white/2 transition-colors"
-                      >
-                        <td className="px-5 py-4">
-                          <span className="text-sm font-black uppercase">{event.symbol || '—'}</span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className={`text-xs font-black px-2 py-0.5 rounded border ${
-                            String(event.side).toUpperCase() === 'SELL'
-                              ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                              : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                          }`}>
-                            {event.side || '—'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-sm font-black tabular-nums">{event.masterQty ?? '—'}</td>
-                        <td className="px-5 py-4 text-xs text-muted-foreground font-bold">{fmtDate(event.masterTriggeredAt)}</td>
-                        <td className="px-5 py-4">
-                          <LatencyBar ms={event.avgChildLatencyMs} maxMs={Math.max(1000, stats?.maxTotalLatencyMs || 1000)} />
-                          {event.minChildLatencyMs != null && (
-                            <p className="text-[9px] text-muted-foreground mt-1">
-                              {event.minChildLatencyMs}–{event.maxChildLatencyMs}ms
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-xs text-emerald-500 font-black">
-                              <CheckCircle2 className="w-3 h-3" /> {event.childrenSucceeded ?? 0}
-                            </span>
-                            {event.childrenFailed > 0 && (
-                              <span className="flex items-center gap-1 text-xs text-rose-500 font-black">
-                                <AlertCircle className="w-3 h-3" /> {event.childrenFailed}
+                    return (
+                      <React.Fragment key={event.eventId || idx}>
+                        <motion.tr
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.22, ease: 'easeOut' }}
+                          className="transition-colors duration-200 hover:bg-black/5 dark:hover:bg-white/2"
+                        >
+                          <td className="px-5 py-4">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-black uppercase">{event.symbol || '-'}</span>
+                              <span className="max-w-[220px] truncate text-[10px] font-mono text-muted-foreground">
+                                {event.eventId || 'No event ID'}
                               </span>
-                            )}
-                            <span className="text-[10px] text-muted-foreground">/ {event.childrenTotal ?? 0}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <button
-                            onClick={() => toggleEventDetail(event.eventId)}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-brand-purple hover:underline"
-                          >
-                            {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                            {isOpen ? 'Hide' : 'Detail'}
-                          </button>
-                        </td>
-                      </motion.tr>
-
-                      {/* Expanded per-child detail */}
-                      {isOpen && detail && (
-                        <tr>
-                          <td colSpan={7} className="bg-black/3 dark:bg-white/3 px-5 py-4">
-                            <div className="space-y-2">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">Per-Child Breakdown</p>
-                              {(detail.children || []).map((child, ci) => (
-                                <div key={ci} className="flex items-center justify-between gap-4 rounded-xl border border-border/40 bg-background/60 px-4 py-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${
-                                      String(child.status).toUpperCase() === 'SUCCESS' ? 'bg-emerald-500' : 'bg-rose-500'
-                                    }`} />
-                                    <span className="text-sm font-bold">{child.childName || 'Child'}</span>
-                                    {child.broker && (
-                                      <span className="text-[10px] text-muted-foreground bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded border border-border/30 uppercase">
-                                        {child.broker}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                    <span className={`text-xs font-black ${
-                                      String(child.status).toUpperCase() === 'SUCCESS' ? 'text-emerald-500' : 'text-rose-500'
-                                    }`}>
-                                      {child.status || '—'}
-                                    </span>
-                                    {child.totalChildLatencyMs != null && (
-                                      <LatencyBar ms={child.totalChildLatencyMs} />
-                                    )}
-                                    {child.orderId && (
-                                      <span className="text-[10px] font-mono text-muted-foreground">
-                                        {child.orderId}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                              {(!detail.children || detail.children.length === 0) && (
-                                <p className="text-xs text-muted-foreground italic py-2">No child data available for this event.</p>
-                              )}
                             </div>
                           </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                          <td className="px-5 py-4">
+                            <span className={`rounded border px-2 py-0.5 text-xs font-black ${
+                              String(event.side).toUpperCase() === 'SELL'
+                                ? 'border-rose-500/20 bg-rose-500/10 text-rose-500'
+                                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500'
+                            }`}>
+                              {event.side || '-'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-sm font-black tabular-nums">{event.masterQty ?? '-'}</td>
+                          <td className="px-5 py-4 text-xs font-bold text-muted-foreground">{fmtDate(event.masterTriggeredAt)}</td>
+                          <td className="px-5 py-4">
+                            <LatencyBar ms={event.avgChildLatencyMs} maxMs={displayStats.max} />
+                            {event.minChildLatencyMs != null && (
+                              <p className="mt-1 text-[9px] text-muted-foreground">
+                                {event.minChildLatencyMs}-{event.maxChildLatencyMs}ms
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="flex items-center gap-1 text-xs font-black text-emerald-500">
+                                <CheckCircle2 className="h-3 w-3" /> {event.childrenSucceeded ?? 0}
+                              </span>
+                              {event.childrenFailed > 0 && (
+                                <span className="flex items-center gap-1 text-xs font-black text-rose-500">
+                                  <AlertCircle className="h-3 w-3" /> {event.childrenFailed}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground">/ {event.childrenTotal ?? 0}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <button
+                              type="button"
+                              onClick={() => toggleEventDetail(event.eventId)}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand-purple transition-colors duration-200 hover:bg-brand-purple/10"
+                            >
+                              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              {isOpen ? 'Hide' : 'Detail'}
+                            </button>
+                          </td>
+                        </motion.tr>
+
+                        <AnimatePresence initial={false}>
+                          {isOpen && detail && (
+                            <motion.tr
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.18 }}
+                            >
+                              <td colSpan={7} className="bg-black/3 px-5 py-0 dark:bg-white/3">
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="py-4">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Per-Child Breakdown</p>
+                                      <span className="rounded-full bg-brand-purple/10 px-2.5 py-1 text-[10px] font-black text-brand-purple">
+                                        {successRate}% success
+                                      </span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {(detail.children || []).map((child, ci) => (
+                                        <motion.div
+                                          key={`${child.orderId || child.childName || 'child'}-${ci}`}
+                                          initial={{ opacity: 0, y: 6 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          transition={{ delay: ci * 0.025, duration: 0.2 }}
+                                          className="flex flex-col gap-3 rounded-xl border border-border/40 bg-background/70 px-4 py-3 transition-colors duration-200 hover:border-brand-purple/20 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <div className={`h-2.5 w-2.5 rounded-full ${
+                                              String(child.status).toUpperCase() === 'SUCCESS' ? 'bg-emerald-500' : 'bg-rose-500'
+                                            }`} />
+                                            <span className="text-sm font-bold">{child.childName || 'Child'}</span>
+                                            {child.broker && (
+                                              <span className="rounded border border-border/30 bg-black/5 px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground dark:bg-white/5">
+                                                {child.broker}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-4">
+                                            <span className={`text-xs font-black ${
+                                              String(child.status).toUpperCase() === 'SUCCESS' ? 'text-emerald-500' : 'text-rose-500'
+                                            }`}>
+                                              {child.status || '-'}
+                                            </span>
+                                            <LatencyBar ms={child.totalChildLatencyMs} maxMs={displayStats.max} />
+                                            {child.orderId && <span className="text-[10px] font-mono text-muted-foreground">{child.orderId}</span>}
+                                          </div>
+                                        </motion.div>
+                                      ))}
+                                      {(!detail.children || detail.children.length === 0) && (
+                                        <p className="py-2 text-xs italic text-muted-foreground">No child data available for this event.</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              </td>
+                            </motion.tr>
+                          )}
+                        </AnimatePresence>
+                      </React.Fragment>
+                    );
+                  })}
+                </AnimatePresence>
               </tbody>
             </table>
 
-            {(history.content || []).length === 0 && !loadingHistory && (
+            {filteredEvents.length === 0 && !loadingHistory && (
               <div className="py-20 text-center">
-                <Activity className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                <Activity className="mx-auto mb-3 h-10 w-10 text-muted-foreground/20" />
                 <p className="text-sm font-bold uppercase tracking-tight">No Events Found</p>
-                <p className="text-xs text-muted-foreground mt-1">Execute trades to see copy event history here.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Adjust the range, side, status, or search filters.</p>
               </div>
             )}
 
-            {/* Pagination */}
             {(history.totalElements || 0) > 20 && (
-              <div className="border-t border-border/40 px-5 py-3 flex items-center justify-between">
+              <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
                 <p className="text-xs text-muted-foreground">
-                  Showing {page * 20 + 1}–{Math.min((page + 1) * 20, history.totalElements)} of {history.totalElements}
+                  Showing {page * 20 + 1}-{Math.min((page + 1) * 20, history.totalElements)} of {history.totalElements}
                 </p>
                 <div className="flex gap-2">
                   <button
                     disabled={page === 0 || loadingHistory}
                     onClick={() => loadHistory(page - 1)}
-                    className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/5"
                   >
                     Prev
                   </button>
                   <button
                     disabled={(page + 1) * 20 >= (history.totalElements || 0) || loadingHistory}
                     onClick={() => loadHistory(page + 1)}
-                    className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold disabled:opacity-40 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold transition-colors hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/5"
                   >
                     Next
                   </button>
