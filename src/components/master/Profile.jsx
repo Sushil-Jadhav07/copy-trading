@@ -144,14 +144,20 @@ const Profile = () => {
       const fullName = [settings.firstName, settings.middleName, settings.lastName]
         .filter(Boolean)
         .join(' ');
+      const telegramChatId = settings.telegramChatId.trim();
+
       // Try new profile endpoint first, fall back to auth endpoint
       try {
-        await userProfileService.updateProfile({ displayName: fullName });
+        await userProfileService.updateProfile({
+          displayName: fullName,
+          telegramChatId,
+        });
+        await refreshUser();
       } catch {
         await updateProfile({
           name: fullName,
           phone: settings.phone,
-          telegramChatId: settings.telegramChatId,
+          telegramChatId,
         });
       }
       addToast('Profile saved successfully', 'success');
@@ -482,13 +488,13 @@ const Profile = () => {
                       <input
                         type="text"
                         value={settings.telegramChatId}
-                        onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value.replace(/[^\d-]/g, '') })}
+                        onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value })}
                         placeholder="123456789"
                         className="w-full rounded-xl border border-black/10 bg-black/5 py-2.5 pl-10 pr-4 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
                         disabled={loadingProfile}
                       />
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">Use the chat ID returned by your Telegram bot or @userinfobot.</p>
+                    <p className="mt-1 text-xs text-slate-400">Use the chat ID returned by your Telegram bot, @userinfobot, or your Telegram username.</p>
                   </div>
                 </div>
               </div>
