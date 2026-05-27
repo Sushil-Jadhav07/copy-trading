@@ -164,6 +164,7 @@ const LatencyHistory = () => {
     setLoadingHistory(true);
     try {
       const params = {
+        // Engine trade-history endpoint is 0-based: first page is page=0.
         page: p,
         size: 20,
         from: toApiIso(range.from),

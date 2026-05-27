@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History, Info } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
 import { normalizeCopiedTrade } from '@/lib/child';
+import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -24,6 +26,7 @@ const fmtDateShort = (raw) => {
 };
 
 const CopiedTrades = () => {
+  const navigate = useNavigate();
   const { trades: copiedTrades, loading, error, refetch } = useChildCopiedTrades();
   const { addToast } = useToast();
 
@@ -31,6 +34,7 @@ const CopiedTrades = () => {
   const [timeFilter, setTimeFilter] = useState('today');
   const [searchQuery, setSearchQuery] = useState('');
   const [trades, setTrades] = useState([]);
+  const [skipReasonLabels, setSkipReasonLabels] = useState({});
 
   useEffect(() => {
     if (error) addToast(error, 'error');
@@ -39,6 +43,16 @@ const CopiedTrades = () => {
   useEffect(() => {
     setTrades(Array.isArray(copiedTrades) ? copiedTrades : []);
   }, [copiedTrades]);
+
+  useEffect(() => {
+    engineService.getMetadata()
+      .then((meta) => {
+        if (meta?.skipReasons && typeof meta.skipReasons === 'object') {
+          setSkipReasonLabels(meta.skipReasons);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -115,7 +129,7 @@ const CopiedTrades = () => {
   const getSkipReason = (trade) => {
     if (String(trade.status).toUpperCase() !== 'SKIPPED') return '-';
     const reason = trade.skipReason || trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
-    return SKIP_REASON_UI_MAP[reason] || reason || 'Skipped (reason not provided)';
+    return skipReasonLabels[reason] || SKIP_REASON_UI_MAP[reason] || reason || 'Skipped (reason not provided)';
   };
 
   const filtered = useMemo(() => {
@@ -298,6 +312,7 @@ const CopiedTrades = () => {
                   const ltp = Number(trade.ltp || trade.current || 0);
                   const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : isPartial ? 'Partial' : status || 'Pending';
                   const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
+                  const showReloginCta = isSkipped && ['SESSION_EXPIRED', 'SESSION_INACTIVE'].includes(String(trade.skipReason || trade.raw?.skipReason || '').toUpperCase());
 
                   return (
                     <motion.tr
@@ -368,18 +383,28 @@ const CopiedTrades = () => {
                           </span>
                           
                           {(isFailed || isSkipped) && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button className="text-muted-foreground hover:text-foreground transition-colors">
-                                    <Info className="h-3.5 w-3.5" />
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[200px] text-xs font-medium">
-                                  {whyNotCopied}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <div className="flex items-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                      <Info className="h-3.5 w-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-[200px] text-xs font-medium">
+                                    {whyNotCopied}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              {showReloginCta && (
+                                <button
+                                  onClick={() => navigate('/platform/dematconnected')}
+                                  className="text-xs font-bold text-amber-500 underline hover:no-underline"
+                                >
+                                  Re-login broker -
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>

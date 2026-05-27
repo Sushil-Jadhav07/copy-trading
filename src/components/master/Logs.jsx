@@ -9,6 +9,7 @@ import { masterService } from '@/lib/master';
 import { copyLogService } from '@/lib/copyLogs';
 import { logsService } from '@/lib/logs';
 import { brokerService } from '@/lib/broker';
+import { engineService } from '@/lib/engine';
 import { formatCurrency, formatRelativeTime } from '@/lib/utils';
 import { connectChannel } from '@/lib/websocket';
 
@@ -84,6 +85,7 @@ const Logs = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('today');
   const [loading, setLoading] = useState(true);
+  const [skipReasonLabels, setSkipReasonLabels] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +117,16 @@ const Logs = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    engineService.getMetadata()
+      .then((meta) => {
+        if (meta?.skipReasons && typeof meta.skipReasons === 'object') {
+          setSkipReasonLabels(meta.skipReasons);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ── WebSocket listener for real-time log updates ───────────────────────────
   useEffect(() => {
@@ -221,7 +233,8 @@ const Logs = () => {
               const side = log.tradeType || log.side || (log.masterStatus?.includes('BUY') ? 'BUY' : 'SELL');
               const isFailed = normalizeStatus(log.childStatus) === 'FAILED';
               const isSkipped = normalizeStatus(log.childStatus) === 'SKIPPED';
-              const reason = log.errorMessage || log.skipReason || log.message || 'No details provided';
+              const reasonCode = log.skipReason || '';
+              const reason = log.errorMessage || skipReasonLabels[reasonCode] || reasonCode || log.message || 'No details provided';
 
               return (
                 <motion.tr

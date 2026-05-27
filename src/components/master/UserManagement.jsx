@@ -216,8 +216,7 @@ const UserManagement = ({
         return { oauthUrl: url, loginField: 'authCode', broker: 'Dhan', message: 'Complete Dhan login and paste the redirect URL below.' };
       }
     }
-    const res = await brokerService.getOAuthUrl(accountId);
-    const payload = res?.data || res || {};
+    const payload = await brokerService.getOAuthUrl(accountId);
     const url = payload?.oauthUrl || payload?.loginUrl || payload?.url || '';
     return { oauthUrl: url, loginField: payload?.loginField || 'authCode', broker: payload?.broker || brokerKey, message: payload?.message || '' };
   };
@@ -346,9 +345,14 @@ const UserManagement = ({
     try {
       const accountMeta = accounts.find((item) => (item.accountId || item.id) === accountId);
       const brokerKey = brokerKeyOverride || normalizeBrokerKey(accountMeta?.brokerId || accountMeta?.broker || accountMeta?.brokerName || '');
+      const loginOptionsPayload = await brokerService.getLoginOptions(accountId).catch(() => null);
+      const options = Array.isArray(loginOptionsPayload?.loginOptions) ? loginOptionsPayload.loginOptions.map((o) => String(o).toLowerCase()) : [];
+      const hasOauth = options.includes('oauth') || Boolean(loginOptionsPayload?.oauthUrl);
+      const hasTotp = options.includes('totp');
+      const hasAccessToken = options.includes('accesstoken') || options.includes('access_token');
       const localBrokerMeta = brokerMetaMap[brokerKey];
       const loginMethod = localBrokerMeta?.loginMethod || 'oauth';
-      if (isTotpBroker(loginMethod, brokerKey)) {
+      if (hasTotp || isTotpBroker(loginMethod, brokerKey)) {
         setLoginConfig({
           broker: localBrokerMeta?.name || localBrokerMeta?.brokerName || 'Angel One',
           loginMethod: 'totp',
@@ -358,8 +362,19 @@ const UserManagement = ({
         setLoginModalOpen(true);
         return;
       }
-      if (loginMethod === 'token' && brokerKey === 'groww') {
+      if ((loginMethod === 'token' && brokerKey === 'groww') || hasAccessToken) {
         setLoginConfig({ broker: 'Groww', loginMethod: 'token', loginField: 'totpCode' });
+        setLoginModalOpen(true);
+        return;
+      }
+      if (hasOauth && loginOptionsPayload?.oauthUrl) {
+        setLoginConfig({
+          broker: loginOptionsPayload?.broker || localBrokerMeta?.name || brokerKey,
+          loginMethod: 'oauth',
+          loginField: loginOptionsPayload?.loginField || 'authCode',
+          oauthUrl: loginOptionsPayload?.oauthUrl,
+          message: loginOptionsPayload?.message || '',
+        });
         setLoginModalOpen(true);
         return;
       }
@@ -459,14 +474,8 @@ const UserManagement = ({
     const active = acc.sessionActive || String(acc.status).toUpperCase() === 'ACTIVE';
     if (active) {
       try {
-        await brokerService.deleteAccount(id);
-        const latest = await brokerService.getAccounts().catch(() => []);
-        const stillExists = latest.some((item) => String(item.accountId || item.id) === String(id));
-        if (stillExists) {
-          addToast('Account session disconnected, but account is still linked on server', 'warning');
-        } else {
-          addToast('Broker disconnected', 'warning');
-        }
+        await brokerService.disconnectAccount(id);
+        addToast('Broker disconnected. Reconnect when ready.', 'warning');
         refetch();
       }
       catch (e) { addToast(e.message, 'error'); }

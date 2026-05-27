@@ -80,6 +80,20 @@ const normalizeBrokerAccount = (raw = {}) => {
   };
 };
 
+const normalizeLoginOptions = (payload = {}) => {
+  const options = Array.isArray(payload?.loginOptions)
+    ? payload.loginOptions
+    : Array.isArray(payload?.options)
+      ? payload.options
+      : [];
+  return {
+    ...payload,
+    loginOptions: options,
+    oauthUrl: payload?.oauthUrl || payload?.loginUrl || payload?.url || '',
+    loginField: payload?.loginField || 'authCode',
+  };
+};
+
 const extractList = (data) => {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.data)) return data.data;
@@ -276,10 +290,28 @@ export const brokerService = {
     }
   },
 
+  async disconnectAccount(accountId) {
+    try {
+      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/disconnect`);
+      return normalizeLoginOptions(res.data?.data || res.data || {});
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to disconnect broker account'));
+    }
+  },
+
+  async getLoginOptions(accountId) {
+    try {
+      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/login-options`);
+      return normalizeLoginOptions(res.data?.data || res.data || {});
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load broker login options'));
+    }
+  },
+
   async getOAuthUrl(accountId) {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/oauth-url`);
-      return res.data?.data || res.data || {};
+      return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker login url'));
     }
@@ -315,7 +347,7 @@ export const brokerService = {
   async getAccountStatus(accountId) {
     try {
       const res = await api.get(`/api/v1/brokers/accounts/${accountId}/status`);
-      return res.data?.data || res.data;
+      return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to get account status'));
     }

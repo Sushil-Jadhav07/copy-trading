@@ -27,6 +27,7 @@ const TelegramSettings = () => {
   const [copied, setCopied] = useState(false);
   const [prefs, setPrefs] = useState({});
   const [polling, setPolling] = useState(false);
+  const [botConfig, setBotConfig] = useState(null);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -41,6 +42,10 @@ const TelegramSettings = () => {
   }, []);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  useEffect(() => {
+    telegramService.getBotConfig().then(setBotConfig).catch(() => {});
+  }, []);
 
   // Poll for link status when a link token is active
   useEffect(() => {
@@ -180,17 +185,35 @@ const TelegramSettings = () => {
               </>
             )}
             {!status.linked && !linkData && (
-              <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 text-white text-xs font-black uppercase tracking-wider hover:bg-sky-500/90 transition-colors disabled:opacity-50"
-              >
-                {generating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
-                {generating ? 'Generating...' : 'Connect Telegram'}
-              </button>
+              <div className="flex items-center gap-2">
+                {botConfig?.botLink && (
+                  <a
+                    href={botConfig.botLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-500 text-xs font-black uppercase tracking-wider hover:bg-sky-500/15 transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Open in Telegram
+                  </a>
+                )}
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 text-white text-xs font-black uppercase tracking-wider hover:bg-sky-500/90 transition-colors disabled:opacity-50"
+                >
+                  {generating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                  {generating ? 'Generating...' : 'Connect Telegram'}
+                </button>
+              </div>
             )}
           </div>
         </div>
+        {!status.linked && botConfig?.botUsername && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Bot: <span className="font-bold text-foreground">@{botConfig.botUsername}</span>
+          </p>
+        )}
 
         {/* Link Flow */}
         {!status.linked && linkData && (
@@ -220,15 +243,29 @@ const TelegramSettings = () => {
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                Open Telegram → search <strong>@{linkData.botUsername}</strong> → send the command
-              </span>
+              <div className="text-muted-foreground space-y-1">
+                <p>1. Tap "Open Telegram"</p>
+                <p>2. Send: <strong>/link {linkData.code}</strong></p>
+                <p>3. Return here - linking is automatic</p>
+              </div>
               {polling && (
                 <span className="flex items-center gap-1.5 text-sky-500 font-bold">
                   <RefreshCw className="w-3 h-3 animate-spin" /> Waiting for link…
                 </span>
               )}
             </div>
+
+            {linkData.deepLink && (
+              <a
+                href={linkData.deepLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 text-white text-xs font-black uppercase tracking-wider hover:bg-sky-500/90 transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Open Telegram
+              </a>
+            )}
 
             {linkData.expiresAt && (
               <p className="text-[10px] text-muted-foreground">

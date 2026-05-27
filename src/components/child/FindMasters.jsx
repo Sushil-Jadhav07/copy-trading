@@ -53,6 +53,7 @@ const FindMasters = () => {
   const [subscribeSuccess, setSubscribeSuccess]     = useState(false);
   const [copySides, setCopySides]                   = useState('BUY_ONLY');
   const [allowShortSelling, setAllowShortSelling]   = useState(false);
+  const [allocationAmount, setAllocationAmount]     = useState('');
   const [copySidesOptions, setCopySidesOptions]     = useState([
     { id: 'BUY_ONLY', label: 'Buy only (safe default)', description: 'Copy BUY; SELL only with copied BUY + live position' },
     { id: 'BUY_AND_SELL', label: 'Buy and sell', description: 'Copy BUY and SELL when child has live long qty' },
@@ -128,6 +129,7 @@ const FindMasters = () => {
     if (isFollowing(master.id)) return;
     setSubscribeMaster(master);
     setMultiplier(1.0);
+    setAllocationAmount('');
     setSubscribeSuccess(false);
     await loadBrokerAccounts();
     setSubscribeModal(true);
@@ -152,6 +154,7 @@ const FindMasters = () => {
     const activeAccounts = await loadBrokerAccounts();
     if (!activeAccounts.length) { addToast('Connect a broker account with an active session first', 'error'); return; }
     setMultiplier(1.0);
+    setAllocationAmount('');
     setCopySides('BUY_ONLY');
     setAllowShortSelling(false);
     setBulkSubscribeModal(true);
@@ -167,6 +170,7 @@ const FindMasters = () => {
         scalingFactor: multiplier,
         copySides,
         allowShortSelling: copySides === 'MIRROR' ? allowShortSelling : false,
+        allocationAmount: allocationAmount !== '' ? Number(allocationAmount) : 0,
       });
       await refetchSubscriptions();
       setSubscribeSuccess(true);
@@ -191,6 +195,7 @@ const FindMasters = () => {
             scalingFactor: multiplier,
             copySides,
             allowShortSelling: copySides === 'MIRROR' ? allowShortSelling : false,
+            allocationAmount: allocationAmount !== '' ? Number(allocationAmount) : 0,
           })
         )
       );
@@ -434,6 +439,19 @@ const FindMasters = () => {
 
                 <MultiplierControl />
 
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allocation Amount (Optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={allocationAmount}
+                    onChange={(e) => setAllocationAmount(e.target.value)}
+                    placeholder="e.g. 50000"
+                    className="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple outline-none"
+                  />
+                </div>
+
                 {/* NEW: Copy Mode selector */}
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>
@@ -526,6 +544,18 @@ const FindMasters = () => {
             />
           </div>
           <MultiplierControl />
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allocation Amount (Optional)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={allocationAmount}
+              onChange={(e) => setAllocationAmount(e.target.value)}
+              placeholder="e.g. 50000"
+              className="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple outline-none"
+            />
+          </div>
           {/* Copy Mode selector */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>

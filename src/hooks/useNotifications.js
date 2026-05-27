@@ -27,36 +27,42 @@ export const useNotifications = () => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // NEW — Subscribe to /ws/notifications for real-time SESSION_EXPIRED events
+  // Subscribe to /ws/notifications for real-time broker/session alerts.
   useEffect(() => {
     const sub = connectChannel(
-      'trades',
+      'notifications',
       (event, data) => {
-        // Backend sends SESSION_EXPIRED when a copy trade fails due to expired broker session
-        if (event === 'SESSION_EXPIRED') {
-          const broker = data?.broker || 'Unknown';
-          const accountId = data?.accountId || '';
+        const normalizedType = String(data?.type || event || '').toUpperCase();
+        if (normalizedType === 'SESSION_EXPIRED' || normalizedType === 'BROKER_DISCONNECTED' || normalizedType === 'BROKER_RECONNECT_REQUIRED') {
+          const broker = data?.brokerName || data?.broker || data?.brokerId || 'Unknown';
+          const accountId = data?.accountId || data?.account?.id || '';
           // Add to local session expired list for banner display
-          setSessionExpiredBrokers((prev) => {
-            const alreadyExists = prev.some((b) => b.accountId === accountId);
-            if (alreadyExists) return prev;
-            return [...prev, { broker, accountId, childId: data?.childId }];
-          });
+          if (accountId) {
+            setSessionExpiredBrokers((prev) => {
+              const alreadyExists = prev.some((b) => b.accountId === accountId);
+              if (alreadyExists) return prev;
+              return [...prev, { broker, accountId, childId: data?.childId }];
+            });
+          }
           // Also inject into notifications list so bell shows it immediately
           setNotifications((prev) => {
             const syntheticNotif = {
-              id: `ws-session-${accountId}-${Date.now()}`,
-              type: 'SESSION_EXPIRED',
-              title: 'Broker session expired',
-              message: `Your ${broker} session expired. Re-login to resume copy trading.`,
+              id: `ws-${normalizedType.toLowerCase()}-${accountId || 'na'}-${Date.now()}`,
+              type: normalizedType,
+              title: normalizedType === 'SESSION_EXPIRED' ? 'Broker session expired' : 'Broker reconnect required',
+              message: data?.message || `Your ${broker} session needs re-login.`,
               read: false,
               createdAt: new Date().toISOString(),
+              accountId,
+              brokerName: broker,
+              action: data?.action || 'RECONNECT',
+              loginOptionsUrl: data?.loginOptionsUrl,
             };
             return [syntheticNotif, ...prev];
           });
         }
 
-        // Any other notification event — refetch from server
+        // Any notification push — refetch from server
         if (event === 'NOTIFICATION' || event === 'NEW_NOTIFICATION') {
           fetchNotifications();
         }

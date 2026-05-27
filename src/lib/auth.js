@@ -11,20 +11,20 @@ const ROLE_STORAGE_KEY = 'Ascentra Capital_impersonated_role';
 
 const pickRole = (rawRole) => {
   if (!rawRole) {
-    return 'Child';
+    return 'CHILD';
   }
 
   const normalized = String(rawRole).trim().toLowerCase();
 
   if (normalized === 'master' || normalized === 'provider') {
-    return 'Master';
+    return 'MASTER';
   }
 
   if (normalized === 'admin' || normalized === 'administrator') {
-    return 'Admin';
+    return 'ADMIN';
   }
 
-  return 'Child';
+  return 'CHILD';
 };
 
 const normalizeUser = (payload = {}) => {
@@ -38,7 +38,7 @@ const normalizeUser = (payload = {}) => {
     Boolean(source.two_factor_enabled);
 
   return {
-    id: source.id || source._id || source.userId || null,
+    id: source.userId || source.id || source._id || null,
     userId: source.userId || source.id || source._id || null,
     name: source.name || source.fullName || fullName || source.username || 'User',
     email: source.email || '',

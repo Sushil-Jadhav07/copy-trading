@@ -14,6 +14,8 @@ export const NOTIFICATION_TYPE_MAP = {
   SESSION_EXPIRED: { label: 'Session Expired', action: 'error', icon: 'alert', requiresLogin: true },
   SESSION_EXPIRING: { label: 'Session Expiring', action: 'warning', icon: 'alert' },
   SESSION_REMINDER: { label: 'Session Reminder', action: 'info', icon: 'bell' },
+  BROKER_DISCONNECTED: { label: 'Broker Disconnected', action: 'warning', icon: 'alert', requiresLogin: true },
+  BROKER_RECONNECT_REQUIRED: { label: 'Reconnect Required', action: 'warning', icon: 'alert', requiresLogin: true },
 };
 
 export const notificationService = {

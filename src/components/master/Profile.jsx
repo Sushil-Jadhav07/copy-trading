@@ -225,8 +225,8 @@ const Profile = () => {
     try {
       const response = await authService.enableTwoFactor();
       setTwoFactorSetup({
-        qrCode: response.qrCode || response.qr_code || response.qrCodeUrl || '',
-        setupKey: response.setupKey || response.secret || response.manualEntryKey || '',
+        qrCode: response.qrCodeUri ?? response.qrCode ?? response.qr_code ?? response.qrCodeUrl ?? '',
+        setupKey: response.secret ?? response.setupKey ?? response.manualEntryKey ?? '',
       });
       addToast('Two-factor setup started', 'info');
     } catch (error) {
@@ -472,29 +472,9 @@ const Profile = () => {
                       disabled={loadingProfile}
                     />
                   </div>
-                  <div>
-                    <div className="mb-1.5 flex items-center justify-between gap-3">
-                      <label className="block text-sm font-medium">Telegram Chat ID</label>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
-                        settings.telegramChatId
-                          ? 'bg-emerald-500/10 text-emerald-500'
-                          : 'bg-amber-500/10 text-amber-500'
-                      }`}>
-                        {settings.telegramChatId ? 'Telegram Linked' : 'Not Linked'}
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      <input
-                        type="text"
-                        value={settings.telegramChatId}
-                        onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value })}
-                        placeholder="123456789"
-                        className="w-full rounded-xl border border-black/10 bg-black/5 py-2.5 pl-10 pr-4 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                        disabled={loadingProfile}
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-slate-400">Use the chat ID returned by your Telegram bot, @userinfobot, or your Telegram username.</p>
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                    <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400">Telegram linking is managed in the Telegram tab.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Use Connect Telegram there to avoid incorrect chat IDs.</p>
                   </div>
                 </div>
               </div>
@@ -532,7 +512,7 @@ const Profile = () => {
                 <div className="space-y-3 text-sm">
                   <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                     <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">User ID</p>
-                    <p className="mt-2 break-all font-medium text-foreground">{user?.userId || 'N/A'}</p>
+                    <p className="mt-2 break-all font-medium text-foreground">{user?.id ?? user?.userId ?? 'N/A'}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                     <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Email</p>
@@ -872,6 +852,26 @@ const Profile = () => {
                         <p className="font-black">{acc.openPositionsCount ?? 0}</p>
                       </div>
                     </div>
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        acc.fundsUtilizationStatus === 'GREEN' ? 'bg-emerald-500/10 text-emerald-500' :
+                        acc.fundsUtilizationStatus === 'YELLOW' ? 'bg-amber-500/10 text-amber-500' :
+                        'bg-rose-500/10 text-rose-500'
+                      }`}>
+                        {acc.fundsUtilizationStatus || 'UNKNOWN'}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Margin: ₹{(acc.marginAvailable || 0).toLocaleString('en-IN')} available
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {(acc.marginUsedPercent ?? 0).toFixed(1)}% used
+                      </span>
+                    </div>
+
+                    {acc.isTokenExpired && (
+                      <p className="text-xs text-rose-500 font-bold mt-1">Session expired - re-login required</p>
+                    )}
 
                     {acc.tokenExpiresInHours != null && !acc.isTokenExpired && (
                       <p className="mt-2 text-[10px] text-muted-foreground">

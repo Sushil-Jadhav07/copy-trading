@@ -1,8 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authService, authStorage } from '@/lib/auth';
+import { brokerService } from '@/lib/broker';
 import { disconnectAll } from '@/lib/websocket';
 
 const AuthContext = createContext(null);
+const normalizeRole = (value) => String(value || '').trim().toUpperCase();
 
 const FALLBACK_AUTH_CONTEXT = {
   user: null,
@@ -72,6 +74,11 @@ export const AuthProvider = ({ children }) => {
 
       setUser(result.user);
       setIsAuthenticated(true);
+      brokerService.getAccounts()
+        .then((accounts) => {
+          setUser((prev) => (prev ? { ...prev, brokerAccounts: accounts } : prev));
+        })
+        .catch(() => {});
       return { success: true, user: result.user };
     } catch (error) {
       return { success: false, error: error.message || 'Login failed' };
@@ -117,7 +124,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const switchRole = useCallback((newRole) => {
-    if (user && user.role === 'Admin') {
+    if (user && normalizeRole(user.role) === 'ADMIN') {
       const updatedUser = { ...user, impersonatedRole: newRole };
       setUser(updatedUser);
       authStorage.setImpersonatedRole(newRole);
@@ -126,7 +133,7 @@ export const AuthProvider = ({ children }) => {
 
   const getEffectiveRole = useCallback(() => {
     if (!user) return null;
-    return user.impersonatedRole || authStorage.getImpersonatedRole() || user.role;
+    return normalizeRole(user.impersonatedRole || authStorage.getImpersonatedRole() || user.role);
   }, [user]);
 
   const refreshUser = useCallback(async () => {

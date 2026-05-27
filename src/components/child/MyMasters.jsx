@@ -117,7 +117,7 @@ const MyMasters = () => {
           tradingEnabled: status === 'ACTIVE',
           totalPnL: s.pnl || s.totalPnL || 0,
           tradesCopiedToday: s.tradestoday || s.tradesCopiedToday || 0,
-          allocation: s.allocation || s.allocationAmount || 0,
+          allocation: s.allocationAmount ?? s.allocation ?? null,
           status,
           copyingStatus: status,
           // New fields from May 2026 API
@@ -421,7 +421,7 @@ const MyMasters = () => {
 
                 <div className="space-y-2 text-sm mb-4">
                   {[
-                    ['Allocation', formatCurrency(master.allocation)],
+                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '-'],
                     ['Trades Today', master.tradesCopiedToday],
                     [
                       'Total P&L',

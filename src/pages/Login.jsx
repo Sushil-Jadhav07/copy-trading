@@ -39,9 +39,10 @@ const Login = () => {
 
   /* ---------- redirect helper ---------- */
   const redirectAfterLogin = (user) => {
+    const normalizedRole = String(user?.role || '').toUpperCase();
     const path =
-      user.role === 'Master' ? '/master/overview' :
-      user.role === 'Admin'  ? '/admin/overview'  : '/child/overview';
+      normalizedRole === 'MASTER' ? '/master/overview' :
+      normalizedRole === 'ADMIN'  ? '/admin/overview'  : '/child/overview';
     navigate(path, { replace: true });
   };
 

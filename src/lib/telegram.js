@@ -7,6 +7,15 @@ const getErrorMessage = (error, fallback) =>
   fallback;
 
 export const telegramService = {
+  async getBotConfig() {
+    try {
+      const res = await api.get('/api/v1/notifications/telegram/bot', { skipAuthRefresh: true });
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to load Telegram bot config'));
+    }
+  },
+
   // Step 1: Generate 6-digit link code
   async generateLinkToken() {
     try {

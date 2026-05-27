@@ -95,16 +95,35 @@ const normalizeChild = (raw = {}, index = 0) => {
     email: raw.email || source.email || '',
     broker: raw.broker || raw.brokerName || source.broker || source.brokerName || '',
     brokerName: raw.brokerName || source.brokerName || raw.broker || source.broker || '',
-    multiplier: Number(raw.multiplier || raw.scalingFactor || raw.scale || 1),
+    multiplier: Number(raw.multiplier ?? raw.scalingFactor ?? raw.scale ?? 1),
     allocation: Number(raw.allocation || raw.allocationAmount || raw.capitalAllocation || 0),
     allocationAmount: Number(raw.allocationAmount || raw.allocation || raw.capitalAllocation || 0),
     totalPnL: Number(raw.totalPnL || raw.pnl || raw.profitLoss || 0),
     pnl: Number(raw.pnl || raw.totalPnL || raw.profitLoss || 0),
     tradesCopied: Number(raw.tradesCopied || raw.tradeCount || raw.copiedTrades || 0),
     tradeCount: Number(raw.tradeCount || raw.tradesCopied || raw.copiedTrades || 0),
-    margin: Number(raw.margin || raw.availableMargin || raw.available_margin || source.margin || source.availableMargin || source.available_margin || 0),
-    pnlToday: Number(raw.pnlToday || raw.todayPnL || raw.netPnL || raw.dailyPnL || 0),
-    positions: Number(raw.positions || raw.openPositions || raw.positionCount || 0),
+    margin: Number(
+      raw.margin ??
+      raw.marginAvailable ??
+      raw.availableMargin ??
+      raw.available_margin ??
+      source.margin ??
+      source.marginAvailable ??
+      source.availableMargin ??
+      source.available_margin ??
+      0
+    ),
+    pnlToday: Number(
+      raw.pnlToday ??
+      raw.pnl ??
+      raw.todayPnL ??
+      raw.netPnL ??
+      raw.dailyPnL ??
+      0
+    ),
+    positions: Number(raw.pos ?? raw.openPositionsCount ?? raw.positions ?? raw.openPositions ?? raw.positionCount ?? 0),
+    lowMargin: Boolean(raw.lowMargin ?? source.lowMargin ?? false),
+    sessionActive: raw.sessionActive != null ? Boolean(raw.sessionActive) : (source.sessionActive != null ? Boolean(source.sessionActive) : true),
     tradingEnabled: Boolean(
       raw.tradingEnabled ??
         raw.enabled ??
@@ -242,6 +261,8 @@ const normalizePositionsPayload = (raw = {}) => {
 };
 
 export const masterService = {
+  // IMPORTANT: All master endpoints require /api/v1/master/ prefix AND JWT.
+  // Do NOT use /api/v1/dashboard or /api/v1/trades for master data.
   async getChildren() {
     try {
       const res = await api.get('/api/v1/master/children');
@@ -373,6 +394,24 @@ export const masterService = {
       return normalizeMasterAnalytics(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load analytics'));
+    }
+  },
+
+  async getCopyTradingData() {
+    try {
+      const res = await api.get('/api/v1/master/copy-trading');
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load copy trading data'));
+    }
+  },
+
+  async getPnlAnalytics() {
+    try {
+      const res = await api.get('/api/v1/master/pnl-analytics');
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load P&L analytics'));
     }
   },
 

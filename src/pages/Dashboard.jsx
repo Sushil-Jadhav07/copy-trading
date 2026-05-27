@@ -27,6 +27,7 @@ const CursorGlow = ({ position, isVisible }) => {
 
 const Dashboard = () => {
   const { isAuthenticated, loading, user, role } = useAuth();
+  const normalizedRole = String(role || '').toUpperCase();
   const { isDark } = useTheme();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ const Dashboard = () => {
       'trades',
       (event, data) => {
         // Master view: Notify when a trade is detected from their broker
-        if (role === 'Master') {
+        if (normalizedRole === 'MASTER') {
           if (event === 'TRADE_DETECTED' || event === 'trade_detected') {
             addToast(`New order detected on Master: ${data?.symbol} ${data?.side} x${data?.qty}`, 'info', 5000);
           }
@@ -60,7 +61,7 @@ const Dashboard = () => {
         }
 
         // Child view: Notify when a trade is copied to their account
-        if (role === 'Child') {
+        if (normalizedRole === 'CHILD') {
           if (event === 'TRADE_COPIED' || event === 'copy_trade') {
             addToast(`New order placed in your account: ${data?.symbol} ${data?.side} x${data?.qty}`, 'success', 6000);
           }
@@ -74,7 +75,7 @@ const Dashboard = () => {
     );
 
     return () => sub.close();
-  }, [isAuthenticated, role, addToast]);
+  }, [isAuthenticated, normalizedRole, addToast]);
 
   useEffect(() => {
     // Simulate initial loading
@@ -182,7 +183,7 @@ const Dashboard = () => {
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
                   <div>
                     <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
-                      {role === 'Admin' ? 'Admin Dashboard' : role === 'Master' ? 'Master Hub' : 'Portfolio Overview'}
+                      {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
                     </h1>
                     <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
                       Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.

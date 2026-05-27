@@ -56,6 +56,7 @@ const Overview = () => {
           adminService.getAnalytics(),
           adminService.getSystemHealth(),
           adminService.getTradeLogs(),
+          // Admin list endpoints here are 1-based: first page is page=1.
           adminService.getUsers({ page: 1, limit: 1 }),
         ]);
 

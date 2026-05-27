@@ -18,7 +18,7 @@ import OpenPositions from '@/components/master/OpenPositions';
 import OrderBook from '@/components/master/OrderBook';
 import PnLSummary from '@/components/master/PnLSummary';
 import ActiveFollowers from '@/components/master/ActiveFollowers';
-import Profile from '@/components/master/Profile';
+import MasterProfile from '@/components/master/Profile';
 
 // ── NEW MASTER COMPONENTS ──────────────────────────────────
 import UserManagement from '@/components/master/UserManagement';
@@ -42,6 +42,7 @@ import OptionsStatus from '@/components/child/OptionsStatus';
 import ChildOpenPositions from '@/components/child/OpenPositions';
 import RiskSettings from '@/components/child/RiskSettings';
 import ChildTradeTimeline from '@/components/child/TradeTimeline';
+import ChildProfile from '@/components/child/Profile';
 
 
 
@@ -56,6 +57,7 @@ import LiveTrades from '@/components/admin/LiveTrades';
 import OrderFeed from '@/components/admin/OrderFeed';
 import AdminPnL from '@/components/admin/AdminPnL';
 import AdminRiskRules from '@/components/admin/AdminRiskRules';
+import AdminProfile from '@/components/admin/Profile';
 
 
 // ── DematDetail wrapper: reads accountId from URL params ──
@@ -100,11 +102,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 // Role-based redirect
 const RoleRedirect = () => {
   const { getEffectiveRole } = useAuth();
-  const role = getEffectiveRole();
+  const role = String(getEffectiveRole() || '').toUpperCase();
 
-  if (role === 'Master') return <Navigate to="/master/overview" replace />;
-  if (role === 'Child') return <Navigate to="/child/overview" replace />;
-  if (role === 'Admin') return <Navigate to="/admin/overview" replace />;
+  if (role === 'MASTER') return <Navigate to="/master/overview" replace />;
+  if (role === 'CHILD') return <Navigate to="/child/overview" replace />;
+  if (role === 'ADMIN') return <Navigate to="/admin/overview" replace />;
   return <Navigate to="/login" replace />;
 };
 
@@ -139,7 +141,7 @@ const AppRouter = () => {
                 <Route path="master/orders" element={<OrderBook />} />
                 <Route path="master/pnl" element={<PnLSummary />} />
                 <Route path="master/followers" element={<ActiveFollowers />} />
-                <Route path="master/profile" element={<Profile />} />
+                <Route path="master/profile" element={<MasterProfile />} />
 
 
                 {/* ── NEW MASTER ROUTES ── */}
@@ -167,7 +169,7 @@ const AppRouter = () => {
                 <Route path="child/trade-timeline" element={<ChildTradeTimeline />} />
                 <Route path="child/options-status" element={<OptionsStatus />} />
                 <Route path="child/risk-settings" element={<RiskSettings />} />
-                <Route path="child/profile" element={<Profile />} />
+                <Route path="child/profile" element={<ChildProfile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
 
                 {/* Admin Routes */}
@@ -176,7 +178,7 @@ const AppRouter = () => {
                 <Route path="admin/masters" element={<AllUsers scope="masters" />} />
                 <Route path="admin/children" element={<AllUsers scope="children" />} />
                 <Route path="admin/verification" element={<PendingVerification />} />
-                <Route path="admin/profile" element={<Profile />} />
+                <Route path="admin/profile" element={<AdminProfile />} />
                 <Route path="admin/live-trades" element={<LiveTrades />} />
                 <Route path="admin/order-feed" element={<OrderFeed />} />
                 <Route path="admin/broker-status" element={<BrokerStatus />} />

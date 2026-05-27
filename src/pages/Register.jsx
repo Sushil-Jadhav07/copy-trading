@@ -62,7 +62,7 @@ const Register = () => {
     phone: '',
     password: '',
     confirmPassword: '',
-    role: 'Child',
+    role: 'CHILD',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -462,14 +462,14 @@ const Register = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {[
                         {
-                          val: 'Child',
+                          val: 'CHILD',
                           label: 'Copy Trades',
                           icon: '📈',
                           description: 'Follow expert traders and automatically mirror their trades in your account.',
                           badge: 'Most Popular',
                         },
                         {
-                          val: 'Master',
+                          val: 'MASTER',
                           label: 'Be a Master',
                           icon: '🏆',
                           description: 'Share your trading strategy, build a following, and earn from your performance.',

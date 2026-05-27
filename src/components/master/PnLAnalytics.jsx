@@ -26,6 +26,8 @@ const PnLAnalytics = () => {
   const [summary, setSummary] = useState([]);
   const [realized, setRealized] = useState(null);
   const [unrealized, setUnrealized] = useState(null);
+  const [childPerformance, setChildPerformance] = useState([]);
+  const [dailyChart, setDailyChart] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +36,39 @@ const PnLAnalytics = () => {
     const loadSummary = async () => {
       setLoading(true);
       try {
+        try {
+          const data = await masterService.getPnlAnalytics();
+          if (!isMounted) return;
+
+          const summaryPayload = data?.summary || {};
+          const daily = Array.isArray(data?.dailyChart) ? data.dailyChart : [];
+
+          setDailyChart(daily);
+          setChildPerformance(Array.isArray(data?.childPerformance) ? data.childPerformance : []);
+          setSummary(
+            daily.map((row, index) => normalizeSummaryRow({
+              id: row.id || row.date || index,
+              period: row.date || row.label || `Day ${index + 1}`,
+              realizedPnl: row.realizedPnl ?? row.realized ?? row.value ?? row.pnl ?? 0,
+              unrealizedPnl: row.unrealizedPnl ?? row.unrealized ?? 0,
+              totalTrades: row.totalTrades ?? row.trades ?? 0,
+              winRate: row.winRate ?? 0,
+            }, index))
+          );
+
+          setRealized({
+            realizedPnl: Number(summaryPayload.totalRealisedPnl ?? summaryPayload.totalRealizedPnl ?? summaryPayload.realisedPnl ?? summaryPayload.realizedPnl ?? 0),
+            trades: [],
+          });
+          setUnrealized({
+            unrealizedPnl: Number(summaryPayload.totalUnrealisedPnl ?? summaryPayload.totalUnrealizedPnl ?? summaryPayload.unrealisedPnl ?? summaryPayload.unrealizedPnl ?? 0),
+            children: Array.isArray(data?.childPerformance) ? data.childPerformance : [],
+          });
+          return;
+        } catch {
+          // Fallback to legacy P&L endpoints when master/pnl-analytics is unavailable.
+        }
+
         const [summaryData, activeAccount] = await Promise.all([
           pnlService.getSummary(period).catch(() => []),
           masterService.getActiveAccount().catch(() => null),
@@ -43,6 +78,8 @@ const PnLAnalytics = () => {
 
         const normalizedSummary = (Array.isArray(summaryData) ? summaryData : []).map(normalizeSummaryRow);
         setSummary(normalizedSummary);
+        setDailyChart([]);
+        setChildPerformance([]);
 
         const brokerAccountId = activeAccount?.brokerAccountId || activeAccount?.accountId;
         if (brokerAccountId) {
@@ -54,11 +91,9 @@ const PnLAnalytics = () => {
             setUnrealized(unrealizedData);
             setRealized(realizedData);
           }
-        } else {
-          if (isMounted) {
-            setUnrealized(null);
-            setRealized(null);
-          }
+        } else if (isMounted) {
+          setUnrealized(null);
+          setRealized(null);
         }
       } catch (error) {
         if (isMounted) addToast('Error loading P&L data', 'error');
@@ -107,10 +142,15 @@ const PnLAnalytics = () => {
 
   const monthlyTotal = realizedPnlVal + unrealizedPnlVal;
 
-  const dailyPnlChart = useMemo(
-    () => summary.map((row, index) => ({ time: String(row.period || index + 1), value: Number(row.realizedPnl || 0) + Number(row.unrealizedPnl || 0) })),
-    [summary]
-  );
+  const dailyPnlChart = useMemo(() => {
+    if (dailyChart.length > 0) {
+      return dailyChart.map((row, index) => ({
+        time: String(row.date || row.label || index + 1),
+        value: Number(row.value ?? row.pnl ?? row.totalPnl ?? row.realizedPnl ?? 0),
+      }));
+    }
+    return summary.map((row, index) => ({ time: String(row.period || index + 1), value: Number(row.realizedPnl || 0) + Number(row.unrealizedPnl || 0) }));
+  }, [summary, dailyChart]);
 
   const weeklyBreakdown = useMemo(() => {
     if (!summary.length) return [];
@@ -137,7 +177,7 @@ const PnLAnalytics = () => {
 
   const childComparison = useMemo(
     () =>
-      (Array.isArray(unrealized?.children) ? unrealized.children : [])
+      (childPerformance.length ? childPerformance : (Array.isArray(unrealized?.children) ? unrealized.children : []))
         .map((c, idx) => ({
           id: c.id || c.childId || idx,
           follower: c.name || c.childName || c.email || `Child ${idx + 1}`,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -126,13 +126,15 @@ const normalizeChildRow = (child) => {
     userId: child.clientId || child.userId || child.childId,
     nickname: child.nickname || child.name || child.childName || 'Unknown',
     broker: child.broker || child.brokerName || 'Broker',
-    multiplier: Number(child.multiplier || child.scalingFactor || 1),
+    multiplier: Number(child.multiplier ?? child.scalingFactor ?? 1),
     status,
     tradingEnabled: hasStatus ? status === 'ACTIVE' : Boolean(child.enabled || child.tradingEnabled),
-    pnlToday: Number(child.pnlToday || child.pnl || 0),
+    pnlToday: Number(child.pnlToday ?? child.pnl ?? 0),
     tradesCopied: Number(child.tradesCopied || child.tradeCount || 0),
-    margin: Number(child.margin || child.availableMargin || 0),
-    positions: Number(child.positions || child.positionCount || 0),
+    margin: Number(child.margin ?? child.marginAvailable ?? child.availableMargin ?? 0),
+    positions: Number(child.pos ?? child.openPositionsCount ?? child.positions ?? child.positionCount ?? 0),
+    sessionActive: child.sessionActive != null ? Boolean(child.sessionActive) : true,
+    lowMargin: Boolean(child.lowMargin),
     isLinked: Boolean(child.isLinked),
     isSubscribedOnly: Boolean(child.isSubscribedOnly),
   };
@@ -196,6 +198,55 @@ const CopyTrading = () => {
   const [copyResult, setCopyResult] = useState(null);
   const [copyResultHistory, setCopyResultHistory] = useState([]);
   const [liveChildMetrics, setLiveChildMetrics] = useState({});
+  const [pollingIntervalMs, setPollingIntervalMs] = useState(3000);
+  const [usingCopyTradingEndpoint, setUsingCopyTradingEndpoint] = useState(false);
+
+  const loadCopyTradingData = useCallback(async () => {
+    try {
+      const data = await masterService.getCopyTradingData();
+      const copyChildren = Array.isArray(data?.children) ? data.children : [];
+      setChildren(copyChildren);
+      setUsingCopyTradingEndpoint(true);
+
+      const activeId = data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || '';
+      if (activeId) {
+        const acc = accounts.find((item) => item.accountId === activeId);
+        setMasterAccountId(activeId);
+        setMasterConnected(true);
+        if (acc) setMasterInfo(acc);
+      }
+
+      if (data?.pollingIntervalMs) {
+        setPollingIntervalMs(Math.max(Number(data.pollingIntervalMs) || 3000, 500));
+      } else {
+        engineService.getConfig()
+          .then((cfg) => {
+            if (cfg?.pollingIntervalMs) {
+              setPollingIntervalMs(Math.max(Number(cfg.pollingIntervalMs) || 3000, 500));
+            }
+          })
+          .catch(() => {});
+      }
+
+      const nextMetrics = {};
+      copyChildren.forEach((child) => {
+        const accountId = String(child.brokerAccountId || child.accountId || '');
+        if (!accountId) return;
+        nextMetrics[accountId] = {
+          margin: Number(child.margin ?? child.marginAvailable ?? 0),
+          pnl: Number(child.pnlToday ?? child.pnl ?? 0),
+          positions: Number(child.pos ?? child.openPositionsCount ?? child.positions ?? 0),
+          sessionActive: child.sessionActive != null ? Boolean(child.sessionActive) : true,
+          lowMargin: Boolean(child.lowMargin),
+        };
+      });
+      setLiveChildMetrics(nextMetrics);
+      return true;
+    } catch {
+      setUsingCopyTradingEndpoint(false);
+      return false;
+    }
+  }, [accounts, setChildren]);
 
   // ── Load historical latency data ──────────────────────────────────────────
   useEffect(() => {
@@ -297,14 +348,44 @@ const CopyTrading = () => {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    loadCopyTradingData().then((ok) => {
+      if (!isMounted) return;
+      if (!ok) {
+        refetch();
+        refetchSubscriptions();
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [loadCopyTradingData, refetch, refetchSubscriptions]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      loadCopyTradingData().then((ok) => {
+        if (!ok) {
+          refetch();
+          refetchSubscriptions();
+        }
+      });
+    }, pollingIntervalMs);
+    return () => window.clearInterval(intervalId);
+  }, [pollingIntervalMs, loadCopyTradingData, refetch, refetchSubscriptions]);
+
+  useEffect(() => {
     const onFocus = () => {
-      refetch();
-      refetchSubscriptions();
+      loadCopyTradingData().then((ok) => {
+        if (!ok) {
+          refetch();
+          refetchSubscriptions();
+        }
+      });
     };
 
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [refetch, refetchSubscriptions]);
+  }, [loadCopyTradingData, refetch, refetchSubscriptions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -474,6 +555,7 @@ const CopyTrading = () => {
   );
 
   useEffect(() => {
+    if (usingCopyTradingEndpoint) return () => {};
     let cancelled = false;
     const targets = linkedRows
       .map((row) => row.brokerAccountId || row.accountId)
@@ -523,7 +605,7 @@ const CopyTrading = () => {
     return () => {
       cancelled = true;
     };
-  }, [linkedRows]);
+  }, [linkedRows, usingCopyTradingEndpoint]);
 
   const availableChildRows = useMemo(() => {
     const map = new Map();
@@ -883,7 +965,7 @@ const CopyTrading = () => {
   const detectionMethods = engineStatus?.detectionMethod || {};
   const brokerList = Object.keys(detectionMethods).length > 0 ? Object.keys(detectionMethods) : engineStatus?.supportedBrokers || [];
   const engineActive = String(engineStatus?.engineStatus || engineStatus?.status || '').toUpperCase() === 'ACTIVE';
-  const pollingInterval = engineStatus?.pollingIntervalSeconds || 1;
+  const pollingInterval = Math.max(0.5, Number(pollingIntervalMs || 3000) / 1000);
   const modeList = (Array.isArray(engineStatus?.modes) ? engineStatus.modes : [engineStatus?.modes]).filter(Boolean);
   const lastResetLabel = pollingStatus?.lastResetAt
     ? new Date(pollingStatus.lastResetAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
@@ -1378,9 +1460,11 @@ const CopyTrading = () => {
                   const effectiveMargin = Number.isFinite(Number(live.margin)) ? Number(live.margin) : Number(child.margin || 0);
                   const effectivePnl = Number.isFinite(Number(live.pnl)) ? Number(live.pnl) : Number(child.pnlToday || 0);
                   const effectivePositions = Number.isFinite(Number(live.positions)) ? Number(live.positions) : Number(child.positions || 0);
+                  const effectiveSessionActive = live.sessionActive != null ? Boolean(live.sessionActive) : Boolean(child.sessionActive ?? true);
+                  const effectiveLowMargin = live.lowMargin != null ? Boolean(live.lowMargin) : Boolean(child.lowMargin);
                   const isActive = child.status === 'ACTIVE';
                   const isPaused = child.status === 'PAUSED';
-                  const lowMargin = effectiveMargin < 5000;
+                  const lowMargin = effectiveLowMargin || effectiveMargin < 5000;
 
                   return (
                     <motion.tr
@@ -1404,15 +1488,34 @@ const CopyTrading = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="min-w-[120px]">
-                          <p className={`text-sm font-black ${lowMargin ? 'text-rose-500' : 'text-foreground'}`}>
-                            {formatCurrency(effectiveMargin)}
-                          </p>
+                          {effectiveMargin === 0 && !effectiveSessionActive ? (
+                            <p className="text-xs text-amber-500 font-bold">Session expired</p>
+                          ) : (
+                            <p className={`text-sm font-black ${lowMargin ? 'text-rose-500' : 'text-foreground'}`}>
+                              {formatCurrency(effectiveMargin)}
+                            </p>
+                          )}
                           <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10 w-24">
                             <div
                               className={`h-full rounded-full transition-all duration-500 ${lowMargin ? 'bg-rose-500' : effectiveMargin < 12000 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                               style={{ width: `${Math.min(100, (effectiveMargin / 50000) * 100)}%` }}
                             />
                           </div>
+                          {!effectiveSessionActive && (
+                            <div className="flex items-center gap-1.5 text-xs text-amber-500 font-bold mt-1">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>Session expired</span>
+                              <button
+                                onClick={() => navigate(`/master/demat/${child.brokerAccountId || child.accountId}`)}
+                                className="underline hover:no-underline text-amber-600"
+                              >
+                                Re-login -
+                              </button>
+                            </div>
+                          )}
+                          {effectiveLowMargin && (
+                            <span className="text-xs text-rose-500 font-bold">Low margin</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">

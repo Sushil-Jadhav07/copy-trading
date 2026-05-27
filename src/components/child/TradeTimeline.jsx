@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Activity,
@@ -18,6 +19,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { childService } from '@/lib/child';
+import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 
 const SKIP_REASON_LABELS = {
@@ -181,6 +183,7 @@ const StatCard = ({ label, value, sub, icon: Icon, tone = 'text-brand-purple' })
 );
 
 const TradeTimeline = () => {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -191,6 +194,7 @@ const TradeTimeline = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sideFilter, setSideFilter] = useState('ALL');
   const [query, setQuery] = useState('');
+  const [skipReasonLabels, setSkipReasonLabels] = useState(SKIP_REASON_LABELS);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +209,16 @@ const TradeTimeline = () => {
   }, [addToast]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    engineService.getMetadata()
+      .then((meta) => {
+        if (meta?.skipReasons && typeof meta.skipReasons === 'object') {
+          setSkipReasonLabels((prev) => ({ ...prev, ...meta.skipReasons }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const interval = window.setInterval(load, 30000);
@@ -510,7 +524,7 @@ const TradeTimeline = () => {
                     const StatusIcon = meta.icon;
                     const isExpanded = expandedId === trade.eventId;
                     const side = String(trade.side || 'BUY').toUpperCase();
-                    const skipLabel = SKIP_REASON_LABELS[trade.skipReason] || trade.skipReason || null;
+                    const skipLabel = skipReasonLabels[trade.skipReason] || trade.skipReason || null;
 
                     return (
                       <motion.div
@@ -569,7 +583,20 @@ const TradeTimeline = () => {
                           {status === 'SKIPPED' && skipLabel && (
                             <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2">
                               <SkipForward className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                              <p className="text-xs font-medium text-amber-600 dark:text-amber-400">{skipLabel}</p>
+                              <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                {skipLabel}
+                                {(trade.skipReason === 'SESSION_EXPIRED' || trade.skipReason === 'SESSION_INACTIVE') && (
+                                  <button
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      navigate('/platform/dematconnected');
+                                    }}
+                                    className="text-xs font-bold text-amber-500 underline hover:no-underline ml-2"
+                                  >
+                                    Re-login broker -
+                                  </button>
+                                )}
+                              </p>
                             </div>
                           )}
 

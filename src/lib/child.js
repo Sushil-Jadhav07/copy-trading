@@ -280,6 +280,7 @@ export const childService = {
         scalingFactor: body?.scalingFactor ?? 1.0,
         ...(body?.copySides ? { copySides: body.copySides } : {}),
         ...(body?.allowShortSelling != null ? { allowShortSelling: Boolean(body.allowShortSelling) } : {}),
+        ...(body?.allocationAmount != null ? { allocationAmount: Number(body.allocationAmount) } : {}),
       };
       const res = await api.post('/api/v1/child/subscriptions', payload);
       cacheSubscriptionAllocation(body?.masterId, body?.allocationAmount || body?.allocation);

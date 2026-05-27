@@ -266,7 +266,16 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     if (!token) { addToast('Please paste your new Groww access token', 'error'); return; }
     setGrowwReAuthLoading(true);
     try {
-      await brokerService.loginAccount(accountId, { accessToken: token });
+      let loginField = 'accessToken';
+      try {
+        const oauthData = await brokerService.getOAuthUrl(accountId);
+        if (oauthData?.loginField) {
+          loginField = oauthData.loginField;
+        }
+      } catch {
+        // Keep accessToken fallback when oauth-url is unavailable for token-based brokers.
+      }
+      await brokerService.loginAccount(accountId, { [loginField]: token });
       setGrowwReAuthToken('');
       addToast('Groww session refreshed successfully', 'success');
       // Reload dashboard data after re-auth

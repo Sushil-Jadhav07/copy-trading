@@ -15,7 +15,8 @@ const formatSyncTime = (raw) => {
   } catch { return null; }
 };
 
-const IP_WHITELIST_BROKERS = ['GROWW', 'FYERS', 'DHAN', 'ANGELONE'];
+// TODO: Remove IP_WHITELIST_BROKERS once API exposes requiresIpWhitelist on broker accounts.
+const IP_WHITELIST_BROKERS = ['FYERS', 'DHAN', 'ANGELONE'];
 
 const DematConnected = () => {
   const [searchParams] = useSearchParams();
@@ -32,7 +33,8 @@ const DematConnected = () => {
     brokerId: accountDetails?.account?.broker || accountDetails?.broker || accountDetails?.profile?.broker || '',
     name: accountDetails?.account?.broker || accountDetails?.broker || accountDetails?.profile?.broker || '',
   };
-  const requiresWhitelist = IP_WHITELIST_BROKERS.includes(String(selectedBroker?.brokerId || '').toUpperCase());
+  const requiresWhitelist = accountDetails?.requiresIpWhitelist
+    ?? IP_WHITELIST_BROKERS.includes(String(selectedBroker?.brokerId || '').toUpperCase());
 
   const verifyConnection = async () => {
     const requestToken = searchParams.get('request_token');

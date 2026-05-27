@@ -22,7 +22,7 @@ const PendingVerification = () => {
         if (isMounted) {
           setRequests(
             users.map((user) => ({
-              id: user.id,
+              id: user.id ?? user.userId,
               name: user.name,
               email: user.email,
               submittedDate: user.joinedDate || 'N/A',
