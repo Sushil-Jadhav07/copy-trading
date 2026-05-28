@@ -126,6 +126,8 @@ const Login = () => {
       setStep('2fa');
       setOtpCode('');
       setTwoFactorChannel(res.twoFactorChannel || pending2FA?.channel || 'EMAIL');
+      if (res.otpRetryAfter) setCooldown(Number(res.otpRetryAfter) || 60);
+      if (res.otpExpiresIn) setOtpExpiresIn(Number(res.otpExpiresIn) || 600);
     }
     else                        { setError(res.error); }
     setLoading(false);
@@ -154,7 +156,12 @@ const Login = () => {
     setLoading(true);
     setError('');
     const res = await sendLoginOtp(twoFactorEmail);
-    if (!res.success) setError(res.error || 'Failed to resend OTP');
+    if (res.success) {
+      setCooldown(60);
+      setOtpExpiresIn(600);
+    } else {
+      setError(res.error || 'Failed to resend OTP');
+    }
     setLoading(false);
   };
 

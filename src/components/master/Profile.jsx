@@ -260,6 +260,23 @@ const Profile = () => {
     }
   };
 
+  const handleSendDisableOtp = async () => {
+    const email = user?.email;
+    if (!email) {
+      addToast('Add an email to your profile first', 'error');
+      return;
+    }
+    setSavingTwoFactor(true);
+    try {
+      await authService.sendLoginOtp(email);
+      addToast('Verification code sent to your email', 'info');
+    } catch (error) {
+      addToast(error.message || 'Unable to send OTP', 'error');
+    } finally {
+      setSavingTwoFactor(false);
+    }
+  };
+
   const handleDisableTwoFactor = async () => {
     setSavingTwoFactor(true);
 
@@ -295,8 +312,11 @@ const Profile = () => {
     authService.getTwoFactorOptions()
       .then((opts) => {
         if (!mounted) return;
-        const emailAvailable = opts?.EMAIL?.available ?? opts?.email?.available ?? true;
-        const phoneAvailable = opts?.PHONE?.available ?? opts?.phone?.available ?? false;
+        const channels = Array.isArray(opts?.channels) ? opts.channels : [];
+        const emailCh = channels.find((c) => String(c?.id || '').toUpperCase() === 'EMAIL');
+        const phoneCh = channels.find((c) => String(c?.id || '').toUpperCase() === 'PHONE');
+        const emailAvailable = emailCh?.available ?? opts?.EMAIL?.available ?? opts?.email?.available ?? true;
+        const phoneAvailable = phoneCh?.available ?? opts?.PHONE?.available ?? opts?.phone?.available ?? false;
         setTwoFactorOptions({ email: Boolean(emailAvailable), phone: Boolean(phoneAvailable) });
         if (!emailAvailable && phoneAvailable) {
           setTwoFactorSetup((prev) => ({ ...prev, channel: 'PHONE' }));
@@ -767,6 +787,14 @@ const Profile = () => {
                       className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleSendDisableOtp}
+                    disabled={savingTwoFactor}
+                    className="rounded-xl border border-black/10 px-6 py-2.5 text-sm font-medium dark:border-white/10"
+                  >
+                    {savingTwoFactor ? 'Sending...' : 'Send OTP to email'}
+                  </button>
                   <button
                     onClick={handleDisableTwoFactor}
                     disabled={savingTwoFactor || disableTwoFactorForm.otp.length !== 6 || !disableTwoFactorForm.password}

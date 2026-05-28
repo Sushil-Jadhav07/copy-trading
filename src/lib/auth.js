@@ -8,6 +8,25 @@ import api, {
 } from '@/lib/api';
 
 const ROLE_STORAGE_KEY = 'Ascentra Capital_impersonated_role';
+const PENDING_2FA_KEY = 'Ascentra Capital_pending_2fa_token';
+
+const setPending2FAToken = (token) => {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    sessionStorage.setItem(PENDING_2FA_KEY, token);
+  } else {
+    sessionStorage.removeItem(PENDING_2FA_KEY);
+  }
+};
+
+const getPending2FAToken = () => {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(PENDING_2FA_KEY);
+};
+
+const clearPending2FAToken = () => setPending2FAToken(null);
+
+const isPending2FAToken = (token) => Boolean(parseJwtPayload(token)?.pending2fa);
 
 const pickRole = (rawRole) => {
   if (!rawRole) {
@@ -173,14 +192,12 @@ export const authService = {
       const refreshToken = extractRefreshToken(response.data);
       const twoFactorState = extractTwoFactorState(response.data);
 
-      if (token) {
-        setAccessToken(token);
-      }
-      if (refreshToken) {
-        setRefreshToken(refreshToken);
-      }
-
       if (twoFactorState.requires2FA) {
+        if (token) {
+          setPending2FAToken(token);
+        }
+        clearAccessToken();
+        clearRefreshToken();
         return {
           requires2FA: true,
           requiresEmailOtp: twoFactorState.requiresEmailOtp,
@@ -190,6 +207,14 @@ export const authService = {
           otpRetryAfter: twoFactorState.otpRetryAfter,
         };
       }
+
+      if (token) {
+        setAccessToken(token);
+      }
+      if (refreshToken) {
+        setRefreshToken(refreshToken);
+      }
+      clearPending2FAToken();
 
       const user = response.data?.user
         ? normalizeUser(response.data)
@@ -201,18 +226,18 @@ export const authService = {
     } catch (error) {
       if (error.response?.status === 202) {
         const token = extractAccessToken(error.response?.data || {});
-        const refreshToken = extractRefreshToken(error.response?.data || {});
-
+        const twoFactorState = extractTwoFactorState(error.response?.data || {});
         if (token) {
-          setAccessToken(token);
+          setPending2FAToken(token);
         }
-        if (refreshToken) {
-          setRefreshToken(refreshToken);
-        }
-
+        clearAccessToken();
+        clearRefreshToken();
         return {
           requires2FA: true,
           email,
+          twoFactorChannel: twoFactorState.twoFactorChannel || 'EMAIL',
+          otpExpiresIn: twoFactorState.otpExpiresIn,
+          otpRetryAfter: twoFactorState.otpRetryAfter,
         };
       }
 
@@ -258,14 +283,18 @@ export const authService = {
   },
 
   async verifyLoginOtp(email, otp) {
+    const pending = getPending2FAToken();
+    const headers = pending ? { Authorization: `Bearer ${pending}` } : {};
+    const postOpts = { skipAuthRefresh: true, headers };
     try {
       const response = await api.post(
         '/api/v1/auth/verify-login-otp',
         { email, otp },
-        { skipAuthRefresh: true },
+        postOpts,
       );
       const token = extractAccessToken(response.data);
       const refreshToken = extractRefreshToken(response.data);
+      clearPending2FAToken();
       if (token) setAccessToken(token);
       if (refreshToken) setRefreshToken(refreshToken);
       const user = response.data?.user ? normalizeUser(response.data) : await this.getMe();
@@ -275,10 +304,11 @@ export const authService = {
         const fallback = await api.post(
           '/api/v1/auth/verify-email-otp',
           { email, otp },
-          { skipAuthRefresh: true },
+          postOpts,
         );
         const token = extractAccessToken(fallback.data);
         const refreshToken = extractRefreshToken(fallback.data);
+        clearPending2FAToken();
         if (token) setAccessToken(token);
         if (refreshToken) setRefreshToken(refreshToken);
         const user = fallback.data?.user ? normalizeUser(fallback.data) : await this.getMe();
@@ -444,15 +474,19 @@ export const authService = {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      clearAccessToken();
-      clearRefreshToken();
-      authStorage.clearImpersonatedRole();
+      this.clearSession();
     }
   },
 
   restoreSession: async function() {
     try {
       const token = getAccessToken();
+      if (token && isPending2FAToken(token)) {
+        setPending2FAToken(token);
+        clearAccessToken();
+        clearRefreshToken();
+        return null;
+      }
       if (!token) return null;
       const refreshToken = getRefreshToken();
 
@@ -471,6 +505,7 @@ export const authService = {
   clearSession: function() {
     clearAccessToken();
     clearRefreshToken();
+    clearPending2FAToken();
     authStorage.clearImpersonatedRole();
   },
 
