@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Lock, Mail, ArrowRight, ShieldCheck, Phone, ChevronLeft } from 'lucide-react';
@@ -19,7 +19,7 @@ const inputCls = () => ({
 const Login = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { login, verifyTwoFactor, sendOtp, verifyOtp } = useAuth();
+  const { login, verifyLoginOtp, sendLoginOtp, sendOtp, verifyOtp, pending2FA } = useAuth();
   const isDark = true; // Force dark mode for login page
 
   // 'phone' | 'email'
@@ -36,6 +36,7 @@ const Login = () => {
   const [otpSent, setOtpSent]       = useState(false);
   const [cooldown, setCooldown]     = useState(0);
   const [otpExpiresIn, setOtpExpiresIn] = useState(0);
+  const [twoFactorChannel, setTwoFactorChannel] = useState('EMAIL');
 
   /* ---------- redirect helper ---------- */
   const redirectAfterLogin = (user) => {
@@ -86,8 +87,10 @@ const Login = () => {
       if (res.errorCode === 'RATE_LIMITED') {
         setError(`Too many requests. Please wait ${res.retryAfter ?? 60} seconds before trying again.`);
         if (res.retryAfter) setCooldown(res.retryAfter);
+      } else if (res.errorCode === 'SMS_FAILED') {
+        setError('Could not send OTP via SMS. Please try the Email login method or contact support.');
       } else {
-        setError('We couldn\'t verify your credentials. Please check your details or use Forgot Password.');
+        setError(res.error || 'Failed to send OTP. Please try again.');
       }
     }
     setLoading(false);
@@ -119,7 +122,11 @@ const Login = () => {
     setLoading(true); setError('');
     const res = await login(form.email, form.password);
     if (res.success)            { redirectAfterLogin(res.user); }
-    else if (res.requires2FA)   { setStep('2fa'); setOtpCode(''); }
+    else if (res.requires2FA)   {
+      setStep('2fa');
+      setOtpCode('');
+      setTwoFactorChannel(res.twoFactorChannel || pending2FA?.channel || 'EMAIL');
+    }
     else                        { setError(res.error); }
     setLoading(false);
   };
@@ -128,12 +135,26 @@ const Login = () => {
   const handle2FA = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
-    try {
-      const res = await verifyTwoFactor(otpCode);
-      redirectAfterLogin(res.user || res);
-    } catch (err) {
-      setError(err.message || 'Invalid code');
+    const twoFactorEmail = pending2FA?.email || form.email;
+    const res = await verifyLoginOtp(twoFactorEmail, otpCode);
+    if (res.success) {
+      redirectAfterLogin(res.user);
+    } else {
+      setError(res.error || 'Invalid code');
     }
+    setLoading(false);
+  };
+
+  const handleResend2FAOtp = async () => {
+    const twoFactorEmail = pending2FA?.email || form.email;
+    if (!twoFactorEmail) {
+      setError('Email is required to resend OTP');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    const res = await sendLoginOtp(twoFactorEmail);
+    if (!res.success) setError(res.error || 'Failed to resend OTP');
     setLoading(false);
   };
 
@@ -250,7 +271,7 @@ const Login = () => {
                   </div>
                   <h2 className="text-xl font-bold text-white">Two-factor auth</h2>
                   <p className="text-sm text-slate-400 mt-1 text-center">
-                    Enter the 6-digit code from your authenticator app.
+                    Enter the 6-digit code sent via {String(twoFactorChannel || 'EMAIL').toUpperCase()}.
                   </p>
                 </div>
                 {error && <ErrorBox>{error}</ErrorBox>}
@@ -258,6 +279,14 @@ const Login = () => {
                   <OtpInput value={otpCode} onChange={setOtpCode} isDark={isDark} />
                   <BtnSubmit disabled={otpCode.length < 6}>Verify &amp; Sign In</BtnSubmit>
                 </form>
+                <button
+                  type="button"
+                  onClick={handleResend2FAOtp}
+                  disabled={loading}
+                  className="mt-3 w-full text-sm text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                >
+                  Resend OTP
+                </button>
                 <button onClick={() => { setStep('input'); setError(''); }}
                   className="mt-6 w-full text-sm text-slate-400 hover:text-white transition-colors text-center flex items-center justify-center gap-1">
                   <ChevronLeft className="w-4 h-4" /> Back to sign in

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
-import StatCard from '@/components/shared/StatCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { adminService } from '@/lib/admin';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -15,14 +14,27 @@ const AdminPnL = () => {
   const { addToast } = useToast();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
         const data = await adminService.getAnalytics();
         setAnalytics(data);
+        setLoadError('');
       } catch (error) {
-        addToast(error.message || 'Unable to load platform P&L', 'error');
+        const message = error.message || 'Unable to load platform P&L';
+        setLoadError(message);
+        setAnalytics({
+          totalTrades: 0,
+          activeSubscriptions: 0,
+          activeMasters: 0,
+          totalChildren: 0,
+          revenueMtd: 0,
+          totalUsers: 0,
+          totalAdmins: 0,
+        });
+        addToast(message, 'error');
       } finally {
         setLoading(false);
       }
@@ -99,6 +111,11 @@ const AdminPnL = () => {
       {/* Revenue row */}
       {!loading && analytics && (
         <GlassCard title="Revenue Overview">
+          {loadError ? (
+            <p className="mb-4 text-xs text-amber-600 dark:text-amber-400">
+              Live analytics are temporarily unavailable. Showing fallback values.
+            </p>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Revenue MTD</p>

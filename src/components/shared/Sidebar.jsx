@@ -256,7 +256,6 @@ const childSidebarItems = [
         { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
         { to: '/admin/system-logs', icon: FileText, label: 'System Logs' },
         { to: '/admin/pnl', icon: DollarSign, label: 'Platform P&L' },
-        { to: '/admin/risk-rules', icon: Shield, label: 'Risk Rules' },
       ],
     },
   ];

@@ -3,7 +3,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
-import { formatCurrency, formatRelativeTime } from '@/lib/utils';
+import { formatCurrency, formatRelativeTime, sortByMostRecent } from '@/lib/utils';
 // and logsService.adminBrokerErrors() → /api/v1/admin/logs/broker-errors — neither is in spec.
 //
 // New mapping (spec-compliant):
@@ -32,7 +32,7 @@ const SystemLogs = () => {
     try {
       // Spec 6.12: GET /admin/trade-logs
       const data = await adminService.getTradeLogs();
-      setTradeLogs(Array.isArray(data) ? data : []);
+      setTradeLogs(sortByMostRecent(Array.isArray(data) ? data : [], ['timestamp', 'createdAt', 'updatedAt']));
     } catch (error) {
       addToast('Trade logs: ' + error.message, 'error');
     }
@@ -42,7 +42,7 @@ const SystemLogs = () => {
     try {
       // Spec 6.10: GET /admin/system-health — used as the system log proxy
       const data = await adminService.getSystemHealth();
-      setSystemEntries(Array.isArray(data) ? data : []);
+      setSystemEntries(sortByMostRecent(Array.isArray(data) ? data : [], ['lastChecked', 'updatedAt', 'createdAt', 'timestamp']));
     } catch (error) {
       addToast('System health: ' + error.message, 'error');
     }
@@ -53,7 +53,7 @@ const SystemLogs = () => {
       // Spec 6.14: GET /admin/brokers/status
       const { brokerService } = await import('@/lib/broker');
       const data = await brokerService.getAdminBrokerStatus();
-      setBrokerStatuses(Array.isArray(data) ? data : []);
+      setBrokerStatuses(sortByMostRecent(Array.isArray(data) ? data : [], ['lastChecked', 'updatedAt', 'createdAt']));
     } catch (error) {
       addToast('Broker status: ' + error.message, 'error');
     }

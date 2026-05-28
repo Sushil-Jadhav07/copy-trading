@@ -56,7 +56,6 @@ import SystemLogs from '@/components/admin/SystemLogs';
 import LiveTrades from '@/components/admin/LiveTrades';
 import OrderFeed from '@/components/admin/OrderFeed';
 import AdminPnL from '@/components/admin/AdminPnL';
-import AdminRiskRules from '@/components/admin/AdminRiskRules';
 import AdminProfile from '@/components/admin/Profile';
 
 
@@ -185,7 +184,6 @@ const AppRouter = () => {
                 <Route path="admin/subscriptions" element={<Subscriptions />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />
-                <Route path="admin/risk-rules" element={<AdminRiskRules />} />
                 
               </Route>
 

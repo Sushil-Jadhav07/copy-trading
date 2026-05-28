@@ -16,13 +16,13 @@ const OptionsStatus = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [stats, trades] = await Promise.all([
+        const [stats, optionStatus] = await Promise.all([
           childService.getAnalytics(),
-          childService.getCopiedTrades(),
+          childService.getOptionStatus(),
         ]);
         setAnalytics(stats);
-        // Filter only F&O trades (ends with CE/PE)
-        setCopiedTrades(trades.filter(t => /.*[0-9]{2,}[CP]E$/i.test(t.instrument || t.symbol)));
+        const rows = Array.isArray(optionStatus?.items) ? optionStatus.items : [];
+        setCopiedTrades(rows.filter(t => /.*[0-9]{2,}[CP]E$/i.test(t.symbol || '')));
       } catch (e) {
         addToast('Failed to load options status', 'error');
       } finally {
@@ -102,18 +102,18 @@ const OptionsStatus = () => {
                       {trade.type}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm font-bold">{trade.myQty || trade.qty}</td>
-                  <td className="px-4 py-3 text-xs">{trade.master || 'Master Account'}</td>
+                  <td className="px-4 py-3 text-sm font-bold">{trade.qty || trade.masterQty || 0}</td>
+                  <td className="px-4 py-3 text-xs">{trade.masterName || trade.masterId || 'Master Account'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                      String(trade.status).toUpperCase() === 'SUCCESS' || String(trade.status).toUpperCase() === 'EXECUTED'
+                      ['SUCCESS', 'EXECUTED', 'COMPLETE'].includes(String(trade.status).toUpperCase())
                         ? 'bg-emerald-500/10 text-emerald-500'
                         : 'bg-rose-500/10 text-rose-500'
                     }`}>
                       {trade.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[10px] text-muted-foreground">{trade.time}</td>
+                  <td className="px-4 py-3 text-[10px] text-muted-foreground">{trade.createdAt || '-'}</td>
                 </motion.tr>
               ))}
               {copiedTrades.length === 0 && (

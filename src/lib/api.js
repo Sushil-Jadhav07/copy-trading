@@ -100,6 +100,12 @@ const isAuthBootstrapRequest = (url = '') =>
   url.includes('/api/v1/auth/validate-password') ||
   url.includes('/api/v1/auth/forgot-password') ||
   url.includes('/api/v1/auth/reset-password') ||
+  url.includes('/api/v1/auth/send-email-otp') ||
+  url.includes('/api/v1/auth/send-login-otp') ||
+  url.includes('/api/v1/auth/verify-login-otp') ||
+  url.includes('/api/v1/auth/verify-email-otp') ||
+  url.includes('/api/v1/auth/send-otp') ||
+  url.includes('/api/v1/auth/verify-otp') ||
   url.includes('/api/v1/auth/refresh-token');
 
 const parseJwtPayload = (token) => {

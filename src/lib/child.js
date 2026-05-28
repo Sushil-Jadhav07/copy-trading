@@ -173,6 +173,10 @@ const normalizeTradeTimelineItem = (raw = {}, index = 0) => ({
   totalChildLatencyMs: raw.totalChildLatencyMs ?? raw.latencyMs ?? raw.brokerLatencyMs ?? null,
   status: String(raw.status || raw.tradeStatus || 'UNKNOWN').toUpperCase(),
   skipReason: raw.skipReason || raw.skip_reason || null,
+  errorMessage: raw.errorMessage || raw.error || null,
+  failureReason: raw.failureReason || raw.reason || null,
+  masterStatus: raw.masterStatus || null,
+  masterQty: toNumber(raw.masterQty, raw.masterQuantity),
   qty: toNumber(raw.qty, raw.quantity, raw.myQty, raw.childQty),
   orderId: raw.orderId || raw.brokerOrderId || '',
   broker: raw.broker || raw.brokerName || '',
@@ -246,6 +250,53 @@ const normalizePositionsPayload = (raw = {}) => {
   };
 };
 
+const normalizeOpenBookOrder = (order = {}, index = 0) => ({
+  id: order.order_id || order.orderId || order.id || `order-${index}`,
+  symbol: order.tradingsymbol || order.symbol || 'N/A',
+  exchange: order.exchange || 'NSE',
+  segment: order.segment || order.market || '',
+  orderType: order.order_type || order.orderType || 'MARKET',
+  type: String(order.transaction_type || order.type || order.side || 'BUY').toUpperCase(),
+  qty: Number(order.quantity ?? order.qty ?? 0),
+  price: Number(order.average_price ?? order.price ?? 0),
+  status: String(order.order_status || order.status || 'UNKNOWN').toUpperCase(),
+  raw: order,
+});
+
+const normalizeOpenOptionPosition = (position = {}, index = 0) => ({
+  id: position.id || `${position.symbol || 'option'}-${index}`,
+  symbol: position.symbol || position.instrument || 'N/A',
+  qty: Number(position.qty ?? position.quantity ?? 0),
+  avgPrice: Number(position.avgPrice ?? position.averagePrice ?? 0),
+  ltp: Number(position.ltp ?? position.lastPrice ?? 0),
+  pnl: Number(position.pnl ?? 0),
+  unrealizedPnl: Number(position.pnl ?? 0),
+  product: position.product || '',
+  exchange: position.exchange || '',
+  raw: position,
+});
+
+const normalizeOptionStatusItem = (item = {}, index = 0) => ({
+  id: item.id || `option-status-${index}`,
+  copyGroupId: item.copyGroupId || '',
+  symbol: item.symbol || 'N/A',
+  side: String(item.side || 'BUY').toUpperCase(),
+  qty: Number(item.qty ?? 0),
+  masterQty: Number(item.masterQty ?? item.qty ?? 0),
+  status: String(item.status || 'UNKNOWN').toUpperCase(),
+  masterStatus: item.masterStatus || '',
+  errorMessage: item.errorMessage || null,
+  skipReason: item.skipReason || null,
+  failureReason: item.failureReason || null,
+  latencyMs: Number(item.latencyMs ?? 0),
+  masterId: item.masterId || '',
+  childId: item.childId || '',
+  orderId: item.orderId || '',
+  createdAt: item.createdAt || null,
+  childPlacedAt: item.childPlacedAt || null,
+  raw: item,
+});
+
 export const childService = {
   async getMasters() {
     try {
@@ -296,7 +347,13 @@ export const childService = {
       removeSubscriptionAllocation(masterId);
       return res.data?.data || res.data;
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to unsubscribe'));
+      try {
+        const fallback = await api.delete(`/api/v1/child/remove/${masterId}`);
+        removeSubscriptionAllocation(masterId);
+        return fallback.data?.data || fallback.data;
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to unsubscribe'));
+      }
     }
   },
 
@@ -372,10 +429,15 @@ export const childService = {
 
   async getAnalytics() {
     try {
-      const res = await api.get('/api/v1/child/analytics');
+      const res = await api.get('/api/v1/child/pnl-dashboard');
       return normalizeChildAnalytics(res.data?.data || res.data || {});
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load analytics'));
+      try {
+        const fallback = await api.get('/api/v1/child/analytics');
+        return normalizeChildAnalytics(fallback.data?.data || fallback.data || {});
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to load analytics'));
+      }
     }
   },
 
@@ -422,6 +484,61 @@ export const childService = {
       return Array.isArray(trades) ? trades.map(normalizeTradeTimelineItem) : [];
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load trade timeline'));
+    }
+  },
+
+  async getOpenBook() {
+    try {
+      const res = await api.get('/api/v1/child/open-book');
+      const payload = res.data?.data || res.data || {};
+      const orders = Array.isArray(payload.orders) ? payload.orders : [];
+      return {
+        orders: orders.map(normalizeOpenBookOrder),
+        total: Number(payload.total ?? orders.length),
+        brokerAccountId: payload.brokerAccountId || '',
+        broker: payload.broker || '',
+        error: payload.error || '',
+        errorCode: payload.errorCode || null,
+        action: payload.action || null,
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load child open book'));
+    }
+  },
+
+  async getOpenOptions() {
+    try {
+      const res = await api.get('/api/v1/child/open-options');
+      const payload = res.data?.data || res.data || {};
+      const positions = Array.isArray(payload.positions) ? payload.positions : [];
+      return {
+        positions: positions.map(normalizeOpenOptionPosition),
+        total: Number(payload.total ?? positions.length),
+        totalPnl: Number(payload.totalPnl ?? 0),
+        brokerAccountId: payload.brokerAccountId || '',
+        error: payload.error || '',
+        errorCode: payload.errorCode || null,
+        action: payload.action || null,
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load child open options'));
+    }
+  },
+
+  async getOptionStatus() {
+    try {
+      const res = await api.get('/api/v1/child/option-status');
+      const payload = res.data?.data || res.data || {};
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      return {
+        items: items.map(normalizeOptionStatusItem),
+        total: Number(payload.total ?? items.length),
+        success: Number(payload.success ?? 0),
+        failed: Number(payload.failed ?? 0),
+        skipped: Number(payload.skipped ?? 0),
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load child option status'));
     }
   },
 };

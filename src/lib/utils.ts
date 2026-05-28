@@ -59,6 +59,30 @@ export const formatRelativeTime = (value?: string | number | Date | null) => {
   return `${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, ${timeStr}`
 }
 
+export const getTimestampMs = (value?: string | number | Date | null) => {
+  if (!value) return null
+  const date = new Date(value)
+  const ms = date.getTime()
+  return Number.isFinite(ms) ? ms : null
+}
+
+export const sortByMostRecent = <T extends Record<string, any>>(
+  list: T[] = [],
+  candidateKeys: string[] = ['timestamp', 'createdAt', 'updatedAt', 'time', 'date']
+) => {
+  return [...list].sort((a, b) => {
+    const aMs =
+      candidateKeys
+        .map((key) => getTimestampMs(a?.[key]))
+        .find((v) => v != null) ?? 0
+    const bMs =
+      candidateKeys
+        .map((key) => getTimestampMs(b?.[key]))
+        .find((v) => v != null) ?? 0
+    return bMs - aMs
+  })
+}
+
 export function getInstrumentType(symbol: string): 'EQ' | 'FUT' | 'CE' | 'PE' {
   if (!symbol) return 'EQ';
   const s = symbol.toUpperCase();

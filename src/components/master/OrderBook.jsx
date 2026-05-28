@@ -66,36 +66,14 @@ const OrderBook = () => {
     setSessionLoading(true);
 
     try {
-      let isActive = false;
-      try {
-        const statusData = await brokerService.getAccountStatus(accountId);
-        isActive =
-          parseActive(statusData?.sessionActive) ||
-          parseActive(statusData?.isSessionActive) ||
-          parseActive(statusData?.status) ||
-          parseActive(statusData?.sessionStatus) ||
-          parseActive(statusData?.connectionHealth);
-      } catch {
-        // Degrade gracefully: allow orders API to return the actual auth/session error.
-        isActive = true;
-      }
-
+      const data = await masterService.getOpenBook();
+      const isActive = !data?.errorCode;
       setSessionActive(isActive);
-
       if (!isActive) {
         setOrders([]);
         return;
       }
-
-      // Prefer dashboard payload (more consistent across brokers), fallback to direct orders endpoint.
-      const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
-      const dashboardOrders = Array.isArray(dashboard?.orders) ? dashboard.orders : [];
-      if (dashboardOrders.length > 0) {
-        setOrders(dashboardOrders);
-      } else {
-        const data = await brokerService.getOrders(accountId);
-        setOrders(data);
-      }
+      setOrders(Array.isArray(data?.orders) ? data.orders : []);
     } catch (e) {
       const msg = e.message || '';
       if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('login')) {

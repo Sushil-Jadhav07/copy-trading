@@ -6,11 +6,9 @@ import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { masterService } from '@/lib/master';
-import { copyLogService } from '@/lib/copyLogs';
-import { logsService } from '@/lib/logs';
 import { brokerService } from '@/lib/broker';
 import { engineService } from '@/lib/engine';
-import { formatCurrency, formatRelativeTime } from '@/lib/utils';
+import { formatRelativeTime, sortByMostRecent } from '@/lib/utils';
 import { connectChannel } from '@/lib/websocket';
 
 const STATUS_CFG = {
@@ -91,19 +89,30 @@ const Logs = () => {
     setLoading(true);
     try {
       const [copyData, tradeData, accounts] = await Promise.all([
-        masterService.getCopyLogs().catch(async () => {
-          const fb = await copyLogService.getAll();
-          return Array.isArray(fb) ? fb : fb.logs || [];
-        }),
-        logsService.getUserTradeLogs().catch(() => []),
+        masterService.getCopyLogs().catch(() => []),
+        masterService.getTradeHistory().catch(() => []),
         brokerService.getAccounts().catch(() => []),
       ]);
-      setCopyLogs((Array.isArray(copyData) ? copyData : copyData.logs || []).map((log) => ({
+      const normalizedCopyLogs = (Array.isArray(copyData) ? copyData : copyData.logs || []).map((log) => ({
         ...log,
         errorCode: log.errorCode,
-      })));
+      }));
+      setCopyLogs(normalizedCopyLogs);
       setTradeLogs(Array.isArray(tradeData) ? tradeData : []);
       setBrokerAccounts(accounts);
+      setBrokerErrors(
+        normalizedCopyLogs.filter((log) => {
+          const status = normalizeStatus(log.childStatus);
+          return status === 'FAILED' || Boolean(log.errorMessage);
+        }).map((log, index) => ({
+          id: log.id || `copy-fail-${index}`,
+          message: log.errorMessage || log.failureReason || log.message || 'Replication failed',
+          error: log.errorMessage || log.failureReason || log.message || 'Replication failed',
+          broker: log.broker || 'N/A',
+          brokerAccountId: log.brokerAccountId || '',
+          timestamp: log.createdAt || log.timestamp || log.time || null,
+        }))
+      );
       if (!selectedBrokerAccountId && accounts.length > 0) {
         setSelectedBrokerAccountId(accounts[0]?.accountId || '');
       }
@@ -145,13 +154,6 @@ const Logs = () => {
     return () => sub.close();
   }, [load]);
 
-  useEffect(() => {
-    if (activeTab !== 'broker') return;
-    logsService.getBrokerErrors(selectedBrokerAccountId || undefined)
-      .then((d) => setBrokerErrors(Array.isArray(d) ? d : []))
-      .catch((error) => addToast(error.message, 'error'));
-  }, [activeTab, selectedBrokerAccountId, addToast]);
-
   const matchesTimeFilter = (value) => {
     if (timeFilter === 'all') return true;
     const dt = new Date(value || 0);
@@ -165,29 +167,30 @@ const Logs = () => {
   };
 
   const filteredCopyLogs = useMemo(() =>
-    copyLogs.filter((l) =>
+    sortByMostRecent(copyLogs.filter((l) =>
       (statusFilter === 'all' ||
         (statusFilter === 'success' && normalizeStatus(l.childStatus) === 'EXECUTED') ||
         (statusFilter === 'failed' && normalizeStatus(l.childStatus) === 'FAILED') ||
         (statusFilter === 'skipped' && normalizeStatus(l.childStatus) === 'SKIPPED')) &&
       (!search || `${l.symbol || ''} ${l.childId || ''} ${l.childName || ''} ${l.masterName || ''} ${l.copyGroupId || ''}`.toLowerCase().includes(search.toLowerCase())) &&
       matchesTimeFilter(l.createdAt || l.timestamp || l.time)
-    ),
+    ), ['createdAt', 'timestamp', 'time']),
     [copyLogs, search, timeFilter, statusFilter]);
 
   const filteredTradeLogs = useMemo(() =>
-    tradeLogs.filter((l) =>
+    sortByMostRecent(tradeLogs.filter((l) =>
       (!search || `${l.instrument || l.symbol || ''} ${l.status || ''}`.toLowerCase().includes(search.toLowerCase())) &&
       matchesTimeFilter(l.placedAt || l.createdAt || l.timestamp || l.time)
-    ),
+    ), ['placedAt', 'createdAt', 'timestamp', 'time']),
     [tradeLogs, search, timeFilter]);
 
   const filteredBrokerErrors = useMemo(() =>
-    brokerErrors.filter((l) =>
+    sortByMostRecent(brokerErrors.filter((l) =>
+      (!selectedBrokerAccountId || !l.brokerAccountId || l.brokerAccountId === selectedBrokerAccountId) &&
       (!search || `${l.message || l.error || ''} ${l.broker || ''}`.toLowerCase().includes(search.toLowerCase())) &&
       matchesTimeFilter(l.timestamp || l.createdAt || l.time)
-    ),
-    [brokerErrors, search, timeFilter]);
+    ), ['timestamp', 'createdAt', 'time']),
+    [brokerErrors, search, timeFilter, selectedBrokerAccountId]);
 
   // Status counts for legend
   const statusCounts = useMemo(() => {

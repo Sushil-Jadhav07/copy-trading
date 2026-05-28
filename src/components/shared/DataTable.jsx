@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { sortByMostRecent } from '@/lib/utils';
 
 const DataTable = ({
   columns,
@@ -33,7 +34,17 @@ const DataTable = ({
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       })
-    : filteredData;
+    : (() => {
+        const accessorKeys = (columns || [])
+          .map((col) => col?.accessor)
+          .filter(Boolean);
+        const dateLikeAccessors = accessorKeys.filter((key) =>
+          /(time|date|created|updated|timestamp|triggered|placed)/i.test(String(key))
+        );
+        const fallbackKeys = ['timestamp', 'createdAt', 'updatedAt', 'time', 'date'];
+        const keys = dateLikeAccessors.length > 0 ? dateLikeAccessors : fallbackKeys;
+        return sortByMostRecent(filteredData, keys);
+      })();
 
   const totalPages = Math.ceil(sortedData.length / pageSize);
   const paginatedData = pagination

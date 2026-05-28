@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users, RefreshCw, TrendingUp, AlertCircle } from 'lucide-react';
+import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users, RefreshCw, TrendingUp, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
 import { useAuth } from '@/context/AuthContext';
@@ -28,10 +28,15 @@ const Profile = () => {
     newPassword: '',
     confirmPassword: '',
   });
+  const [showPassword, setShowPassword] = useState({
+    current: false,
+    next: false,
+    confirm: false,
+  });
   const [twoFactorSetup, setTwoFactorSetup] = useState({
-    qrCode:
-      '',
+    qrCode: '',
     setupKey: '',
+    channel: 'EMAIL',
   });
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [brokerProfiles, setBrokerProfiles] = useState([]);
@@ -41,6 +46,7 @@ const Profile = () => {
     password: '',
     otp: '',
   });
+  const [twoFactorOptions, setTwoFactorOptions] = useState({ email: true, phone: false });
 
   const profileSummary = useMemo(() => {
     const brokerAccounts = Array.isArray(user?.brokerAccounts) ? user.brokerAccounts : [];
@@ -223,12 +229,13 @@ const Profile = () => {
     setSavingTwoFactor(true);
 
     try {
-      const response = await authService.enableTwoFactor();
+      const response = await authService.enableTwoFactor(twoFactorSetup.channel || 'EMAIL');
       setTwoFactorSetup({
         qrCode: response.qrCodeUri ?? response.qrCode ?? response.qr_code ?? response.qrCodeUrl ?? '',
         setupKey: response.secret ?? response.setupKey ?? response.manualEntryKey ?? '',
+        channel: twoFactorSetup.channel || 'EMAIL',
       });
-      addToast('Two-factor setup started', 'info');
+      addToast(`OTP sent on ${String(twoFactorSetup.channel || 'EMAIL').toUpperCase()}`, 'info');
     } catch (error) {
       addToast(error.message || 'Unable to enable two-factor auth', 'error');
     } finally {
@@ -246,6 +253,7 @@ const Profile = () => {
       setTwoFactorSetup({
         qrCode: '',
         setupKey: '',
+        channel: twoFactorSetup.channel || 'EMAIL',
       });
       addToast('Two-factor authentication enabled', 'success');
     } catch (error) {
@@ -284,6 +292,24 @@ const Profile = () => {
     { id: 'telegram', label: 'Telegram', icon: MessageCircle },
     { id: 'brokers', label: 'Broker Accounts', icon: Users },
   ];
+
+  useEffect(() => {
+    let mounted = true;
+    authService.getTwoFactorOptions()
+      .then((opts) => {
+        if (!mounted) return;
+        const emailAvailable = opts?.EMAIL?.available ?? opts?.email?.available ?? true;
+        const phoneAvailable = opts?.PHONE?.available ?? opts?.phone?.available ?? false;
+        setTwoFactorOptions({ email: Boolean(emailAvailable), phone: Boolean(phoneAvailable) });
+        if (!emailAvailable && phoneAvailable) {
+          setTwoFactorSetup((prev) => ({ ...prev, channel: 'PHONE' }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -576,33 +602,63 @@ const Profile = () => {
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">Current Password</label>
-                  <input
-                    type="password"
-                    value={security.currentPassword}
-                    onChange={(e) => setSecurity({ ...security, currentPassword: e.target.value })}
-                    placeholder="Enter current password"
-                    className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword.current ? 'text' : 'password'}
+                      value={security.currentPassword}
+                      onChange={(e) => setSecurity({ ...security, currentPassword: e.target.value })}
+                      placeholder="Enter current password"
+                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 pr-11 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => ({ ...prev, current: !prev.current }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword.current ? 'Hide current password' : 'Show current password'}
+                    >
+                      {showPassword.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">New Password</label>
-                  <input
-                    type="password"
-                    value={security.newPassword}
-                    onChange={(e) => setSecurity({ ...security, newPassword: e.target.value })}
-                    placeholder="Enter new password"
-                    className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword.next ? 'text' : 'password'}
+                      value={security.newPassword}
+                      onChange={(e) => setSecurity({ ...security, newPassword: e.target.value })}
+                      placeholder="Enter new password"
+                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 pr-11 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => ({ ...prev, next: !prev.next }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword.next ? 'Hide new password' : 'Show new password'}
+                    >
+                      {showPassword.next ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">Confirm New Password</label>
-                  <input
-                    type="password"
-                    value={security.confirmPassword}
-                    onChange={(e) => setSecurity({ ...security, confirmPassword: e.target.value })}
-                    placeholder="Confirm new password"
-                    className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword.confirm ? 'text' : 'password'}
+                      value={security.confirmPassword}
+                      onChange={(e) => setSecurity({ ...security, confirmPassword: e.target.value })}
+                      placeholder="Confirm new password"
+                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 pr-11 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword.confirm ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showPassword.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -641,6 +697,18 @@ const Profile = () => {
 
               {!user?.twoFactorEnabled && (
                 <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">2FA Channel</label>
+                    <select
+                      value={twoFactorSetup.channel}
+                      onChange={(e) => setTwoFactorSetup((prev) => ({ ...prev, channel: e.target.value }))}
+                      className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
+                    >
+                      {twoFactorOptions.email && <option value="EMAIL">Email OTP</option>}
+                      {twoFactorOptions.phone && <option value="PHONE">Phone OTP</option>}
+                    </select>
+                  </div>
+
                   <button
                     onClick={handleEnableTwoFactor}
                     disabled={savingTwoFactor}
@@ -709,7 +777,7 @@ const Profile = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">Authenticator OTP</label>
+                    <label className="block text-sm font-medium mb-1.5">OTP</label>
                     <input
                       type="text"
                       inputMode="numeric"

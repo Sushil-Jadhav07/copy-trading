@@ -95,9 +95,16 @@ const getErrorCode = (error) =>
 const extractTwoFactorState = (payload = {}) => {
   const source = payload?.data || payload;
   const requires2FA = Boolean(source?.requires2FA || source?.requiresTwoFactor || source?.twoFactorRequired);
+  const twoFactorChannel = source?.twoFactorChannel || source?.channel || null;
+  const email = source?.email || null;
 
   return {
     requires2FA,
+    requiresEmailOtp: Boolean(source?.requiresEmailOtp),
+    twoFactorChannel,
+    email,
+    otpExpiresIn: source?.otpExpiresIn ?? source?.expiresIn ?? null,
+    otpRetryAfter: source?.otpRetryAfter ?? source?.retryAfter ?? null,
     challenge: {
       challengeToken:
         source?.challengeToken ||
@@ -176,6 +183,11 @@ export const authService = {
       if (twoFactorState.requires2FA) {
         return {
           requires2FA: true,
+          requiresEmailOtp: twoFactorState.requiresEmailOtp,
+          twoFactorChannel: twoFactorState.twoFactorChannel,
+          email: twoFactorState.email || email,
+          otpExpiresIn: twoFactorState.otpExpiresIn,
+          otpRetryAfter: twoFactorState.otpRetryAfter,
         };
       }
 
@@ -200,6 +212,7 @@ export const authService = {
 
         return {
           requires2FA: true,
+          email,
         };
       }
 
@@ -212,7 +225,7 @@ export const authService = {
 
     try {
       response = await api.post(
-        '/api/v1/auth/2fa/verify',
+        '/api/v1/auth/2fa/confirm',
         {
           otp: code,
         },
@@ -221,7 +234,19 @@ export const authService = {
         },
       );
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Two-factor verification failed'));
+      try {
+        response = await api.post(
+          '/api/v1/auth/2fa/verify',
+          {
+            otp: code,
+          },
+          {
+            skipAuthRefresh: true,
+          },
+        );
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Two-factor verification failed'));
+      }
     }
 
     const token = extractAccessToken(response.data);
@@ -240,6 +265,60 @@ export const authService = {
     return {
       user,
     };
+  },
+
+  async sendLoginOtp(email) {
+    try {
+      const response = await api.post(
+        '/api/v1/auth/send-email-otp',
+        { email },
+        { skipAuthRefresh: true },
+      );
+      return response?.data || {};
+    } catch (error) {
+      try {
+        const fallback = await api.post(
+          '/api/v1/auth/send-login-otp',
+          { email },
+          { skipAuthRefresh: true },
+        );
+        return fallback?.data || {};
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to send login OTP'));
+      }
+    }
+  },
+
+  async verifyLoginOtp(email, otp) {
+    try {
+      const response = await api.post(
+        '/api/v1/auth/verify-login-otp',
+        { email, otp },
+        { skipAuthRefresh: true },
+      );
+      const token = extractAccessToken(response.data);
+      const refreshToken = extractRefreshToken(response.data);
+      if (token) setAccessToken(token);
+      if (refreshToken) setRefreshToken(refreshToken);
+      const user = response.data?.user ? normalizeUser(response.data) : await this.getMe();
+      return { user };
+    } catch (error) {
+      try {
+        const fallback = await api.post(
+          '/api/v1/auth/verify-email-otp',
+          { email, otp },
+          { skipAuthRefresh: true },
+        );
+        const token = extractAccessToken(fallback.data);
+        const refreshToken = extractRefreshToken(fallback.data);
+        if (token) setAccessToken(token);
+        if (refreshToken) setRefreshToken(refreshToken);
+        const user = fallback.data?.user ? normalizeUser(fallback.data) : await this.getMe();
+        return { user };
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'OTP verification failed'));
+      }
+    }
   },
 
   async sendOtp(phone, purpose = 'login') {
@@ -303,19 +382,29 @@ export const authService = {
 
   async getMe() {
     try {
-      const response = await api.get('/api/v1/auth/me');
-      return normalizeUser(response.data);
+      const response = await api.get('/api/v1/users/me/profile');
+      return normalizeUser(response.data?.data || response.data);
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load profile'));
+      try {
+        const fallback = await api.get('/api/v1/auth/me');
+        return normalizeUser(fallback.data?.data || fallback.data);
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to load profile'));
+      }
     }
   },
 
   async updateMe(body) {
     try {
-      const response = await api.put('/api/v1/auth/me', body);
-      return normalizeUser(response.data);
+      const response = await api.put('/api/v1/users/me/profile', body);
+      return normalizeUser(response.data?.data || response.data);
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to update profile'));
+      try {
+        const fallback = await api.put('/api/v1/auth/me', body);
+        return normalizeUser(fallback.data?.data || fallback.data);
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to update profile'));
+      }
     }
   },
 
@@ -335,10 +424,18 @@ export const authService = {
     }
   },
 
-  async enableTwoFactor() {
+  async getTwoFactorOptions() {
     try {
-      const res = await api.post('/api/v1/auth/2fa/enable');
-      // API returns { qrCodeUri, secret } — pass through so Profile can render the QR code
+      const res = await api.get('/api/v1/auth/2fa/options');
+      return res.data?.data || res.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load 2FA options'));
+    }
+  },
+
+  async enableTwoFactor(channel = 'EMAIL') {
+    try {
+      const res = await api.post('/api/v1/auth/2fa/enable', { channel });
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to enable 2FA'));
@@ -400,3 +497,4 @@ export const authService = {
     return await this.updateMe({ currentPassword, newPassword });
   },
 };
+

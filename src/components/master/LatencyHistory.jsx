@@ -24,6 +24,7 @@ const RANGE_OPTIONS = [
   { key: 'yesterday', label: 'Yesterday', days: 1 },
   { key: '7d', label: '7D', days: 7 },
   { key: '30d', label: '30D', days: 30 },
+  { key: 'all', label: 'All', days: null },
 ];
 
 const STATUS_OPTIONS = [
@@ -57,6 +58,10 @@ const getRange = (key) => {
     return { from, to, statsDays: 1 };
   }
 
+  if (key === 'all') {
+    return { from: new Date(0), to: todayEnd, statsDays: 30 };
+  }
+
   const days = key === '30d' ? 30 : 7;
   const from = new Date(todayStart);
   from.setDate(from.getDate() - (days - 1));
@@ -80,6 +85,12 @@ const fmtDate = (iso) => {
   const diff = Math.round((today.getTime() - day.getTime()) / 86400000);
   const prefix = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   return `${prefix}, ${fmtTime(iso)}`;
+};
+
+const getEventTimestamp = (event) => {
+  const raw = event?.masterTriggeredAt || event?.triggeredAt || event?.createdAt || event?.updatedAt;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : null;
 };
 
 const LatencyBar = ({ ms, maxMs = 1000 }) => {
@@ -140,7 +151,7 @@ const LatencyHistory = () => {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState({ content: [], totalElements: 0 });
   const [page, setPage] = useState(0);
-  const [rangeKey, setRangeKey] = useState('7d');
+  const [rangeKey, setRangeKey] = useState('today');
   const [sideFilter, setSideFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [query, setQuery] = useState('');
@@ -153,7 +164,7 @@ const LatencyHistory = () => {
 
   const loadStats = useCallback(async (range) => {
     try {
-      const res = await engineService.getLatencyStats(range.statsDays === 30 ? 30 : 7);
+      const res = await engineService.getLatencyStats(range.statsDays === 30 ? 30 : range.statsDays === 1 ? 1 : 7);
       setStats(res);
     } catch (e) {
       addToast(e.message || 'Failed to load latency stats', 'error');
@@ -206,7 +217,13 @@ const LatencyHistory = () => {
 
   const filteredEvents = useMemo(() => {
     const search = query.trim().toLowerCase();
-    return (history.content || []).filter((event) => {
+    const rangeStartMs = selectedRange.from.getTime();
+    const rangeEndMs = selectedRange.to.getTime();
+
+    const list = (history.content || []).filter((event) => {
+      const ts = getEventTimestamp(event);
+      if (ts == null || ts < rangeStartMs || ts > rangeEndMs) return false;
+
       const childrenTotal = Number(event.childrenTotal || 0);
       const childrenSucceeded = Number(event.childrenSucceeded || 0);
       const childrenFailed = Number(event.childrenFailed || 0);
@@ -229,7 +246,13 @@ const LatencyHistory = () => {
         event.masterQty,
       ].some((value) => String(value || '').toLowerCase().includes(search));
     });
-  }, [history.content, query, statusFilter]);
+
+    return list.sort((a, b) => {
+      const aTs = getEventTimestamp(a) ?? 0;
+      const bTs = getEventTimestamp(b) ?? 0;
+      return bTs - aTs;
+    });
+  }, [history.content, query, statusFilter, selectedRange]);
 
   const displayStats = useMemo(() => {
     const latencies = filteredEvents

@@ -203,7 +203,7 @@ const OpenPositions = () => {
   const confirmClose = async () => {
     if (!selectedPos) return;
     try {
-      await brokerService.closePosition(selectedAccountId, {
+      await masterService.squareOffPosition({
         symbol: selectedPos.symbol || selectedPos.instrument,
         qty: selectedPos.qty,
         type: 'SELL',

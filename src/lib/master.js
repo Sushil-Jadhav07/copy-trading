@@ -390,10 +390,15 @@ export const masterService = {
 
   async getAnalytics() {
     try {
-      const res = await api.get('/api/v1/master/analytics');
+      const res = await api.get('/api/v1/master/dashboard');
       return normalizeMasterAnalytics(res.data?.data || res.data || {});
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load analytics'));
+      try {
+        const fallback = await api.get('/api/v1/master/analytics');
+        return normalizeMasterAnalytics(fallback.data?.data || fallback.data || {});
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to load analytics'));
+      }
     }
   },
 
@@ -417,14 +422,27 @@ export const masterService = {
 
   async getTradeHistory() {
     try {
-      const res = await api.get('/api/v1/master/trade-history');
+      const res = await api.get('/api/v1/master/trade-logs');
       const list =
+        Array.isArray(res.data?.logs) ? res.data.logs :
         Array.isArray(res.data?.trades) ? res.data.trades :
+        Array.isArray(res.data?.data?.logs) ? res.data.data.logs :
         Array.isArray(res.data?.data?.trades) ? res.data.data.trades :
         extractList(res.data);
       return list.map(normalizeTrade);
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load trade history'));
+      try {
+        const fallback = await api.get('/api/v1/master/trade-history');
+        const list =
+          Array.isArray(fallback.data?.logs) ? fallback.data.logs :
+          Array.isArray(fallback.data?.trades) ? fallback.data.trades :
+          Array.isArray(fallback.data?.data?.logs) ? fallback.data.data.logs :
+          Array.isArray(fallback.data?.data?.trades) ? fallback.data.data.trades :
+          extractList(fallback.data);
+        return list.map(normalizeTrade);
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to load trade history'));
+      }
     }
   },
 
@@ -530,10 +548,15 @@ export const masterService = {
 
   async getCopyLogs() {
     try {
-      const res = await api.get('/api/v1/master/copy/logs');
-      return res.data?.logs || res.data || [];
+      const res = await api.get('/api/v1/master/trade-logs');
+      return res.data?.logs || res.data?.trades || res.data || [];
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
+      try {
+        const fallback = await api.get('/api/v1/master/copy/logs');
+        return fallback.data?.logs || fallback.data || [];
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
+      }
     }
   },
 
@@ -543,6 +566,70 @@ export const masterService = {
       return normalizePositionsPayload(res.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load positions'));
+    }
+  },
+
+  async getOpenBook() {
+    try {
+      const res = await api.get('/api/v1/master/open-book');
+      const payload = res.data?.data || res.data || {};
+      const orders = Array.isArray(payload.orders) ? payload.orders : [];
+      return {
+        orders,
+        total: Number(payload.total ?? orders.length),
+        brokerAccountId: payload.brokerAccountId || '',
+        broker: payload.broker || '',
+        error: payload.error || '',
+        errorCode: payload.errorCode || null,
+        action: payload.action || null,
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load open book'));
+    }
+  },
+
+  async getOpenOptions() {
+    try {
+      const res = await api.get('/api/v1/master/open-options');
+      const payload = res.data?.data || res.data || {};
+      const positions = Array.isArray(payload.positions) ? payload.positions : [];
+      return {
+        positions,
+        total: Number(payload.total ?? positions.length),
+        totalPnl: Number(payload.totalPnl ?? 0),
+        brokerAccountId: payload.brokerAccountId || '',
+        error: payload.error || '',
+        errorCode: payload.errorCode || null,
+        action: payload.action || null,
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load open options'));
+    }
+  },
+
+  async getOptionStatus() {
+    try {
+      const res = await api.get('/api/v1/master/option-status');
+      const payload = res.data?.data || res.data || {};
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      return {
+        items,
+        total: Number(payload.total ?? items.length),
+        success: Number(payload.success ?? 0),
+        failed: Number(payload.failed ?? 0),
+        skipped: Number(payload.skipped ?? 0),
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load option status'));
+    }
+  },
+
+  async squareOffPosition({ symbol, qty, type = 'SELL', product = 'MIS' } = {}) {
+    try {
+      const res = await api.post('/api/v1/master/positions/square-off', { symbol, qty, type, product });
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to square off position'));
     }
   },
 };

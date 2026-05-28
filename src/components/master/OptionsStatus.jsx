@@ -76,11 +76,11 @@ const OptionsStatus = () => {
     if (!accountId) return;
     if (!silent) setLoading(true);
     try {
-      const statusData = await brokerService.getAccountStatus(accountId);
-      const active =
-        statusData?.sessionActive === true ||
-        String(statusData?.status || '').toUpperCase() === 'ACTIVE' ||
-        String(statusData?.sessionStatus || '').toUpperCase() === 'SESSION_ACTIVE';
+      const [openOptions, optionStatus] = await Promise.all([
+        masterService.getOpenOptions(),
+        masterService.getOptionStatus(),
+      ]);
+      const active = !openOptions?.errorCode;
       setSessionActive(active);
 
       if (!active) {
@@ -89,20 +89,9 @@ const OptionsStatus = () => {
         setTrades([]);
         return;
       }
-
-      const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
-      const dashboardPositions = Array.isArray(dashboard?.positions) ? dashboard.positions : [];
-      const dashboardOrders = Array.isArray(dashboard?.orders) ? dashboard.orders : [];
-
-      const [pos, ord, trd] = await Promise.all([
-        dashboardPositions.length > 0 ? Promise.resolve(dashboardPositions) : brokerService.getPositions(accountId),
-        dashboardOrders.length > 0 ? Promise.resolve(dashboardOrders) : brokerService.getOrders(accountId),
-        brokerService.getTrades(accountId),
-      ]);
-
-      setPositions(pos);
-      setOrders(ord);
-      setTrades(trd);
+      setPositions(Array.isArray(openOptions?.positions) ? openOptions.positions : []);
+      setOrders([]);
+      setTrades(Array.isArray(optionStatus?.items) ? optionStatus.items : []);
     } catch (error) {
       const msg = (error.message || '').toLowerCase();
       if (msg.includes('session') || msg.includes('login')) {

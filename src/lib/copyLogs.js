@@ -34,11 +34,17 @@ const normalizeCopyLog = (entry) => ({
 export const copyLogService = {
   async getAll() {
     try {
-      const res = await api.get('/api/v1/copy/logs');
+      const res = await api.get('/api/v1/master/copy/logs');
       const raw = res.data?.logs || res.data || [];
       return Array.isArray(raw) ? raw.map(normalizeCopyLog) : raw;
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to load copy logs'));
+      try {
+        const fallback = await api.get('/api/v1/child/copy/logs');
+        const raw = fallback.data?.logs || fallback.data || [];
+        return Array.isArray(raw) ? raw.map(normalizeCopyLog) : raw;
+      } catch (fallbackError) {
+        throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
+      }
     }
   },
 };

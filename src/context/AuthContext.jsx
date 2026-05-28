@@ -19,8 +19,11 @@ const FALLBACK_AUTH_CONTEXT = {
   updateProfile: async () => null,
   changePassword: async () => null,
   verifyTwoFactor: async () => null,
+  verifyLoginOtp: async () => ({ success: false, error: 'Auth provider unavailable' }),
+  sendLoginOtp: async () => ({ success: false, error: 'Auth provider unavailable' }),
   sendOtp: async () => ({ success: false, error: 'Auth provider unavailable' }),
   verifyOtp: async () => ({ success: false, error: 'Auth provider unavailable' }),
+  pending2FA: null,
 };
 
 export const useAuth = () => {
@@ -32,6 +35,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pending2FA, setPending2FA] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,11 +73,16 @@ export const AuthProvider = ({ children }) => {
 
       if (result.requires2FA) {
         setIsAuthenticated(false);
-        return { success: false, requires2FA: true };
+        setPending2FA({
+          email: result.email || email,
+          channel: result.twoFactorChannel || 'EMAIL',
+        });
+        return { success: false, requires2FA: true, twoFactorChannel: result.twoFactorChannel || 'EMAIL' };
       }
 
       setUser(result.user);
       setIsAuthenticated(true);
+      setPending2FA(null);
       brokerService.getAccounts()
         .then((accounts) => {
           setUser((prev) => (prev ? { ...prev, brokerAccounts: accounts } : prev));
@@ -169,7 +178,32 @@ export const AuthProvider = ({ children }) => {
     const result = await authService.verifyTwoFactor(code);
     setUser(result.user);
     setIsAuthenticated(true);
+    setPending2FA(null);
     return result.user;
+  }, []);
+
+  const verifyLoginOtp = useCallback(async (email, otp) => {
+    try {
+      const result = await authService.verifyLoginOtp(email, otp);
+      setUser(result.user);
+      setIsAuthenticated(true);
+      setPending2FA(null);
+      return { success: true, user: result.user };
+    } catch (error) {
+      return { success: false, error: error.message || 'OTP verification failed' };
+    }
+  }, []);
+
+  const sendLoginOtp = useCallback(async (email) => {
+    try {
+      const data = await authService.sendLoginOtp(email);
+      return {
+        success: !(data?.success === false),
+        error: data?.message || data?.error || null,
+      };
+    } catch (error) {
+      return { success: false, error: error.message || 'Unable to send login OTP' };
+    }
   }, []);
 
   const sendOtp = useCallback(async (phone) => {
@@ -217,8 +251,11 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     verifyTwoFactor,
+    verifyLoginOtp,
+    sendLoginOtp,
     sendOtp,
     verifyOtp,
+    pending2FA,
   }), [
     user,
     isAuthenticated,
@@ -232,8 +269,11 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     verifyTwoFactor,
+    verifyLoginOtp,
+    sendLoginOtp,
     sendOtp,
     verifyOtp,
+    pending2FA,
   ]);
 
   return (

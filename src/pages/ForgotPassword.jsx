@@ -5,6 +5,7 @@ import { Mail, Phone, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-reac
 import { authService } from '@/lib/auth';
 import { useTheme } from '@/context/ThemeContext';
 import PhoneInput from '@/components/shared/PhoneInput';
+import loginImg from '/asset/login4.png';
 
 const inputCls = (isDark) => ({
   background: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,1)',
@@ -110,14 +111,13 @@ const ForgotPassword = () => {
     }`;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8"
-      style={{ background: isDark ? undefined : 'linear-gradient(135deg,#ebf1f8 0%,#f8fafc 50%,#edf2f8 100%)' }}>
-
-      {/* Orbs */}
-      <div className="fixed top-0 right-0 w-64 h-64 rounded-full pointer-events-none"
-        style={{ background: isDark ? 'rgba(0,200,150,0.04)' : 'rgba(0,200,150,0.07)', filter: 'blur(60px)' }} />
-      <div className="fixed bottom-0 left-0 w-56 h-56 rounded-full pointer-events-none"
-        style={{ background: isDark ? 'rgba(37,99,235,0.04)' : 'rgba(37,99,235,0.06)', filter: 'blur(60px)' }} />
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden px-4 py-8 bg-slate-950">
+      <div className="absolute inset-0 z-0">
+        <img src={loginImg} alt="Trading Background" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-[6px]" />
+        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-purple/20 rounded-full blur-[100px] animate-pulse" />
+        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-brand-teal/20 rounded-full blur-[100px] animate-pulse delay-700" />
+      </div>
 
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38 }}
         className="w-full max-w-md relative z-10">
