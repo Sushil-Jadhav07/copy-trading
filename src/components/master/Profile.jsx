@@ -34,9 +34,8 @@ const Profile = () => {
     confirm: false,
   });
   const [twoFactorSetup, setTwoFactorSetup] = useState({
-    qrCode: '',
-    setupKey: '',
     channel: 'EMAIL',
+    otpSent: false,
   });
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [brokerProfiles, setBrokerProfiles] = useState([]);
@@ -229,13 +228,12 @@ const Profile = () => {
     setSavingTwoFactor(true);
 
     try {
-      const response = await authService.enableTwoFactor(twoFactorSetup.channel || 'EMAIL');
+      await authService.enableTwoFactor(twoFactorSetup.channel || 'EMAIL');
       setTwoFactorSetup({
-        qrCode: response.qrCodeUri ?? response.qrCode ?? response.qr_code ?? response.qrCodeUrl ?? '',
-        setupKey: response.secret ?? response.setupKey ?? response.manualEntryKey ?? '',
         channel: twoFactorSetup.channel || 'EMAIL',
+        otpSent: true,
       });
-      addToast(`OTP sent on ${String(twoFactorSetup.channel || 'EMAIL').toUpperCase()}`, 'info');
+      addToast(`OTP sent to your ${String(twoFactorSetup.channel || 'EMAIL').toLowerCase()}`, 'info');
     } catch (error) {
       addToast(error.message || 'Unable to enable two-factor auth', 'error');
     } finally {
@@ -247,13 +245,12 @@ const Profile = () => {
     setSavingTwoFactor(true);
 
     try {
-      await authService.verifyTwoFactor(twoFactorCode);
+      await authService.confirmTwoFactorEnable(twoFactorCode);
       await refreshUser();
       setTwoFactorCode('');
       setTwoFactorSetup({
-        qrCode: '',
-        setupKey: '',
         channel: twoFactorSetup.channel || 'EMAIL',
+        otpSent: false,
       });
       addToast('Two-factor authentication enabled', 'success');
     } catch (error) {
@@ -271,8 +268,8 @@ const Profile = () => {
       await refreshUser();
       setTwoFactorCode('');
       setTwoFactorSetup({
-        qrCode: '',
-        setupKey: '',
+        channel: 'EMAIL',
+        otpSent: false,
       });
       setDisableTwoFactorForm({
         password: '',
@@ -717,28 +714,11 @@ const Profile = () => {
                     {savingTwoFactor ? 'Preparing...' : 'Enable Two-Factor Auth'}
                   </button>
 
-                  {(twoFactorSetup.qrCode || twoFactorSetup.setupKey) && (
+                  {twoFactorSetup.otpSent && (
                     <div className="space-y-4 rounded-xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5">
-                      {twoFactorSetup.qrCode && (
-                        <div>
-                          <p className="text-sm font-medium mb-2">Scan this QR code</p>
-                          <img
-                            src={twoFactorSetup.qrCode}
-                            alt="2FA QR Code"
-                            className="w-40 h-40 rounded-lg border border-black/10 dark:border-white/10 bg-white p-2"
-                          />
-                        </div>
-                      )}
-
-                      {twoFactorSetup.setupKey && (
-                        <div>
-                          <p className="text-sm font-medium mb-2">Manual setup key</p>
-                          <div className="px-3 py-2 rounded-lg bg-background border border-black/10 dark:border-white/10 text-sm break-all">
-                            {twoFactorSetup.setupKey}
-                          </div>
-                        </div>
-                      )}
-
+                      <p className="text-sm text-muted-foreground">
+                        Enter the 6-digit code sent to your {twoFactorSetup.channel === 'PHONE' ? 'phone' : 'email'}.
+                      </p>
                       <div>
                         <label className="block text-sm font-medium mb-1.5">Verification Code</label>
                         <input
@@ -751,7 +731,6 @@ const Profile = () => {
                           className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
                         />
                       </div>
-
                       <button
                         onClick={handleVerifyTwoFactor}
                         disabled={savingTwoFactor || twoFactorCode.length !== 6}

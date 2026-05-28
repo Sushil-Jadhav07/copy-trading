@@ -220,51 +220,19 @@ export const authService = {
     }
   },
 
-  async verifyTwoFactor(code) {
-    let response;
-
+  /** Confirm 2FA enable (settings) — OTP from email/SMS, not login. */
+  async confirmTwoFactorEnable(otp) {
     try {
-      response = await api.post(
-        '/api/v1/auth/2fa/confirm',
-        {
-          otp: code,
-        },
-        {
-          skipAuthRefresh: true,
-        },
-      );
+      const response = await api.post('/api/v1/auth/2fa/verify', { otp });
+      return response.data || {};
     } catch (error) {
-      try {
-        response = await api.post(
-          '/api/v1/auth/2fa/verify',
-          {
-            otp: code,
-          },
-          {
-            skipAuthRefresh: true,
-          },
-        );
-      } catch (fallbackError) {
-        throw new Error(getErrorMessage(fallbackError, 'Two-factor verification failed'));
-      }
+      throw new Error(getErrorMessage(error, 'Two-factor verification failed'));
     }
+  },
 
-    const token = extractAccessToken(response.data);
-    const refreshToken = extractRefreshToken(response.data);
-    if (token) {
-      setAccessToken(token);
-    }
-    if (refreshToken) {
-      setRefreshToken(refreshToken);
-    }
-
-    const user = response.data?.user
-      ? normalizeUser(response.data)
-      : await this.getMe();
-
-    return {
-      user,
-    };
+  /** @deprecated Use confirmTwoFactorEnable for settings; verifyLoginOtp for login. */
+  async verifyTwoFactor(code) {
+    return this.confirmTwoFactorEnable(code);
   },
 
   async sendLoginOtp(email) {
@@ -410,15 +378,28 @@ export const authService = {
 
   async forgotPassword(email) {
     try {
-      await api.post('/api/v1/auth/forgot-password', { email });
+      const response = await api.post('/api/v1/auth/forgot-password', { email }, { skipAuthRefresh: true });
+      return response.data || {};
     } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to send reset link'));
+      throw new Error(getErrorMessage(error, 'Unable to send verification code'));
     }
   },
 
   async resetPassword(token, newPassword) {
     try {
-      await api.post('/api/v1/auth/reset-password', { token, newPassword });
+      await api.post('/api/v1/auth/reset-password', { token, newPassword }, { skipAuthRefresh: true });
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to reset password'));
+    }
+  },
+
+  async resetPasswordWithOtp(email, otp, newPassword) {
+    try {
+      await api.post(
+        '/api/v1/auth/reset-password',
+        { email, otp, newPassword },
+        { skipAuthRefresh: true },
+      );
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to reset password'));
     }

@@ -21,7 +21,10 @@ const ForgotPassword = () => {
   const [phone, setPhone]         = useState('');
   const [countryCode, setCountry] = useState('+91');
   const [otp, setOtp]             = useState('');
-  // phone flow stages: 'input' → 'otp'
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  // email: 'input' → 'otp' | phone: 'input' → 'otp'
+  const [emailStage, setEmailStage] = useState('input');
   const [phoneStage, setPhoneStage] = useState('input');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
@@ -30,30 +33,44 @@ const ForgotPassword = () => {
 
   const resetPhoneFlow = () => { setPhoneStage('input'); setOtp(''); setError(''); setSuccess(''); };
 
-  // ─── Email flow: POST /auth/forgot-password { email } ─────────────────────
+  // ─── Email flow: forgot-password → OTP → reset-password ───────────────────
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError(''); setErrorType(''); setSuccess('');
     try {
-      const res = await authService.forgotPassword(email);
-      const data = res?.data || res;
-      if (data?.resetToken) {
-        sessionStorage.setItem('pw_reset_token', data.resetToken);
-      }
-      setSuccess("If this email exists, you'll receive a reset link shortly.");
+      await authService.forgotPassword(email);
+      setEmailStage('otp');
+      setSuccess('If this email is registered, a 6-digit code was sent. Check inbox and spam.');
     } catch (err) {
-      const msg = err.message || '';
-      const notFound =
-        msg.toLowerCase().includes('not found') ||
-        msg.toLowerCase().includes('does not exist') ||
-        msg.toLowerCase().includes('no account') ||
-        msg.toLowerCase().includes('invalid email');
-      if (notFound) {
-        setErrorType('email_not_found');
-        setError('No account found with this email address.');
-      } else {
-        setError(msg || 'Unable to process your request. Please try again.');
-      }
+      setError(err.message || 'Unable to send verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailReset = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 8 || !/[0-9]/.test(newPassword) || !/[^a-zA-Z0-9]/.test(newPassword)) {
+      setError('Password must be at least 8 characters and include a number and special character.');
+      return;
+    }
+    if (otp.length < 6) {
+      setError('Enter the 6-digit code from your email');
+      return;
+    }
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      await authService.resetPasswordWithOtp(email, otp, newPassword);
+      navigate('/login', {
+        replace: true,
+        state: { message: 'Password reset successful. Sign in with your new password.' },
+      });
+    } catch (err) {
+      setError(err.message || 'Unable to reset password. Request a new code and try again.');
     } finally {
       setLoading(false);
     }
@@ -134,14 +151,16 @@ const ForgotPassword = () => {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Reset password</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {method === 'phone' && phoneStage === 'otp'
+              {method === 'email' && emailStage === 'otp'
+                ? 'Enter the code from your email and choose a new password.'
+                : method === 'phone' && phoneStage === 'otp'
                 ? 'Enter the OTP sent to your phone.'
                 : "Choose how you'd like to recover your account."}
             </p>
           </div>
 
           {/* Tabs — hidden during OTP entry */}
-          {phoneStage === 'input' && (
+          {emailStage === 'input' && phoneStage === 'input' && (
             <div className="flex gap-1 mb-5 p-1 rounded-xl"
               style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}>
               {[
@@ -190,7 +209,7 @@ const ForgotPassword = () => {
 
           <AnimatePresence mode="wait">
             {/* ── EMAIL FLOW ── */}
-            {method === 'email' && (
+            {method === 'email' && emailStage === 'input' && (
               <motion.form key="email-form" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}
                 onSubmit={handleEmailSubmit} className="space-y-4">
                 <div>
@@ -205,7 +224,7 @@ const ForgotPassword = () => {
                       style={inputCls(isDark)} required />
                   </div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
-                    We'll send a password reset link to this email.
+                    We&apos;ll send a 6-digit verification code to this email.
                   </p>
                 </div>
                 <button type="submit" disabled={loading}
@@ -213,7 +232,42 @@ const ForgotPassword = () => {
                   style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
                   {loading
                     ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    : 'Send Reset Link'}
+                    : 'Send Verification Code'}
+                </button>
+              </motion.form>
+            )}
+
+            {method === 'email' && emailStage === 'otp' && (
+              <motion.form key="email-otp" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+                onSubmit={handleEmailReset} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Verification code</label>
+                  <input type="text" inputMode="numeric" maxLength={6} value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="6-digit code"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm text-center tracking-[0.4em] text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    style={inputCls(isDark)} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">New password</label>
+                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    style={inputCls(isDark)} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Confirm password</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    style={inputCls(isDark)} required />
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full py-3 rounded-xl text-white font-semibold text-sm"
+                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)' }}>
+                  {loading ? 'Resetting…' : 'Reset password'}
+                </button>
+                <button type="button" onClick={() => { setEmailStage('input'); setOtp(''); setError(''); }}
+                  className="w-full text-sm text-slate-500 hover:text-slate-700 dark:hover:text-white">
+                  ← Change email
                 </button>
               </motion.form>
             )}
