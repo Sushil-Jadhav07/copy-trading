@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCw, WifiOff, Wifi, Activity } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
@@ -32,7 +32,7 @@ const ChildOpenPositions = () => {
   const [closeModal, setCloseModal]               = useState(false);
   const [selectedPos, setSelectedPos]             = useState(null);
 
-  // ── 1. Load child broker accounts on mount ──────────────────────────────────
+  // â”€â”€ 1. Load child broker accounts on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const loadAccounts = async () => {
       try {
@@ -50,7 +50,7 @@ const ChildOpenPositions = () => {
     loadAccounts();
   }, [addToast]);
 
-  // ── 2. Check session + load positions whenever account changes ───────────────
+  // â”€â”€ 2. Check session + load positions whenever account changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
@@ -89,7 +89,7 @@ const ChildOpenPositions = () => {
     return () => window.clearInterval(interval);
   }, [selectedAccountId, sessionActive, loadPositions]);
 
-  // ── 3. WebSocket for real-time updates ──────────────────────────────────────
+  // â”€â”€ 3. WebSocket for real-time updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const posSub = connectChannel(
       'positions',
@@ -132,13 +132,48 @@ const ChildOpenPositions = () => {
   const selectedAccount = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
 
   const showSessionWarning = sessionActive === false && !sessionLoading;
+  const totalRealized = Number.isFinite(Number(positionsMeta?.totalRealizedPnl))
+    ? Number(positionsMeta.totalRealizedPnl)
+    : positions.reduce((s, p) => s + (Number(p?.realizedPnl ?? p?.realized_pnl) || 0), 0);
+  const mastersCopying = new Set(
+    positions
+      .map((p) => p?.masterName || p?.master_name || p?.copiedFromMaster)
+      .filter(Boolean),
+  ).size;
+
+  const getDisplayCount = (value) => (value === null || value === undefined ? 'â€”' : String(value));
+  const getDisplayText = (value) => (value === null || value === undefined || value === '' ? 'â€”' : String(value));
+  const getTriggerValue = (pos) => {
+    const raw = pos?.triggerPrice ?? pos?.trigger_price;
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num <= 0) return 'â€”';
+    return num.toFixed(2);
+  };
+
+  const confirmClose = async () => {
+    if (!selectedPos) return;
+    try {
+      await childService.squareOffPosition?.({
+        symbol: selectedPos.symbol || selectedPos.instrument,
+        qty: selectedPos.qty,
+        type: 'SELL',
+        product: selectedPos.product || 'MIS',
+      });
+      setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
+      setCloseModal(false);
+      addToast(`${selectedPos.instrument || selectedPos.symbol || 'Position'} closed`, 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to close position', 'error');
+      setCloseModal(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Your live positions — updated in real-time</p>
+          <p className="text-sm text-muted-foreground">Your live positions â€” updated in real-time</p>
         </div>
         <div className="flex items-center gap-2">
           {accounts.length > 1 && (
@@ -187,7 +222,7 @@ const ChildOpenPositions = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <GlassCard>
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Open Positions</p>
           <p className="text-2xl font-black mt-1">{positions.length}</p>
@@ -197,6 +232,16 @@ const ChildOpenPositions = () => {
           <p className={`text-2xl font-black mt-1 ${totalUnrealized >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {totalUnrealized >= 0 ? '+' : ''}{formatCurrency(totalUnrealized)}
           </p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Realized P&L</p>
+          <p className={`text-2xl font-black mt-1 ${totalRealized >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+            {totalRealized >= 0 ? '+' : ''}{formatCurrency(totalRealized)}
+          </p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Masters Copying</p>
+          <p className="text-2xl font-black mt-1">{mastersCopying || 0}</p>
         </GlassCard>
       </div>
 
@@ -236,7 +281,7 @@ const ChildOpenPositions = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50 bg-black/3 dark:bg-white/3">
-                  {['#', 'Instrument', 'Type', 'Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Change %'].map((h) => (
+                  {['#', 'Instrument', 'Exchange', 'Product', 'Qty', 'Filled Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Realized P&L', 'Change %', 'Trigger Price', 'Master', 'Action'].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -253,20 +298,18 @@ const ChildOpenPositions = () => {
                     <td className="px-6 py-4 text-xs font-bold text-muted-foreground">{idx + 1}</td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="text-sm font-black uppercase tracking-tight">{pos.instrument || pos.symbol}</p>
+                        <p className="text-sm font-black uppercase tracking-tight">{getDisplayText(pos.instrument || pos.symbol)}</p>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase">{pos.exchange || 'NSE'}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-black border ${
-                        pos.type === 'BUY'
-                          ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
-                          : 'bg-rose-500/15 text-rose-500 border-rose-500/30'
-                      }`}>
-                        {pos.type}
-                      </span>
+                      <span className="text-xs font-bold">{getDisplayText(pos.exchange || pos.market)}</span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-black">{pos.qty}</td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold">{getDisplayText(pos.product || pos.productType)}</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-black">{getDisplayCount(pos.qty)}</td>
+                    <td className="px-6 py-4 text-sm font-black">{getDisplayCount(pos.filledQty ?? pos.filled_qty ?? pos.tradedQty)}</td>
                     <td className="px-6 py-4 text-sm font-bold tabular-nums">{formatCurrency(pos.avgPrice || 0)}</td>
                     <td className="px-6 py-4 text-sm font-bold tabular-nums text-brand-purple">{formatCurrency(pos.ltp || 0)}</td>
                     <td className="px-6 py-4">
@@ -275,15 +318,39 @@ const ChildOpenPositions = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
+                      {(() => {
+                        const realized = pos.realizedPnl ?? pos.realized_pnl;
+                        if (realized === null || realized === undefined || realized === '') {
+                          return <span className="text-xs text-muted-foreground">â€”</span>;
+                        }
+                        const num = Number(realized) || 0;
+                        return (
+                          <span className={`text-sm font-black tabular-nums ${num >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {num >= 0 ? '+' : ''}{formatCurrency(num)}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-6 py-4">
                       <span className={`text-xs font-black tabular-nums ${(pos.change || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {(pos.change || 0) >= 0 ? '+' : ''}{(pos.change || 0).toFixed(2)}%
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-black tabular-nums">{getTriggerValue(pos)}</td>
+                    <td className="px-6 py-4 text-xs font-bold">{getDisplayText(pos.masterName || pos.master_name || pos.copiedFromMaster)}</td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => { setSelectedPos(pos); setCloseModal(true); }}
+                        className="px-3 py-1 bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger rounded text-xs font-bold transition-colors"
+                      >
+                        Close
+                      </button>
                     </td>
                   </motion.tr>
                 ))}
                 {positions.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-20 text-center">
+                    <td colSpan={14} className="px-6 py-20 text-center">
                       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                         <Activity className="h-8 w-8 text-muted-foreground/20" />
                       </div>
@@ -297,8 +364,36 @@ const ChildOpenPositions = () => {
           </div>
         )}
       </GlassCard>
+
+      <Modal isOpen={closeModal} onClose={() => setCloseModal(false)} title="Close Position" size="sm">
+        {selectedPos && (
+          <div className="space-y-4">
+            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
+              {[
+                ['Instrument', getDisplayText(selectedPos.instrument || selectedPos.symbol)],
+                ['Product', getDisplayText(selectedPos.product)],
+                ['Type', getDisplayText(selectedPos.type)],
+                ['Qty to close', getDisplayCount(selectedPos.qty)],
+                ['LTP', formatCurrency(selectedPos.ltp || 0)],
+                ['Unrealized P&L', `${(selectedPos.unrealizedPnl || 0) >= 0 ? '+' : ''}${formatCurrency(selectedPos.unrealizedPnl || 0)}`],
+                ['Master', getDisplayText(selectedPos.masterName || selectedPos.master_name)],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between">
+                  <span className="text-muted-foreground">{k}</span>
+                  <span className="font-medium">{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
+              <button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Confirm Close</button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
 
 export default ChildOpenPositions;
+
