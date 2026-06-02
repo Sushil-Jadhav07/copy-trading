@@ -146,7 +146,8 @@ const PnLAnalytics = () => {
     if (dailyChart.length > 0) {
       return dailyChart.map((row, index) => ({
         time: String(row.date || row.label || index + 1),
-        value: Number(row.value ?? row.pnl ?? row.totalPnl ?? row.realizedPnl ?? 0),
+        value: Number(row.pnl ?? row.realizedPnl ?? 0),
+        copies: Number(row.copiesSuccess ?? row.value ?? 0),
       }));
     }
     return summary.map((row, index) => ({ time: String(row.period || index + 1), value: Number(row.realizedPnl || 0) + Number(row.unrealizedPnl || 0) }));
@@ -183,10 +184,10 @@ const PnLAnalytics = () => {
           follower: c.name || c.childName || c.email || `Child ${idx + 1}`,
           copiedTrades: Number(c.tradesCopied || c.tradeCount || 0),
           success: Number(c.winRate || c.successRate || 0),
-          pnl: Number(c.pnl || c.totalPnL || 0),
+          pnl: Number(c.pnlToday ?? c.pnl ?? c.totalPnL ?? 0),
         }))
         .slice(0, 8),
-    [unrealized]
+    [childPerformance, unrealized]
   );
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
@@ -246,7 +247,7 @@ const PnLAnalytics = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <GlassCard
-          title="Daily P&L (30 Days)"
+          title="Daily realised P&L (30 days)"
           action={<div className="flex gap-2">{PERIODS.map((item) => <button key={item} onClick={() => setPeriod(item)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${period === item ? 'bg-brand-purple text-white' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'}`}>{item}</button>)}</div>}
         >
           <div className="h-[320px]">

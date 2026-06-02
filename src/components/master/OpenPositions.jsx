@@ -206,8 +206,9 @@ const OpenPositions = () => {
       await masterService.squareOffPosition({
         symbol: selectedPos.symbol || selectedPos.instrument,
         qty: selectedPos.qty,
-        type: 'SELL',
-        product: selectedPos.market || 'MIS',
+        type: selectedPos.type === 'BUY' ? 'SELL' : 'BUY',
+        product: selectedPos.raw?.product || selectedPos.orderType || 'MIS',
+        exchange: selectedPos.exchange || selectedPos.raw?.exchange || 'NSE',
       });
       setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
       setCloseModal(false);

@@ -33,6 +33,7 @@ export const riskService = {
         maxOpenPositions: Number(body?.maxOpenPositions ?? 20),
         maxCapitalExposure: Number(body?.maxCapitalExposure ?? 80),
         marginCheckEnabled: Boolean(body?.marginCheckEnabled),
+        ...(body?.allowedSides ? { allowedSides: body.allowedSides } : {}),
       };
       const res = await api.put('/api/v1/risk/rules', payload);
       return res.data?.data || res.data;

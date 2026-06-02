@@ -227,7 +227,7 @@ const OptionsStatus = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/40">
-                  {['#', 'Instrument', 'Side', 'Qty', 'Price', 'Status', 'Time'].map((h) => (
+                  {['#', 'Instrument', 'Side', 'Qty', 'Latency', 'Status', 'Time'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       {h}
                     </th>
@@ -246,12 +246,12 @@ const OptionsStatus = () => {
                     <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
                     <td className="px-4 py-3 text-sm font-bold">{trade.symbol || trade.instrument}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${String(trade.type).toUpperCase() === 'BUY' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-brand-purple/10 text-brand-purple'}`}>
-                        {trade.type}
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${String(trade.side || trade.type || 'BUY').toUpperCase() === 'BUY' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-brand-purple/10 text-brand-purple'}`}>
+                        {trade.side || trade.type || 'BUY'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold">{trade.qty}</td>
-                    <td className="px-4 py-3 text-sm">{formatCurrency(trade.price || 0)}</td>
+                    <td className="px-4 py-3 text-sm">{trade.price ? formatCurrency(trade.price) : (trade.latencyMs ? `${trade.latencyMs}ms` : '—')}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                         ['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(String(trade.status).toUpperCase())
@@ -261,7 +261,7 @@ const OptionsStatus = () => {
                         {trade.status || 'UNKNOWN'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[10px] text-muted-foreground">{trade.time || '-'}</td>
+                    <td className="px-4 py-3 text-[10px] text-muted-foreground">{trade.createdAt || trade.time || '-'}</td>
                   </motion.tr>
                 ))}
                 {optionTrades.length === 0 && (
