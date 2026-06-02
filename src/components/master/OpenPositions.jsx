@@ -20,18 +20,6 @@ const parseActive = (v) => {
   return false;
 };
 
-const formatPrice = (value) => {
-  const num = Number(value);
-    if (!Number.isFinite(num)) return `${String.fromCharCode(8377)}0.00`;
-
-  const formatted = num.toLocaleString('en-IN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  });
-
-    return `${String.fromCharCode(8377)}${formatted}`;
-};
-
 const OpenPositions = () => {
   const { addToast } = useToast();
 
@@ -56,7 +44,7 @@ const OpenPositions = () => {
   const [selectedChildren, setSelectedChildren]   = useState([]);
   const [selectedInstrument, setSelectedInstrument] = useState('');
 
-  // â"€â"€ 1. Load broker accounts on mount â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── 1. Load broker accounts on mount ────────────────────────────────────────
   useEffect(() => {
     const loadAccounts = async () => {
       try {
@@ -80,7 +68,7 @@ const OpenPositions = () => {
     loadAccounts();
   }, [addToast]);
 
-  // â"€â"€ 2. Check session + load positions whenever account changes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── 2. Check session + load positions whenever account changes ───────────────
   const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
@@ -116,7 +104,7 @@ const OpenPositions = () => {
         return;
       }
 
-      // Session is active â†’ prefer dashboard payload (more consistent across brokers)
+      // Session is active → prefer dashboard payload (more consistent across brokers)
       const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
       const dashboardPositions = Array.isArray(dashboard?.positions) ? dashboard.positions : [];
       if (dashboardPositions.length > 0) {
@@ -157,7 +145,7 @@ const OpenPositions = () => {
     return () => window.clearInterval(interval);
   }, [selectedAccountId, sessionActive, loadPositions]);
 
-  // â"€â"€ 3. WebSocket for real-time updates â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── 3. WebSocket for real-time updates ──────────────────────────────────────
   useEffect(() => {
     // 3.1 Listen to positions channel for P&L and status updates
     const posSub = connectChannel(
@@ -211,15 +199,16 @@ const OpenPositions = () => {
     };
   }, [selectedAccountId]);
 
-  // â"€â"€ 4. Close position â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── 4. Close position ────────────────────────────────────────────────────────
   const confirmClose = async () => {
     if (!selectedPos) return;
     try {
       await masterService.squareOffPosition({
         symbol: selectedPos.symbol || selectedPos.instrument,
         qty: selectedPos.qty,
-        type: 'SELL',
-        product: selectedPos.product || selectedPos.market || 'MIS',
+        type: selectedPos.type === 'BUY' ? 'SELL' : 'BUY',
+        product: selectedPos.raw?.product || selectedPos.orderType || 'MIS',
+        exchange: selectedPos.exchange || selectedPos.raw?.exchange || 'NSE',
       });
       setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
       setCloseModal(false);
@@ -235,20 +224,20 @@ const OpenPositions = () => {
     loadPositions(selectedAccountId, true);
   };
 
-  // â"€â"€ Derived stats â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Derived stats ─────────────────────────────────────────────────────────────
   const totalUnrealized   = Number.isFinite(Number(positionsMeta.totalPnl))
     ? Number(positionsMeta.totalPnl)
     : positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
   const followersCount    = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
   const selectedAccount   = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
 
-  // â"€â"€ Render: No accounts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Render: No accounts ───────────────────────────────────────────────────────
   if (accounts.length === 0 && !loading && !sessionLoading && positionsMeta.errorCode === 'LEGACY_NO_ACCOUNTS') {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Your live positions â€" followers are copying these in real-time</p>
+          <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
         </div>
         <GlassCard>
           <div className="py-16 text-center">
@@ -261,7 +250,7 @@ const OpenPositions = () => {
     );
   }
 
-  // â"€â"€ Render: Session inactive â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Render: Session inactive ──────────────────────────────────────────────────
   const showSessionWarning = sessionActive === false && !sessionLoading;
 
   return (
@@ -270,7 +259,7 @@ const OpenPositions = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Your live positions â€" followers are copying these in real-time</p>
+          <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
         </div>
         <div className="flex items-center gap-2">
           {accounts.length > 1 && (
@@ -397,16 +386,8 @@ const OpenPositions = () => {
                       transition={{ delay: idx * 0.05 }}
                       className="border-b border-border/30 hover:bg-white/3 transition-colors"
                     >
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>                                            <td className="px-4 py-3">
-                        <div className="space-y-0.5">
-                          <p className="font-semibold text-sm">{pos.instrument || pos.symbol}</p>
-                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <span>{pos.exchange || 'NSE'}</span>
-                            <span className="inline-flex h-3 w-3 items-center justify-center rounded-full border border-brand-purple/40 bg-brand-purple/10"><span className="block h-1.5 w-1.5 rounded-full bg-brand-purple" /></span>
-                            <span>{pos.product || pos.market || 'MIS'}</span>
-                          </div>
-                        </div>
-                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                      <td className="px-4 py-3 font-semibold text-sm">{pos.instrument || pos.symbol}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
                           pos.type === 'BUY'
@@ -417,10 +398,10 @@ const OpenPositions = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">{pos.qty}</td>
-                      <td className="px-4 py-3 text-sm font-mono font-medium">{formatPrice(pos.ltp ?? pos.avgPrice ?? 0)}</td>
+                      <td className="px-4 py-3 text-sm font-mono font-medium">{formatCurrency(pos.ltp || pos.avgPrice || 0)}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-semibold ${(pos.unrealizedPnl || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
-                          {(pos.unrealizedPnl || 0) >= 0 ? '+' : ''}{formatPrice(pos.unrealizedPnl || 0)}
+                          {(pos.unrealizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(pos.unrealizedPnl || 0)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -437,7 +418,7 @@ const OpenPositions = () => {
                             {childList.length}
                           </button>
                         ) : (
-                          <span className="text-xs text-muted-foreground">{'—'}</span>
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -469,15 +450,12 @@ const OpenPositions = () => {
         {selectedPos && (
           <div className="space-y-4">
             <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
-              {[ 
+              {[
                 ['Instrument', selectedPos.instrument],
                 ['Type', selectedPos.type],
                 ['Qty', selectedPos.qty],
-                ['Exchange', selectedPos.exchange || 'NSE'],
-                ['Product', selectedPos.product || selectedPos.market || 'MIS'],
-                ['LTP', formatPrice(selectedPos.ltp || 0)],
-                ['Avg Price', formatPrice(selectedPos.avgPrice || 0)],
-                ['Unrealized P&L', ((selectedPos.unrealizedPnl || 0) >= 0 ? '+' : '') + formatPrice(selectedPos.unrealizedPnl || 0)],
+                ['LTP', `₹${(selectedPos.ltp || 0).toFixed(2)}`],
+                ['Unrealized P&L', ((selectedPos.unrealizedPnl || 0) >= 0 ? '+' : '') + formatCurrency(selectedPos.unrealizedPnl || 0)],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-muted-foreground">{k}</span>
@@ -513,5 +491,4 @@ const OpenPositions = () => {
 };
 
 export default OpenPositions;
-
 

@@ -426,6 +426,9 @@ export const masterService = {
       const list =
         Array.isArray(res.data?.logs) ? res.data.logs :
         Array.isArray(res.data?.trades) ? res.data.trades :
+        Array.isArray(res.data?.tradeLogs) ? res.data.tradeLogs :
+        Array.isArray(res.data?.copyLogs) ? res.data.copyLogs :
+        Array.isArray(res.data?.masterTrades) ? res.data.masterTrades :
         Array.isArray(res.data?.data?.logs) ? res.data.data.logs :
         Array.isArray(res.data?.data?.trades) ? res.data.data.trades :
         extractList(res.data);
@@ -436,6 +439,9 @@ export const masterService = {
         const list =
           Array.isArray(fallback.data?.logs) ? fallback.data.logs :
           Array.isArray(fallback.data?.trades) ? fallback.data.trades :
+          Array.isArray(fallback.data?.tradeLogs) ? fallback.data.tradeLogs :
+          Array.isArray(fallback.data?.copyLogs) ? fallback.data.copyLogs :
+          Array.isArray(fallback.data?.masterTrades) ? fallback.data.masterTrades :
           Array.isArray(fallback.data?.data?.logs) ? fallback.data.data.logs :
           Array.isArray(fallback.data?.data?.trades) ? fallback.data.data.trades :
           extractList(fallback.data);
@@ -549,11 +555,11 @@ export const masterService = {
   async getCopyLogs() {
     try {
       const res = await api.get('/api/v1/master/trade-logs');
-      return res.data?.logs || res.data?.trades || res.data || [];
+      return res.data?.logs || res.data?.tradeLogs || res.data?.copyLogs || res.data?.trades || res.data || [];
     } catch (error) {
       try {
         const fallback = await api.get('/api/v1/master/copy/logs');
-        return fallback.data?.logs || fallback.data || [];
+        return fallback.data?.logs || fallback.data?.tradeLogs || fallback.data?.copyLogs || fallback.data || [];
       } catch (fallbackError) {
         throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
       }
@@ -573,7 +579,24 @@ export const masterService = {
     try {
       const res = await api.get('/api/v1/master/open-book');
       const payload = res.data?.data || res.data || {};
-      const orders = Array.isArray(payload.orders) ? payload.orders : [];
+      const rawOrders = Array.isArray(payload.orders) ? payload.orders : [];
+      const orders = rawOrders.map((order, index) => ({
+        id: order.order_id || order.orderId || order.id || `order-${index}`,
+        symbol: order.tradingsymbol || order.trading_symbol || order.symbol || 'N/A',
+        exchange: order.exchange || 'NSE',
+        segment: order.segment || order.market || '',
+        orderType: order.order_type || order.orderType || 'MARKET',
+        type: String(order.transaction_type || order.transactionType || order.type || order.side || 'BUY').toUpperCase(),
+        qty: Number(order.quantity ?? order.qty ?? order.filled_quantity ?? 0),
+        price: Number(order.average_fill_price ?? order.average_price ?? order.averagePrice ?? order.price ?? 0),
+        status: String(order.order_status || order.status || 'UNKNOWN').toUpperCase(),
+        product: order.product || 'MIS',
+        latencyMs: order.latencyMs != null ? Number(order.latencyMs) : (order.totalExecutionMs != null ? Number(order.totalExecutionMs) : null),
+        statusMessage: order.status_message || order.statusMessage || '',
+        reason: order.reason || '',
+        message: order.message || '',
+        raw: order,
+      }));
       return {
         orders,
         total: Number(payload.total ?? orders.length),
@@ -592,7 +615,20 @@ export const masterService = {
     try {
       const res = await api.get('/api/v1/master/open-options');
       const payload = res.data?.data || res.data || {};
-      const positions = Array.isArray(payload.positions) ? payload.positions : [];
+      const rawPositions = Array.isArray(payload.positions) ? payload.positions : [];
+      const positions = rawPositions.map((pos, index) => ({
+        id: pos.id || `${pos.symbol || pos.instrument || pos.tradingSymbol || pos.tradingsymbol || 'option'}-${index}`,
+        symbol: pos.symbol || pos.instrument || pos.tradingSymbol || pos.tradingsymbol || 'N/A',
+        qty: Number(pos.qty ?? pos.quantity ?? pos.netQuantity ?? 0),
+        avgPrice: Number(pos.avgPrice ?? pos.averagePrice ?? pos.average_price ?? 0),
+        ltp: Number(pos.ltp ?? pos.lastPrice ?? pos.last_price ?? 0),
+        pnl: Number(pos.unrealizedPnl ?? pos.unrealized_pnl ?? pos.pnl ?? pos.m2m ?? 0),
+        unrealizedPnl: Number(pos.unrealizedPnl ?? pos.unrealized_pnl ?? pos.pnl ?? pos.m2m ?? 0),
+        product: pos.product || '',
+        exchange: pos.exchange || '',
+        type: String(pos.type || pos.side || pos.transaction_type || 'BUY').toUpperCase(),
+        raw: pos,
+      }));
       return {
         positions,
         total: Number(payload.total ?? positions.length),
@@ -611,22 +647,47 @@ export const masterService = {
     try {
       const res = await api.get('/api/v1/master/option-status');
       const payload = res.data?.data || res.data || {};
-      const items = Array.isArray(payload.items) ? payload.items : [];
+      const rawItems = Array.isArray(payload.items) ? payload.items : [];
+      const items = rawItems.map((item, index) => ({
+        id: item.id || `option-status-${index}`,
+        copyGroupId: item.copyGroupId || '',
+        symbol: item.symbol || 'N/A',
+        side: String(item.side || item.tradeType || 'BUY').toUpperCase(),
+        type: String(item.side || item.tradeType || 'BUY').toUpperCase(),
+        qty: Number(item.qty ?? item.childQty ?? 0),
+        masterQty: Number(item.masterQty ?? item.qty ?? 0),
+        status: String(item.status || item.childStatus || 'UNKNOWN').toUpperCase(),
+        masterStatus: item.masterStatus || '',
+        errorMessage: item.errorMessage || null,
+        skipReason: item.skipReason || null,
+        failureReason: item.failureReason || null,
+        latencyMs: item.latencyMs != null ? Number(item.latencyMs) : null,
+        masterId: item.masterId || '',
+        childId: item.childId || '',
+        orderId: item.orderId || '',
+        createdAt: item.createdAt || null,
+        childPlacedAt: item.childPlacedAt || null,
+        time: item.createdAt || item.childPlacedAt || null,
+        raw: item,
+      }));
+      const success = items.filter((i) => ['SUCCESS', 'EXECUTED'].includes(i.status)).length;
+      const failed = items.filter((i) => i.status === 'FAILED').length;
+      const skipped = items.filter((i) => i.status === 'SKIPPED').length;
       return {
         items,
         total: Number(payload.total ?? items.length),
-        success: Number(payload.success ?? 0),
-        failed: Number(payload.failed ?? 0),
-        skipped: Number(payload.skipped ?? 0),
+        success: Number(payload.success ?? success),
+        failed: Number(payload.failed ?? failed),
+        skipped: Number(payload.skipped ?? skipped),
       };
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load option status'));
     }
   },
 
-  async squareOffPosition({ symbol, qty, type = 'SELL', product = 'MIS' } = {}) {
+  async squareOffPosition({ symbol, qty, type = 'SELL', product = 'MIS', exchange = 'NSE' } = {}) {
     try {
-      const res = await api.post('/api/v1/master/positions/square-off', { symbol, qty, type, product });
+      const res = await api.post('/api/v1/master/positions/square-off', { symbol, qty, type, product, exchange });
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to square off position'));

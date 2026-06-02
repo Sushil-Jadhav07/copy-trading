@@ -6,7 +6,7 @@ import DataTable from '@/components/shared/DataTable';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
-import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren } from '@/hooks/useMaster';
+import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren, useMasterTradePnl } from '@/hooks/useMaster';
 import { useAuth } from '@/context/AuthContext';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
@@ -23,8 +23,10 @@ const Overview = () => {
   const [openPositions, setOpenPositions] = useState([]);
   const [positionsLoading, setPositionsLoading] = useState(false);
   const { analytics, error: analyticsError } = useMasterAnalytics();
+  const { tradePnl } = useMasterTradePnl();
   const { trades: recentTrades, loading: tradesLoading, error: tradesError } = useMasterTradeHistory();
   const { children } = useMasterChildren();
+  const pnlSummary = tradePnl?.summary || {};
 
   useEffect(() => {
     if (analyticsError) addToast(analyticsError, 'error');
@@ -65,14 +67,19 @@ const Overview = () => {
     name: child.name || child.childName || 'Unknown',
     broker: formatBrokerName(child.broker || child.brokerName),
     scaling: Number(child.multiplier || 1),
-    pnl: Number(child.totalPnL || child.pnl || 0),
+    pnl: Number(child.pnlToday ?? child.pnl ?? child.totalPnL ?? 0),
     status: String(child.status || (child.tradingEnabled ? 'ACTIVE' : 'PAUSED')).toUpperCase(),
   }));
 
   const activeChildren =
     children.filter((child) => String(child.status || '').toUpperCase() === 'ACTIVE' || child.tradingEnabled).length;
-  const tradesCopiedToday = Number(analytics.totalReplications || 0);
-  const todaysPnl = Number(analytics.totalPnl || analytics.totalPnL || 0);
+  const tradesCopiedToday = Number(
+    analytics.todayTradesCopied ?? analytics.totalReplications ?? 0,
+  );
+  const todaysPnl = Number(
+    pnlSummary.todayPnl ?? analytics.totalPnl ?? analytics.totalPnL ?? 0,
+  );
+  const portfolioValue = Number(analytics.portfolioValue ?? 0);
 
   const tradeColumns = [
     { header: 'Instrument', accessor: 'instrument' },
@@ -92,7 +99,7 @@ const Overview = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <StatCard title="Portfolio Value" value={analytics.portfolioValue || analytics.totalValue || 0} isCurrency icon={TrendingUp} gradient="from-brand-purple to-brand-teal" />
+        <StatCard title="Portfolio Value" value={portfolioValue || analytics.totalValue || 0} isCurrency icon={TrendingUp} gradient="from-brand-purple to-brand-teal" />
         <StatCard title="Today's P&L" value={todaysPnl} isCurrency icon={IndianRupee} gradient="from-brand-blue to-brand-teal" />
         <StatCard title="Active Children" value={activeChildren} icon={Users} />
         <StatCard title="Trades Copied Today" value={tradesCopiedToday} icon={Zap} gradient="from-brand-teal to-success" />

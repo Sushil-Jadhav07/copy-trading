@@ -1,17 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Target,
-  TrendingUp,
-  Activity,
-  BarChart2,
-  RefreshCw,
-  Wifi,
-  WifiOff,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-} from 'lucide-react';
+import { Target, TrendingUp, Activity, BarChart2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
@@ -52,68 +41,6 @@ const isOptionRecord = (item = {}) => {
 const toMs = (value) => {
   const ms = new Date(value || '').getTime();
   return Number.isFinite(ms) ? ms : 0;
-};
-
-const formatTime = (value) => {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '-';
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-};
-
-const formatReason = (value) => {
-  if (!value) return '-';
-  return String(value)
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-};
-
-const getStatusClass = (status) => {
-  const value = String(status || '').toUpperCase();
-  if (['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(value)) {
-    return 'bg-emerald-500/10 text-emerald-500';
-  }
-  if (['SKIPPED', 'FAILED', 'REJECTED', 'ERROR'].includes(value)) {
-    return 'bg-rose-500/10 text-rose-500';
-  }
-  return 'bg-amber-500/10 text-amber-500';
-};
-
-const getSideClass = (side) => {
-  const value = String(side || '').toUpperCase();
-  if (value === 'BUY') return 'bg-emerald-500/10 text-emerald-500';
-  if (value === 'SELL') return 'bg-rose-500/10 text-rose-500';
-  return 'bg-amber-500/10 text-amber-500';
-};
-
-const getStatusMeta = (status) => {
-  const value = String(status || '').toUpperCase();
-  if (['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(value)) {
-    return {
-      className: 'bg-emerald-500/10 text-emerald-500',
-      icon: CheckCircle2,
-      label: value || 'EXECUTED',
-    };
-  }
-  if (['SKIPPED', 'FAILED', 'REJECTED', 'ERROR'].includes(value)) {
-    return {
-      className: 'bg-amber-500/10 text-amber-500',
-      icon: AlertTriangle,
-      label: value || 'SKIPPED',
-    };
-  }
-  return {
-    className: 'bg-amber-500/10 text-amber-500',
-    icon: AlertTriangle,
-    label: value || 'UNKNOWN',
-  };
 };
 
 const OptionsStatus = () => {
@@ -245,7 +172,7 @@ const OptionsStatus = () => {
       {sessionActive === true && (
         <div className="flex items-center gap-2 text-xs text-emerald-500">
           <Wifi className="w-3.5 h-3.5" />
-          <span>Live - reading options from {selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}</span>
+          <span>Live — reading options from {selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}</span>
         </div>
       )}
 
@@ -294,13 +221,13 @@ const OptionsStatus = () => {
 
       <GlassCard title="Taken Option Trades" subtitle="Executed option trades for selected master broker account">
         {loading ? (
-          <SkeletonLoader type="table" rows={6} columns={12} />
+          <SkeletonLoader type="table" rows={6} columns={7} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px]">
+            <table className="w-full">
               <thead>
                 <tr className="border-b border-border/40">
-                  {['#', 'Instrument', 'Group', 'Side', 'Qty', 'Master Qty', 'Child Qty', 'Status', 'Child Status', 'Master Status', 'Skip/Failure', 'Latency', 'Time'].map((h) => (
+                  {['#', 'Instrument', 'Side', 'Qty', 'Latency', 'Status', 'Time'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       {h}
                     </th>
@@ -317,89 +244,29 @@ const OptionsStatus = () => {
                     className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                   >
                     <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
+                    <td className="px-4 py-3 text-sm font-bold">{trade.symbol || trade.instrument}</td>
                     <td className="px-4 py-3">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-bold">{trade.symbol || trade.instrument || '-'}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {trade.instrumentType || '-'}
-                          {' '}
-                          {trade.isOption ? 'Option' : trade.isFuture ? 'Future' : ''}
-                          {trade.copyGroupId ? ` · ${trade.copyGroupId.slice(0, 8)}` : ''}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
-                      {trade.copyGroupId || '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex min-w-[3.75rem] items-center justify-center rounded px-2 py-1 text-[10px] font-black tracking-wide ${getSideClass(trade.side || trade.type)}`}>
-                        {String(trade.side || trade.type || 'UNKNOWN').toUpperCase()}
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${String(trade.side || trade.type || 'BUY').toUpperCase() === 'BUY' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-brand-purple/10 text-brand-purple'}`}>
+                        {trade.side || trade.type || 'BUY'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold">{trade.qty}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.masterQty ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.childQty ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm">{trade.price ? formatCurrency(trade.price) : (trade.latencyMs ? `${trade.latencyMs}ms` : '—')}</td>
                     <td className="px-4 py-3">
-                      {(() => {
-                        const meta = getStatusMeta(trade.status);
-                        const StatusIcon = meta.icon;
-                        return (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {meta.label}
-                          </span>
-                        );
-                      })()}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                        ['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(String(trade.status).toUpperCase())
+                          ? 'bg-emerald-500/10 text-emerald-500'
+                          : 'bg-rose-500/10 text-rose-500'
+                      }`}>
+                        {trade.status || 'UNKNOWN'}
+                      </span>
                     </td>
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const meta = getStatusMeta(trade.childStatus);
-                        const StatusIcon = meta.icon;
-                        return (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {meta.label}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const meta = getStatusMeta(trade.masterStatus);
-                        const StatusIcon = meta.icon;
-                        return (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {meta.label}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-[11px] text-muted-foreground">
-                      {(() => {
-                        const reason = formatReason(trade.skipReason || trade.failureReason);
-                        const tooltipParts = [reason, trade.errorMessage].filter(Boolean);
-                        const tooltip = tooltipParts.length ? tooltipParts.join(' | ') : 'No skip or failure reason';
-                        return (
-                          <span
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm ring-1 ring-black/5 cursor-help dark:bg-white/95"
-                            title={tooltip}
-                            aria-label={tooltip}
-                          >
-                            <Info className="h-3 w-3" />
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {trade.latencyMs != null ? `${trade.latencyMs} ms` : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatTime(trade.time || trade.date || trade.createdAt)}</td>
+                    <td className="px-4 py-3 text-[10px] text-muted-foreground">{trade.createdAt || trade.time || '-'}</td>
                   </motion.tr>
                 ))}
                 {optionTrades.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No taken option trades found for this account
                     </td>
                   </tr>
