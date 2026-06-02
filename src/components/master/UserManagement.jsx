@@ -14,9 +14,25 @@ import { formatCurrency } from '@/lib/utils';
 import { useBrokerAccounts, useBrokerList } from '@/hooks/useBroker';
 
 const normalizeBrokerKey = (value) => String(value || '').trim().toLowerCase();
+const normalizeLoginMethod = (value) => String(value || '').trim().toLowerCase();
 const isTotpBroker = (loginMethod, brokerKey) =>
   normalizeBrokerKey(loginMethod) === 'totp' ||
   ['angelone', 'angel one'].includes(normalizeBrokerKey(brokerKey));
+
+const getLoginMethodLabel = (method) => {
+  switch (normalizeLoginMethod(method)) {
+    case 'accesstoken':
+      return 'Access Token';
+    case 'apikeywithtotp':
+      return 'API Key + TOTP';
+    case 'totp':
+      return 'TOTP';
+    case 'oauth':
+      return 'OAuth';
+    default:
+      return String(method || 'Login');
+  }
+};
 
 const EMPTY_FORM = {
   broker: '',
@@ -76,7 +92,9 @@ const UserManagement = ({
   const [loginTarget, setLoginTarget]   = useState(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [totpCode, setTotpCode]         = useState('');
+  const [reconnectAccessToken, setReconnectAccessToken] = useState('');
   const [loginConfig, setLoginConfig]   = useState(null);
+  const [activeLoginMethod, setActiveLoginMethod] = useState('');
   const [oauthRedirectUrl, setOauthRedirectUrl] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [oauthOpened, setOauthOpened]   = useState(false);
@@ -330,7 +348,15 @@ const UserManagement = ({
     return readParams(new URLSearchParams(value.includes('?') ? value.slice(value.indexOf('?') + 1) : value));
   };
 
-  const closeLoginModal = () => { setLoginModalOpen(false); setLoginConfig(null); setTotpCode(''); setOauthRedirectUrl(''); setOauthOpened(false); };
+  const closeLoginModal = () => {
+    setLoginModalOpen(false);
+    setLoginConfig(null);
+    setActiveLoginMethod('');
+    setTotpCode('');
+    setReconnectAccessToken('');
+    setOauthRedirectUrl('');
+    setOauthOpened(false);
+  };
 
   const openOauthWindow = (oauthUrl) => {
     if (!oauthUrl) { addToast('OAuth URL not available. Re-add the account.', 'error'); return false; }
@@ -341,17 +367,55 @@ const UserManagement = ({
   };
 
   const openLoginModal = async (accountId, brokerKeyOverride = null) => {
-    setLoginTarget(accountId); setTotpCode(''); setOauthRedirectUrl(''); setOauthOpened(false); setLoginLoading(true);
+    setLoginTarget(accountId);
+    setTotpCode('');
+    setReconnectAccessToken('');
+    setOauthRedirectUrl('');
+    setOauthOpened(false);
+    setLoginLoading(true);
     try {
       const accountMeta = accounts.find((item) => (item.accountId || item.id) === accountId);
       const brokerKey = brokerKeyOverride || normalizeBrokerKey(accountMeta?.brokerId || accountMeta?.broker || accountMeta?.brokerName || '');
       const loginOptionsPayload = await brokerService.getLoginOptions(accountId).catch(() => null);
-      const options = Array.isArray(loginOptionsPayload?.loginOptions) ? loginOptionsPayload.loginOptions.map((o) => String(o).toLowerCase()) : [];
-      const hasOauth = options.includes('oauth') || Boolean(loginOptionsPayload?.oauthUrl);
-      const hasTotp = options.includes('totp');
-      const hasAccessToken = options.includes('accesstoken') || options.includes('access_token');
+      const loginOptions = Array.isArray(loginOptionsPayload?.loginOptions)
+        ? loginOptionsPayload.loginOptions.map((option, index) => ({
+          ...option,
+          method: normalizeLoginMethod(option?.method || option?.loginMethod || option?.type || `option-${index}`),
+          requiredFields: Array.isArray(option?.requiredFields) ? option.requiredFields : [],
+        }))
+        : [];
+      const optionMethods = loginOptions.map((option) => option.method).filter(Boolean);
+      const recommendedLoginMethod = normalizeLoginMethod(
+        loginOptionsPayload?.recommendedLoginMethod ||
+        loginOptionsPayload?.recommendedMethod ||
+        loginOptionsPayload?.recommendedLogin ||
+        optionMethods[0] ||
+        ''
+      );
+      const hasOauth = optionMethods.includes('oauth') || Boolean(loginOptionsPayload?.oauthUrl);
+      const hasTotp = optionMethods.includes('totp') || optionMethods.includes('apikeywithtotp');
+      const hasAccessToken = optionMethods.includes('accesstoken') || optionMethods.includes('access_token');
       const localBrokerMeta = brokerMetaMap[brokerKey];
       const loginMethod = localBrokerMeta?.loginMethod || 'oauth';
+      if (loginOptions.length > 0) {
+        const initialMethod = recommendedLoginMethod || optionMethods[0] || 'oauth';
+        setLoginConfig({
+          broker: loginOptionsPayload?.broker || localBrokerMeta?.name || localBrokerMeta?.brokerName || brokerKey || 'Broker',
+          brokerId: loginOptionsPayload?.brokerId || brokerKey,
+          loginMethod: initialMethod,
+          recommendedLoginMethod: recommendedLoginMethod || initialMethod,
+          loginOptions,
+          loginOptionMethods: optionMethods,
+          platformServerIp: loginOptionsPayload?.platformServerIp || '',
+          requiresIpWhitelist: Boolean(loginOptionsPayload?.requiresIpWhitelist),
+          hasStoredApiKey: Boolean(loginOptionsPayload?.hasStoredApiKey),
+          loginField: loginOptionsPayload?.loginField || 'authCode',
+          oauthUrl: loginOptionsPayload?.oauthUrl || loginOptionsPayload?.loginUrl || loginOptionsPayload?.url || '',
+        });
+        setActiveLoginMethod(initialMethod);
+        setLoginModalOpen(true);
+        return;
+      }
       if (hasTotp || isTotpBroker(loginMethod, brokerKey)) {
         setLoginConfig({
           broker: localBrokerMeta?.name || localBrokerMeta?.brokerName || 'Angel One',
@@ -359,11 +423,13 @@ const UserManagement = ({
           loginField: 'totpCode',
           message: 'Enter the current 6-digit TOTP from your authenticator app.',
         });
+        setActiveLoginMethod('totp');
         setLoginModalOpen(true);
         return;
       }
       if ((loginMethod === 'token' && brokerKey === 'groww') || hasAccessToken) {
-        setLoginConfig({ broker: 'Groww', loginMethod: 'token', loginField: 'totpCode' });
+        setLoginConfig({ broker: 'Groww', loginMethod: 'token', loginField: 'accessToken' });
+        setActiveLoginMethod('accesstoken');
         setLoginModalOpen(true);
         return;
       }
@@ -375,11 +441,13 @@ const UserManagement = ({
           oauthUrl: loginOptionsPayload?.oauthUrl,
           message: loginOptionsPayload?.message || '',
         });
+        setActiveLoginMethod('oauth');
         setLoginModalOpen(true);
         return;
       }
       const oauthConfig = await fetchOAuthConfig(accountId, brokerKey);
       setLoginConfig({ broker: oauthConfig.broker, loginMethod: 'oauth', loginField: oauthConfig.loginField, oauthUrl: oauthConfig.oauthUrl, message: oauthConfig.message });
+      setActiveLoginMethod('oauth');
       setLoginModalOpen(true);
     } catch (err) {
       addToast(err.message || 'Failed to initialize broker login', 'error');
@@ -392,13 +460,21 @@ const UserManagement = ({
     if (!loginTarget || !loginConfig) { addToast('Broker login configuration is missing', 'error'); return; }
     setLoginLoading(true);
     try {
-      if (loginConfig.loginMethod === 'token' || loginConfig.loginMethod === 'totp') {
+      const selectedMethod = normalizeLoginMethod(activeLoginMethod || loginConfig.recommendedLoginMethod || loginConfig.loginMethod);
+      if (selectedMethod === 'accesstoken' || loginConfig.loginMethod === 'token') {
+        const token = String(reconnectAccessToken || '').trim();
+        if (!token) {
+          addToast('Paste the Groww access token', 'error');
+          return;
+        }
+        await brokerService.saveAccessToken(loginTarget, token);
+      } else if (selectedMethod === 'apikeywithtotp' || selectedMethod === 'totp') {
         const sanitized = String(totpCode || '').replace(/\D/g, '').slice(0, 6);
-        if (loginConfig.loginMethod === 'totp' && sanitized.length !== 6) {
+        if (sanitized.length !== 6) {
           addToast('Enter the 6-digit TOTP code', 'error');
           return;
         }
-        await brokerService.loginAccount(loginTarget, sanitized ? { totpCode: sanitized } : {});
+        await brokerService.loginAccount(loginTarget, { totpCode: sanitized });
       } else {
         const extracted = parseCodeFromRedirectUrl(oauthRedirectUrl, loginConfig.loginField);
         if (!extracted) { addToast('Could not find the token in the pasted URL. Copy the full redirect URL after login.', 'error'); return; }
@@ -546,7 +622,10 @@ const UserManagement = ({
     setDeleteModal(false);
   };
 
-  const isOAuthModal = loginConfig?.loginMethod === 'oauth';
+  const isOAuthModal = normalizeLoginMethod(activeLoginMethod || loginConfig?.recommendedLoginMethod || loginConfig?.loginMethod) === 'oauth';
+  const loginOptions = Array.isArray(loginConfig?.loginOptions) ? loginConfig.loginOptions : [];
+  const selectedLoginMethod = normalizeLoginMethod(activeLoginMethod || loginConfig?.recommendedLoginMethod || loginConfig?.loginMethod);
+  const selectedLoginOption = loginOptions.find((option) => normalizeLoginMethod(option.method) === selectedLoginMethod) || null;
   const inputCls = 'w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40';
 
   return (
@@ -810,9 +889,94 @@ const UserManagement = ({
       <Modal isOpen={loginModalOpen} onClose={closeLoginModal} title={`${loginConfig?.broker || 'Broker'} Login`} size="md">
         <div className="space-y-4">
           {loginConfig?.message && <p className="text-xs text-muted-foreground">{loginConfig.message}</p>}
+          {loginConfig?.requiresIpWhitelist && loginConfig?.platformServerIp && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              Whitelist <span className="font-semibold">{loginConfig.platformServerIp}</span> in your broker dashboard before reconnecting.
+            </div>
+          )}
+          {loginOptions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {loginOptions.map((option) => {
+                const method = normalizeLoginMethod(option.method);
+                const active = method === selectedLoginMethod;
+                return (
+                  <button
+                    key={option.method}
+                    type="button"
+                    onClick={() => {
+                      setActiveLoginMethod(method);
+                      setOauthRedirectUrl('');
+                      if (method !== 'oauth') {
+                        setOauthOpened(false);
+                      }
+                    }}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${active ? 'border-brand-purple bg-brand-purple/15 text-foreground' : 'border-border bg-black/5 text-muted-foreground dark:bg-white/5'}`}
+                  >
+                    {getLoginMethodLabel(option.method)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {loginLoading && !loginConfig ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-6 h-6 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : loginOptions.length > 0 ? (
+            <div className="space-y-3">
+              {selectedLoginOption?.description && (
+                <p className="text-xs text-muted-foreground">{selectedLoginOption.description}</p>
+              )}
+              {selectedLoginMethod === 'accesstoken' ? (
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Access Token</label>
+                  <input
+                    value={reconnectAccessToken}
+                    onChange={(e) => setReconnectAccessToken(e.target.value)}
+                    placeholder="Paste Groww access token"
+                    className={inputCls}
+                    type="password"
+                  />
+                </div>
+              ) : selectedLoginMethod === 'apikeywithtotp' || selectedLoginMethod === 'totp' ? (
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">TOTP Code</label>
+                  <input
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit TOTP"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className={inputCls}
+                  />
+                  {!loginConfig?.hasStoredApiKey && selectedLoginMethod === 'apikeywithtotp' && (
+                    <p className="mt-1 text-[11px] text-warning">
+                      Your API key is already stored for this account. Only the TOTP code is required here.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {loginConfig?.oauthUrl ? (
+                    <button onClick={() => openOauthWindow(loginConfig?.oauthUrl)}
+                      className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors">
+                      {oauthOpened ? `Open ${loginConfig?.broker || 'Broker'} Login Again` : `Login with ${loginConfig?.broker || 'Broker'}`}
+                    </button>
+                  ) : (
+                    <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg">
+                      <p className="text-xs text-danger">Could not get OAuth URL. Delete and re-add this account.</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {oauthOpened ? 'After completing login, copy the full redirect URL from your browser and paste it below.' : 'Click above to open broker login. After login, paste the redirect URL here.'}
+                  </p>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Redirect URL (paste after login)</label>
+                    <input value={oauthRedirectUrl} onChange={(e) => setOauthRedirectUrl(e.target.value)}
+                      placeholder="https://...?request_token=..." className={inputCls} />
+                  </div>
+                </div>
+              )}
             </div>
           ) : isOAuthModal ? (
             <div className="space-y-3">
@@ -846,7 +1010,7 @@ const UserManagement = ({
             <button onClick={closeLoginModal} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
             <button onClick={handleBrokerLogin} disabled={loginLoading || (isOAuthModal && !loginConfig?.oauthUrl)}
               className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
-              {loginLoading ? 'Verifying…' : isOAuthModal ? 'Confirm' : 'Submit'}
+              {loginLoading ? 'Verifying...' : (selectedLoginMethod === 'accesstoken' ? 'Connect' : isOAuthModal ? 'Confirm' : 'Submit')}
             </button>
           </div>
         </div>

@@ -81,14 +81,32 @@ const normalizeBrokerAccount = (raw = {}) => {
 };
 
 const normalizeLoginOptions = (payload = {}) => {
-  const options = Array.isArray(payload?.loginOptions)
+  const rawOptions = Array.isArray(payload?.loginOptions)
     ? payload.loginOptions
     : Array.isArray(payload?.options)
       ? payload.options
       : [];
+  const options = rawOptions.map((option, index) => {
+    if (typeof option === 'string') {
+      return { method: option, description: '', requiredFields: [], endpoint: '', raw: option, index };
+    }
+
+    return {
+      method: option?.method || option?.loginMethod || option?.type || `option-${index}`,
+      description: option?.description || '',
+      requiredFields: Array.isArray(option?.requiredFields) ? option.requiredFields : [],
+      endpoint: option?.endpoint || '',
+      raw: option,
+      index,
+    };
+  });
+
   return {
     ...payload,
     loginOptions: options,
+    loginOptionMethods: Array.isArray(payload?.loginOptionMethods)
+      ? payload.loginOptionMethods
+      : options.map((option) => option.method),
     oauthUrl: payload?.oauthUrl || payload?.loginUrl || payload?.url || '',
     loginField: payload?.loginField || 'authCode',
   };
@@ -163,6 +181,7 @@ export const normalizePosition = (raw = {}, index = 0) => {
     id: raw.id || raw.positionId || raw.position_id || `${raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'position'}-${index}`,
     symbol: raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
     instrument: raw.instrument || raw.symbol || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'N/A',
+    side: String(raw.side || raw.type || raw.transactionType || raw.transaction_type || raw.action || type).toUpperCase(),
     type,
     qty,
     pnl,
@@ -173,6 +192,7 @@ export const normalizePosition = (raw = {}, index = 0) => {
     current: firstNumber(raw.current, raw.currentPrice, raw.current_price, raw.ltp, raw.lastPrice, raw.last_price, raw.net_price) ?? ltp,
     change: firstNumber(raw.change, raw.changePct, raw.change_pct, raw.pnlPercent, raw.pnl_percent) ?? (avgPrice ? ((ltp - avgPrice) / avgPrice) * 100 : 0),
     exchange: raw.exchange || raw.exch || raw.exchange_code || '',
+    product: raw.product || raw.market || raw.segment || 'MIS',
     market: raw.market || raw.segment || '',
     children: raw.children || raw.copiedAccounts || [],
     triggerPrice: (
@@ -296,6 +316,17 @@ export const brokerService = {
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to disconnect broker account'));
+    }
+  },
+
+  async saveAccessToken(accountId, accessToken) {
+    try {
+      const res = await api.put(`/api/v1/brokers/accounts/${accountId}/token`, {
+        accessToken,
+      });
+      return normalizeLoginOptions(res.data?.data || res.data || {});
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to save broker access token'));
     }
   },
 

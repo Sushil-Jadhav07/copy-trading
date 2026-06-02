@@ -219,6 +219,7 @@ const childSidebarItems = [
       items: [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },
         { to: '/child/positions', icon: Activity, label: 'Open Positions' },
+        { to: '/child/orders', icon: BookOpen, label: 'Order Book' },
         { to: '/child/copied-trades', icon: Copy, label: 'Copied Trades' },
         { to: '/child/trade-timeline', icon: Clock, label: 'Trade Timeline' },
         { to: '/child/options-status', icon: Target, label: 'Options Status' },

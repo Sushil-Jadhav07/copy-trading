@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee, Settings, ShieldAlert, Play, Pause } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
@@ -6,6 +7,7 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import DivSelect from '@/components/shared/DivSelect';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { useChildSubscriptions } from '@/hooks/useChild';
 import { useBrokerAccounts } from '@/hooks/useBroker';
 import { childService } from '@/lib/child';
@@ -55,6 +57,7 @@ const DEFAULT_COPY_SIDES_OPTIONS = [
 ];
 
 const MyMasters = () => {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const { subscriptions, setSubscriptions, loading, refetch, error } = useChildSubscriptions();
   const { accounts: brokerAccounts } = useBrokerAccounts();
@@ -362,6 +365,56 @@ const MyMasters = () => {
 
       {loading ? (
         <SkeletonLoader type="card" count={3} />
+      ) : error ? (
+        <GlassCard>
+          <Empty className="py-14">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ShieldAlert className="h-5 w-5" />
+              </EmptyMedia>
+              <EmptyTitle>Unable to load subscriptions</EmptyTitle>
+              <EmptyDescription>{error}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  onClick={refetch}
+                  className="inline-flex items-center justify-center rounded-lg bg-brand-purple px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-purple/90"
+                >
+                  Retry
+                </button>
+                <button
+                  onClick={() => navigate('/child/find-masters')}
+                  className="inline-flex items-center justify-center rounded-lg border border-border bg-black/5 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+                >
+                  Find Masters
+                </button>
+              </div>
+            </EmptyContent>
+          </Empty>
+        </GlassCard>
+      ) : masters.length === 0 ? (
+        <GlassCard>
+          <Empty className="py-14">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Users className="h-5 w-5" />
+              </EmptyMedia>
+              <EmptyTitle>No masters linked yet</EmptyTitle>
+              <EmptyDescription>
+                Your account is ready, but you are not copying any masters yet. Go to Find Masters to subscribe and start copying trades.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <button
+                onClick={() => navigate('/child/find-masters')}
+                className="inline-flex items-center justify-center rounded-lg bg-brand-purple px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-purple/90"
+              >
+                Find Masters
+              </button>
+            </EmptyContent>
+          </Empty>
+        </GlassCard>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {masters.map((master, idx) => {

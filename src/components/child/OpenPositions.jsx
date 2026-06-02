@@ -32,7 +32,6 @@ const ChildOpenPositions = () => {
   const [closeModal, setCloseModal]               = useState(false);
   const [selectedPos, setSelectedPos]             = useState(null);
 
-  // â”€â”€ 1. Load child broker accounts on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const loadAccounts = async () => {
       try {
@@ -50,7 +49,6 @@ const ChildOpenPositions = () => {
     loadAccounts();
   }, [addToast]);
 
-  // â”€â”€ 2. Check session + load positions whenever account changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
@@ -89,7 +87,6 @@ const ChildOpenPositions = () => {
     return () => window.clearInterval(interval);
   }, [selectedAccountId, sessionActive, loadPositions]);
 
-  // â”€â”€ 3. WebSocket for real-time updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const posSub = connectChannel(
       'positions',
@@ -141,12 +138,12 @@ const ChildOpenPositions = () => {
       .filter(Boolean),
   ).size;
 
-  const getDisplayCount = (value) => (value === null || value === undefined ? 'â€”' : String(value));
-  const getDisplayText = (value) => (value === null || value === undefined || value === '' ? 'â€”' : String(value));
+  const getDisplayCount = (value) => (value === null || value === undefined ? '-' : String(value));
+  const getDisplayText = (value) => (value === null || value === undefined || value === '' ? '-' : String(value));
   const getTriggerValue = (pos) => {
     const raw = pos?.triggerPrice ?? pos?.trigger_price;
     const num = Number(raw);
-    if (!Number.isFinite(num) || num <= 0) return 'â€”';
+    if (!Number.isFinite(num) || num <= 0) return '-';
     return num.toFixed(2);
   };
 
@@ -173,7 +170,7 @@ const ChildOpenPositions = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Your live positions â€” updated in real-time</p>
+          <p className="text-sm text-muted-foreground">Your live positions updated in real-time</p>
         </div>
         <div className="flex items-center gap-2">
           {accounts.length > 1 && (
@@ -321,7 +318,7 @@ const ChildOpenPositions = () => {
                       {(() => {
                         const realized = pos.realizedPnl ?? pos.realized_pnl;
                         if (realized === null || realized === undefined || realized === '') {
-                          return <span className="text-xs text-muted-foreground">â€”</span>;
+                          return <span className="text-xs text-muted-foreground">-</span>;
                         }
                         const num = Number(realized) || 0;
                         return (

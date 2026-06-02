@@ -38,8 +38,9 @@ import CopiedTrades from '@/components/child/CopiedTrades';
 import ChildOverview from '@/components/child/Overview';
 import FindMasters from '@/components/child/FindMasters';
 import PnLDashboard from '@/components/child/PnLDashboard';
-import OptionsStatus from '@/components/child/OptionsStatus';
+import ChildOptionsStatus from '@/components/child/OptionsStatus';
 import ChildOpenPositions from '@/components/child/OpenPositions';
+import ChildOrderBook from '@/components/child/OrderBook';
 import RiskSettings from '@/components/child/RiskSettings';
 import ChildTradeTimeline from '@/components/child/TradeTimeline';
 import ChildProfile from '@/components/child/Profile';
@@ -164,9 +165,10 @@ const AppRouter = () => {
                 <Route path="child/find-masters" element={<FindMasters />} />
                 <Route path="child/my-masters" element={<MyMasters />} />
                 <Route path="child/positions" element={<ChildOpenPositions />} />
+                <Route path="child/orders" element={<ChildOrderBook />} />
                 <Route path="child/copied-trades" element={<CopiedTrades />} />
                 <Route path="child/trade-timeline" element={<ChildTradeTimeline />} />
-                <Route path="child/options-status" element={<OptionsStatus />} />
+                <Route path="child/options-status" element={<ChildOptionsStatus />} />
                 <Route path="child/risk-settings" element={<RiskSettings />} />
                 <Route path="child/profile" element={<ChildProfile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
