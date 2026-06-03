@@ -308,7 +308,7 @@ const CopiedTrades = () => {
                   const side = String(trade.type || trade.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
                   const broker = trade.broker || trade.raw?.broker || '-';
                   const pnl = Number(trade.pnl || 0);
-                  const entry = Number(trade.entry || 0);
+                  const entry = Number(trade.entry ?? trade.price ?? 0);
                   const ltp = Number(trade.ltp || trade.current || 0);
                   const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : isPartial ? 'Partial' : status || 'Pending';
                   const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
@@ -339,6 +339,16 @@ const CopiedTrades = () => {
                                 trade.segment === 'FNO' ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-black/5 text-muted-foreground border-border/30'
                               }`}>
                                 {trade.segment}
+                              </span>
+                            )}
+                            {trade.product && (
+                              <span className="text-[8px] font-bold px-1 py-0.5 rounded border uppercase bg-black/5 text-muted-foreground border-border/30 dark:bg-white/5">
+                                {trade.product}
+                              </span>
+                            )}
+                            {trade.orderType && (
+                              <span className="text-[8px] font-bold px-1 py-0.5 rounded border uppercase bg-amber-500/10 text-amber-500 border-amber-500/20">
+                                {trade.orderType}
                               </span>
                             )}
                             {(() => {

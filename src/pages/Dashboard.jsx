@@ -26,8 +26,8 @@ const CursorGlow = ({ position, isVisible }) => {
 };
 
 const Dashboard = () => {
-  const { isAuthenticated, loading, user, role } = useAuth();
-  const normalizedRole = String(role || '').toUpperCase();
+  const { isAuthenticated, loading, user, getEffectiveRole } = useAuth();
+  const normalizedRole = String(getEffectiveRole() || '').toUpperCase();
   const { isDark } = useTheme();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -36,7 +36,6 @@ const Dashboard = () => {
   const { sessionExpiredBrokers, dismissSessionExpired } = useNotifications();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const { position, isVisible } = useCursorGlow(isDark);
   const isOverviewRoute = /\/overview$/.test(location.pathname);
 
@@ -76,15 +75,6 @@ const Dashboard = () => {
 
     return () => sub.close();
   }, [isAuthenticated, normalizedRole, addToast]);
-
-  useEffect(() => {
-    // Simulate initial loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   if (loading) {
     return (
@@ -158,51 +148,34 @@ const Dashboard = () => {
               ))}
             </div>
           )}
-          {isLoading ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="glass-card p-5 animate-pulse"
-                  >
-                    <div className="h-4 bg-black/10 dark:bg-white/10 rounded w-24 mb-3" />
-                    <div className="h-8 bg-black/10 dark:bg-white/10 rounded w-32" />
-                  </div>
-                ))}
-              </div>
-              <div className="glass-card p-5 animate-pulse h-80" />
-            </div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              {isOverviewRoute && (
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
-                  <div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
-                      {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
-                    </h1>
-                    <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
-                      Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex flex-col text-right">
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
-                      <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
-                      </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {isOverviewRoute && (
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
+                <div>
+                  <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
+                    {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
+                  </h1>
+                  <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
+                    Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex flex-col text-right">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
+                    <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
                     </div>
                   </div>
                 </div>
-              )}
-              <Outlet />
-            </motion.div>
-          )}
+              </div>
+            )}
+            <Outlet />
+          </motion.div>
         </main>
       </div>
     </div>

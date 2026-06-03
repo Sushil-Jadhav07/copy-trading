@@ -648,6 +648,10 @@ const TradeTimeline = () => {
                                     ['Broker', trade.broker || '-'],
                                     ['Order ID', trade.orderId || '-'],
                                     ['Quantity', trade.qty || '-'],
+                                    ['Product', trade.product || '-'],
+                                    ['Order Type', trade.orderType || '-'],
+                                    ['Price', trade.price != null && trade.price !== 0 ? Number(trade.price).toFixed(2) : '-'],
+                                    ['Trigger Price', trade.triggerPrice != null && Number(trade.triggerPrice) > 0 ? Number(trade.triggerPrice).toFixed(2) : '-'],
                                     ['Status', meta.label],
                                     ['Skip Reason', skipLabel || '-'],
                                   ].map(([label, value]) => (

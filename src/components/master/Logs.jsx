@@ -225,7 +225,7 @@ const Logs = () => {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
-              {['Symbol', 'Side', 'Qty', 'Trade ID', 'Child', 'Status', 'Latency', 'Skip Reason', 'Date'].map((h) => (
+              {['Symbol', 'Side', 'Qty', 'Order', 'Trade ID', 'Child', 'Status', 'Latency', 'Skip Reason', 'Date'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -258,6 +258,17 @@ const Logs = () => {
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm">{log.qty || 0}</td>
+                  <td className="px-4 py-3">
+                    <div className="min-w-[120px]">
+                      <p className="text-xs font-black uppercase tracking-tight">
+                        {[log.product, log.orderType].filter(Boolean).join(' / ') || '-'}
+                      </p>
+                      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                        Px: {log.price != null && Number(log.price) > 0 ? Number(log.price).toFixed(2) : '-'}
+                        {log.triggerPrice != null && Number(log.triggerPrice) > 0 ? ` | Trg: ${Number(log.triggerPrice).toFixed(2)}` : ''}
+                      </p>
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="text-[10px] font-mono text-muted-foreground bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[96px] inline-block" title={log.copyGroupId || log.masterId}>
                       {shortId(log.copyGroupId || log.masterId)}

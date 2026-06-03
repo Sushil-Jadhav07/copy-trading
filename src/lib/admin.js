@@ -155,6 +155,28 @@ const normalizeSubscription = (subscription = {}, index = 0) => ({
   raw: subscription,
 });
 
+const normalizeMasterChildMap = (entry = {}, index = 0) => {
+  const children = Array.isArray(entry.children) ? entry.children : [];
+
+  return {
+    id: entry.masterId || `master-map-${index}`,
+    masterId: entry.masterId || `master-map-${index}`,
+    masterName: entry.masterName || entry.name || 'Unknown',
+    masterEmail: entry.masterEmail || entry.email || '',
+    children: children.map((child, childIndex) => ({
+      id: child.childId || `child-${childIndex}`,
+      childId: child.childId || `child-${childIndex}`,
+      name: child.name || child.childName || 'Unknown',
+      email: child.email || '',
+      status: String(child.status || 'UNKNOWN').toUpperCase(),
+      scalingFactor: Number(child.scalingFactor ?? child.multiplier ?? 1),
+      raw: child,
+    })),
+    childCount: children.length,
+    raw: entry,
+  };
+};
+
 const normalizeSystemHealthEntries = (payload = {}) => {
   // API returns a flat object: { status, database, kafka, redis, uptime }
   // NOT an array — handle the flat shape first, then fall back to array shape
@@ -338,6 +360,20 @@ export const adminService = {
       return normalizeAnalytics(response.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load analytics'));
+    }
+  },
+
+  async getMasterChildMap() {
+    try {
+      const response = await api.get('/api/v1/admin/master-child-map');
+      const payload = response.data?.data || response.data || {};
+      const masters = Array.isArray(payload.masters) ? payload.masters : extractCollection(payload);
+      return {
+        masters: masters.map(normalizeMasterChildMap),
+        total: Number(payload.total ?? masters.length),
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load master-child map'));
     }
   },
 };

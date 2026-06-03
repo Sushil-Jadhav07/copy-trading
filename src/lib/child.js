@@ -27,6 +27,12 @@ const toNumber = (...values) => {
   return 0;
 };
 
+const clampPriceTolerance = (value, fallback = 2) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(10, Math.max(0, parsed));
+};
+
 const normalizeMaster = (raw = {}, index = 0) => ({
   id: raw.masterId || raw.userId || raw.id || `master-${index}`,
   masterId: raw.masterId || raw.userId || raw.id || `master-${index}`,
@@ -120,6 +126,7 @@ const normalizeSubscription = (raw = {}) => {
     subscribedAt: raw.subscribedAt || raw.createdAt || null,
     copySides: raw.copySides || raw.copy_sides || 'BUY_ONLY',
     allowShortSelling: Boolean(raw.allowShortSelling ?? raw.allow_short_selling ?? false),
+    priceTolerancePct: clampPriceTolerance(raw.priceTolerancePct ?? raw.price_tolerance_pct, 2),
     raw,
   };
 };
@@ -160,6 +167,11 @@ export const normalizeCopiedTrade = (raw = {}, index = 0) => ({
   segment: raw.segment || '',
   product: raw.product || '',
   orderType: raw.orderType || '',
+  price: toNumber(raw.price, raw.entryPrice, raw.entry, raw.avgPrice),
+  triggerPrice:
+    raw.triggerPrice != null || raw.trigger_price != null || raw.stopPrice != null || raw.triggerprice != null
+      ? toNumber(raw.triggerPrice, raw.trigger_price, raw.stopPrice, raw.triggerprice)
+      : null,
   raw,
 });
 
@@ -180,6 +192,13 @@ const normalizeTradeTimelineItem = (raw = {}, index = 0) => ({
   qty: toNumber(raw.qty, raw.quantity, raw.myQty, raw.childQty),
   orderId: raw.orderId || raw.brokerOrderId || '',
   broker: raw.broker || raw.brokerName || '',
+  product: raw.product || '',
+  orderType: raw.orderType || '',
+  price: toNumber(raw.price, raw.entryPrice, raw.avgPrice),
+  triggerPrice:
+    raw.triggerPrice != null || raw.trigger_price != null || raw.stopPrice != null || raw.triggerprice != null
+      ? toNumber(raw.triggerPrice, raw.trigger_price, raw.stopPrice, raw.triggerprice)
+      : null,
   raw,
 });
 
@@ -344,6 +363,7 @@ export const childService = {
         scalingFactor: body?.scalingFactor ?? 1.0,
         ...(body?.copySides ? { copySides: body.copySides } : {}),
         ...(body?.allowShortSelling != null ? { allowShortSelling: Boolean(body.allowShortSelling) } : {}),
+        ...(body?.priceTolerancePct != null ? { priceTolerancePct: clampPriceTolerance(body.priceTolerancePct) } : {}),
         ...(body?.allocationAmount != null ? { allocationAmount: Number(body.allocationAmount) } : {}),
       };
       const res = await api.post('/api/v1/child/subscriptions', payload);
@@ -481,6 +501,7 @@ export const childService = {
         masterId: body?.masterId,
         ...(body?.copySides ? { copySides: body.copySides } : {}),
         ...(body?.allowShortSelling != null ? { allowShortSelling: Boolean(body.allowShortSelling) } : {}),
+        ...(body?.priceTolerancePct != null ? { priceTolerancePct: clampPriceTolerance(body.priceTolerancePct) } : {}),
       };
       const res = await api.patch('/api/v1/child/subscriptions/copy-settings', payload);
       return res.data?.data || res.data;

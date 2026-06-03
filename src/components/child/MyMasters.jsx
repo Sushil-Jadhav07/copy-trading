@@ -17,6 +17,7 @@ import { useToast } from '@/components/shared/Toast';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
 const clampMultiplier = (value) => Math.min(10, Math.max(0.01, Number(value) || 1));
+const clampPriceTolerance = (value) => Math.min(10, Math.max(0, Number(value) || 0));
 const normalizeStatus = (status) => String(status || 'INACTIVE').toUpperCase();
 
 // Skip reason labels from spec
@@ -74,6 +75,7 @@ const MyMasters = () => {
   const [newMultiplier, setNewMultiplier] = useState(1.0);
   const [newCopySides, setNewCopySides] = useState('BUY_ONLY');
   const [newAllowShortSelling, setNewAllowShortSelling] = useState(false);
+  const [newPriceTolerancePct, setNewPriceTolerancePct] = useState(2);
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Load engine metadata for copySidesOptions
@@ -126,6 +128,7 @@ const MyMasters = () => {
           // New fields from May 2026 API
           copySides: s.copySides || s.raw?.copySides || 'BUY_ONLY',
           allowShortSelling: Boolean(s.allowShortSelling ?? s.raw?.allowShortSelling ?? false),
+          priceTolerancePct: clampPriceTolerance(s.priceTolerancePct ?? s.raw?.priceTolerancePct ?? 2),
         };
       })
     );
@@ -183,6 +186,7 @@ const MyMasters = () => {
     setNewMultiplier(master.multiplier || 1.0);
     setNewCopySides(master.copySides || 'BUY_ONLY');
     setNewAllowShortSelling(Boolean(master.allowShortSelling));
+    setNewPriceTolerancePct(clampPriceTolerance(master.priceTolerancePct ?? 2));
     setSettingsModal(true);
   };
 
@@ -199,8 +203,10 @@ const MyMasters = () => {
     const scalingChanged = newMultiplier !== editingMaster.multiplier;
     const copySidesChanged = newCopySides !== editingMaster.copySides;
     const allowShortChanged = newAllowShortSelling !== editingMaster.allowShortSelling;
+    const priceToleranceChanged =
+      clampPriceTolerance(newPriceTolerancePct) !== clampPriceTolerance(editingMaster.priceTolerancePct ?? 2);
 
-    if (!brokerChanged && !scalingChanged && !copySidesChanged && !allowShortChanged) {
+    if (!brokerChanged && !scalingChanged && !copySidesChanged && !allowShortChanged && !priceToleranceChanged) {
       addToast('No changes to save', 'info');
       setSavingSettings(false);
       setSettingsModal(false);
@@ -228,13 +234,14 @@ const MyMasters = () => {
     }
 
     // NEW: Update copySides / allowShortSelling via PATCH /child/subscriptions/copy-settings
-    if (copySidesChanged || allowShortChanged) {
+    if (copySidesChanged || allowShortChanged || priceToleranceChanged) {
       tasks.push(
         childService
           .updateCopySettings({
             masterId: editingMaster.id,
             copySides: newCopySides,
             allowShortSelling: newAllowShortSelling,
+            priceTolerancePct: clampPriceTolerance(newPriceTolerancePct),
           })
           .then(() => ({ type: 'copySides', success: true }))
           .catch((e) => ({ type: 'copySides', success: false, message: e.message }))
@@ -495,6 +502,12 @@ const MyMasters = () => {
                       {getCopySidesLabel(master.copySides)}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Price Tolerance</span>
+                    <span className="text-xs font-semibold text-brand-blue">
+                      {clampPriceTolerance(master.priceTolerancePct ?? 2).toFixed(1)}%
+                    </span>
+                  </div>
 
                   {isPending ? (
                     <div className="flex justify-between items-center">
@@ -639,6 +652,33 @@ const MyMasters = () => {
                 <span className="text-[10px] text-muted-foreground">0.1x (Safe)</span>
                 <span className="text-[10px] text-muted-foreground">10x (Aggressive)</span>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Price Tolerance %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={newPriceTolerancePct}
+                  onChange={(e) => setNewPriceTolerancePct(clampPriceTolerance(e.target.value))}
+                  className="w-20 rounded-lg border border-border bg-black/5 px-2 py-1 text-right text-sm font-bold outline-none focus:border-brand-purple dark:bg-white/5"
+                />
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.5"
+                value={newPriceTolerancePct}
+                onChange={(e) => setNewPriceTolerancePct(clampPriceTolerance(e.target.value))}
+                className="w-full accent-brand-purple"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Adjusts limit order price by +/-{clampPriceTolerance(newPriceTolerancePct).toFixed(1)}% to handle slippage. Default 2%. Set 0 for exact master price.
+              </p>
             </div>
 
             {/* NEW: Copy Sides picker */}

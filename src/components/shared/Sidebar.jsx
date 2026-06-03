@@ -40,6 +40,7 @@ import {
   LogOut,
   LayoutGrid,
   CreditCard,
+  Link2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePendingFollowCount } from '@/hooks/useMaster';
@@ -255,6 +256,7 @@ const childSidebarItems = [
         { to: '/admin/order-feed', icon: List, label: 'Order Feed' },
         { to: '/admin/broker-status', icon: Server, label: 'Broker Status' },
         { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
+        { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
         { to: '/admin/system-logs', icon: FileText, label: 'System Logs' },
         { to: '/admin/pnl', icon: DollarSign, label: 'Platform P&L' },
       ],

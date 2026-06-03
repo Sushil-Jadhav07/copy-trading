@@ -14,6 +14,7 @@ import { formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
+const clampPriceTolerance = (value) => Math.min(10, Math.max(0, Number(value) || 0));
 
 /* ── Status pill ── */
 const SUB_STATUS = {
@@ -54,6 +55,7 @@ const FindMasters = () => {
   const [copySides, setCopySides]                   = useState('BUY_ONLY');
   const [allowShortSelling, setAllowShortSelling]   = useState(false);
   const [allocationAmount, setAllocationAmount]     = useState('');
+  const [priceTolerancePct, setPriceTolerancePct]   = useState(2);
   const [copySidesOptions, setCopySidesOptions]     = useState([
     { id: 'BUY_ONLY', label: 'Buy only (safe default)', description: 'Copy BUY; SELL only with copied BUY + live position' },
     { id: 'BUY_AND_SELL', label: 'Buy and sell', description: 'Copy BUY and SELL when child has live long qty' },
@@ -130,6 +132,9 @@ const FindMasters = () => {
     setSubscribeMaster(master);
     setMultiplier(1.0);
     setAllocationAmount('');
+    setPriceTolerancePct(2);
+    setCopySides('BUY_ONLY');
+    setAllowShortSelling(false);
     setSubscribeSuccess(false);
     await loadBrokerAccounts();
     setSubscribeModal(true);
@@ -157,6 +162,7 @@ const FindMasters = () => {
     setAllocationAmount('');
     setCopySides('BUY_ONLY');
     setAllowShortSelling(false);
+    setPriceTolerancePct(2);
     setBulkSubscribeModal(true);
   };
 
@@ -171,6 +177,7 @@ const FindMasters = () => {
         copySides,
         allowShortSelling: copySides === 'MIRROR' ? allowShortSelling : false,
         allocationAmount: allocationAmount !== '' ? Number(allocationAmount) : 0,
+        priceTolerancePct: clampPriceTolerance(priceTolerancePct),
       });
       await refetchSubscriptions();
       setSubscribeSuccess(true);
@@ -196,6 +203,7 @@ const FindMasters = () => {
             copySides,
             allowShortSelling: copySides === 'MIRROR' ? allowShortSelling : false,
             allocationAmount: allocationAmount !== '' ? Number(allocationAmount) : 0,
+            priceTolerancePct: clampPriceTolerance(priceTolerancePct),
           })
         )
       );
@@ -237,6 +245,35 @@ const FindMasters = () => {
           +
         </button>
       </div>
+    </div>
+  );
+
+  const PriceToleranceControl = () => (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Price Tolerance %</label>
+        <input
+          type="number"
+          min="0"
+          max="10"
+          step="0.5"
+          value={priceTolerancePct}
+          onChange={(e) => setPriceTolerancePct(clampPriceTolerance(e.target.value))}
+          className="w-20 rounded-lg border border-border bg-black/5 px-2 py-1 text-right text-sm font-bold outline-none focus:border-brand-purple dark:bg-white/5"
+        />
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="10"
+        step="0.5"
+        value={priceTolerancePct}
+        onChange={(e) => setPriceTolerancePct(clampPriceTolerance(e.target.value))}
+        className="w-full accent-brand-purple"
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Adjusts limit order price by +/-{clampPriceTolerance(priceTolerancePct).toFixed(1)}% to handle slippage. Default 2%. Set 0 for exact master price.
+      </p>
     </div>
   );
 
@@ -438,6 +475,7 @@ const FindMasters = () => {
                 </div>
 
                 <MultiplierControl />
+                <PriceToleranceControl />
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allocation Amount (Optional)</label>
@@ -544,6 +582,7 @@ const FindMasters = () => {
             />
           </div>
           <MultiplierControl />
+          <PriceToleranceControl />
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allocation Amount (Optional)</label>
             <input

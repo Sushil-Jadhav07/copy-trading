@@ -51,6 +51,7 @@ import ChildProfile from '@/components/child/Profile';
 import AdminOverview from '@/components/admin/Overview';
 import BrokerStatus from '@/components/admin/BrokerStatus';
 import Subscriptions from '@/components/admin/Subscriptions';
+import MasterChildMap from '@/components/admin/MasterChildMap';
 import AllUsers from '@/components/admin/AllUsers';
 import PendingVerification from '@/components/admin/PendingVerification';
 import SystemLogs from '@/components/admin/SystemLogs';
@@ -184,6 +185,7 @@ const AppRouter = () => {
                 <Route path="admin/order-feed" element={<OrderFeed />} />
                 <Route path="admin/broker-status" element={<BrokerStatus />} />
                 <Route path="admin/subscriptions" element={<Subscriptions />} />
+                <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />
                 

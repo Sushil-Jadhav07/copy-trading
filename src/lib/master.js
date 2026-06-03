@@ -165,6 +165,17 @@ const normalizeTrade = (raw = {}, index = 0) => ({
   raw,
 });
 
+const normalizeCopyLog = (raw = {}, index = 0) => ({
+  ...raw,
+  id: raw.id || `copy-log-${index}`,
+  latencyMs: raw.latencyMs != null ? Number(raw.latencyMs) : null,
+  totalExecutionMs: raw.totalExecutionMs != null ? Number(raw.totalExecutionMs) : null,
+  product: raw.product || '',
+  orderType: raw.orderType || '',
+  price: raw.price != null ? Number(raw.price) : null,
+  triggerPrice: raw.triggerPrice != null ? Number(raw.triggerPrice) : null,
+});
+
 const normalizeMasterAnalytics = (raw = {}) => ({
   // API returns: { totalPnl, winRate, totalTrades, totalReplications, childPerformance }
   totalPnl: toNumber(raw.totalPnl, raw.totalPnL),
@@ -555,11 +566,13 @@ export const masterService = {
   async getCopyLogs() {
     try {
       const res = await api.get('/api/v1/master/trade-logs');
-      return res.data?.logs || res.data?.tradeLogs || res.data?.copyLogs || res.data?.trades || res.data || [];
+      const raw = res.data?.logs || res.data?.tradeLogs || res.data?.copyLogs || res.data?.trades || res.data || [];
+      return Array.isArray(raw) ? raw.map(normalizeCopyLog) : [];
     } catch (error) {
       try {
         const fallback = await api.get('/api/v1/master/copy/logs');
-        return fallback.data?.logs || fallback.data?.tradeLogs || fallback.data?.copyLogs || fallback.data || [];
+        const raw = fallback.data?.logs || fallback.data?.tradeLogs || fallback.data?.copyLogs || fallback.data || [];
+        return Array.isArray(raw) ? raw.map(normalizeCopyLog) : [];
       } catch (fallbackError) {
         throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
       }
