@@ -698,12 +698,4 @@ export const masterService = {
     }
   },
 
-  async squareOffPosition({ symbol, qty, type = 'SELL', product = 'MIS', exchange = 'NSE' } = {}) {
-    try {
-      const res = await api.post('/api/v1/master/positions/square-off', { symbol, qty, type, product, exchange });
-      return res.data?.data || res.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to square off position'));
-    }
-  },
 };

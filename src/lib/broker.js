@@ -1,11 +1,38 @@
 import api from '@/lib/api';
 
+const ACCOUNT_COLLECTION_PATHS = ['/api/v1/broker/accounts', '/api/v1/brokers/accounts'];
+
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message ||
   error?.response?.data?.error ||
   error?.response?.data?.details ||
   error?.message ||
   fallback;
+
+const shouldRetryWithLegacyAccountPath = (error) => {
+  const status = Number(error?.response?.status);
+  return status === 404 || status === 405;
+};
+
+const withAccountPathFallback = async (requestFactory) => {
+  let lastError = null;
+
+  for (let index = 0; index < ACCOUNT_COLLECTION_PATHS.length; index += 1) {
+    const basePath = ACCOUNT_COLLECTION_PATHS[index];
+    try {
+      return await requestFactory(basePath);
+    } catch (error) {
+      lastError = error;
+      const canRetry = shouldRetryWithLegacyAccountPath(error);
+      const hasNextPath = index < ACCOUNT_COLLECTION_PATHS.length - 1;
+      if (!canRetry || !hasNextPath) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+};
 
 const parseBooleanLike = (value) => {
   if (typeof value === 'boolean') return value;
@@ -41,6 +68,12 @@ const deriveSessionActive = (raw = {}) => {
 const normalizeBrokerAccount = (raw = {}) => {
   const sessionActive = deriveSessionActive(raw);
   const status = String(raw.status || (sessionActive ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
+  const proxyHost = String(raw.proxyHost || '').trim();
+  const proxyPort = Number(raw.proxyPort ?? 0);
+  const proxyConfigured = Boolean(
+    parseBooleanLike(raw.proxyConfigured) ??
+    (proxyHost && proxyPort > 0)
+  );
 
   return {
     id: raw.accountId || raw.id || '',
@@ -76,6 +109,10 @@ const normalizeBrokerAccount = (raw = {}) => {
       return new Date(exp).getTime() < Date.now();
     })(),
     lastOrderDetectedAt: raw.lastOrderDetectedAt || raw.lastOrderAt || null,
+    proxyHost,
+    proxyPort: Number.isFinite(proxyPort) ? proxyPort : 0,
+    proxyUser: raw.proxyUser || '',
+    proxyConfigured,
     raw,
   };
 };
@@ -268,7 +305,7 @@ export const brokerService = {
 
   async getAccounts() {
     try {
-      const res = await api.get('/api/v1/brokers/accounts');
+      const res = await withAccountPathFallback((basePath) => api.get(basePath));
       return extractList(res.data).map(normalizeBrokerAccount);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker accounts'));
@@ -277,7 +314,7 @@ export const brokerService = {
 
   async getAccount(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}`));
       return normalizeBrokerAccount(res.data?.data || res.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load account'));
@@ -286,7 +323,7 @@ export const brokerService = {
 
   async addAccount(body) {
     try {
-      const res = await api.post('/api/v1/brokers/accounts', body);
+      const res = await withAccountPathFallback((basePath) => api.post(basePath, body));
       return normalizeBrokerAccount(res.data?.data || res.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to add broker account'));
@@ -295,7 +332,7 @@ export const brokerService = {
 
   async updateAccount(accountId, body) {
     try {
-      const res = await api.put(`/api/v1/brokers/accounts/${accountId}`, body);
+      const res = await withAccountPathFallback((basePath) => api.put(`${basePath}/${accountId}`, body));
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to update account'));
@@ -304,7 +341,7 @@ export const brokerService = {
 
   async deleteAccount(accountId) {
     try {
-      await api.delete(`/api/v1/brokers/accounts/${accountId}`);
+      await withAccountPathFallback((basePath) => api.delete(`${basePath}/${accountId}`));
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to delete account'));
     }
@@ -312,7 +349,7 @@ export const brokerService = {
 
   async disconnectAccount(accountId) {
     try {
-      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/disconnect`);
+      const res = await withAccountPathFallback((basePath) => api.post(`${basePath}/${accountId}/disconnect`));
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to disconnect broker account'));
@@ -321,9 +358,9 @@ export const brokerService = {
 
   async saveAccessToken(accountId, accessToken) {
     try {
-      const res = await api.put(`/api/v1/brokers/accounts/${accountId}/token`, {
+      const res = await withAccountPathFallback((basePath) => api.put(`${basePath}/${accountId}/token`, {
         accessToken,
-      });
+      }));
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to save broker access token'));
@@ -332,7 +369,7 @@ export const brokerService = {
 
   async getLoginOptions(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/login-options`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/login-options`));
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker login options'));
@@ -341,7 +378,7 @@ export const brokerService = {
 
   async getOAuthUrl(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/oauth-url`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/oauth-url`));
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker login url'));
@@ -359,7 +396,7 @@ export const brokerService = {
 
   async testAccount(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/test`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/test`));
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Broker test failed'));
@@ -368,7 +405,7 @@ export const brokerService = {
 
   async loginAccount(accountId, payload = {}) {
     try {
-      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/login`, payload || {});
+      const res = await withAccountPathFallback((basePath) => api.post(`${basePath}/${accountId}/login`, payload || {}));
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Broker login failed'));
@@ -377,7 +414,7 @@ export const brokerService = {
 
   async getAccountStatus(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/status`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/status`));
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to get account status'));
@@ -386,7 +423,7 @@ export const brokerService = {
 
   async getPositions(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/positions`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/positions`));
       const data = res.data?.data || res.data;
       const raw = extractPositionsList(data).length > 0
         ? extractPositionsList(data)
@@ -399,7 +436,7 @@ export const brokerService = {
 
   async getMargin(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/margin`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/margin`));
       return res.data?.data || res.data || {};
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load margin'));
@@ -408,7 +445,7 @@ export const brokerService = {
 
   async getHoldings(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/holdings`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/holdings`));
       const raw = Array.isArray(res.data?.holdings) ? res.data.holdings :
                   Array.isArray(res.data?.data?.holdings) ? res.data.data.holdings :
                   extractList(res.data);
@@ -428,7 +465,7 @@ export const brokerService = {
 
   async getOrders(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/orders`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/orders`));
       const data = res.data?.data || res.data;
       const raw = extractOrdersList(data).length > 0
         ? extractOrdersList(data)
@@ -458,7 +495,7 @@ export const brokerService = {
 
   async getTrades(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/trades`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/trades`));
       const data = res.data?.data || res.data;
       const raw = Array.isArray(data?.trades) ? data.trades :
                   Array.isArray(data?.items) ? data.items :
@@ -481,19 +518,9 @@ export const brokerService = {
     }
   },
 
-  async closePosition(accountId, { symbol, qty, type = 'SELL', product = 'MIS' } = {}) {
-    try {
-      const payload = { symbol, qty, type, product };
-      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/orders/close-position`, payload);
-      return res.data?.data || res.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error, 'Unable to close position'));
-    }
-  },
-
   async cancelOrder(accountId, orderId) {
     try {
-      const res = await api.delete(`/api/v1/brokers/accounts/${accountId}/orders/${orderId}`);
+      const res = await withAccountPathFallback((basePath) => api.delete(`${basePath}/${accountId}/orders/${orderId}`));
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to cancel order'));
@@ -505,7 +532,7 @@ export const brokerService = {
   // Returns signal bars (0-4), quality, latency. Like mobile network bars.
   async getSignal(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/signal`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/signal`));
       return normalizeSignal(res.data?.data || res.data || {});
     } catch (error) {
       // Return "disconnected" signal rather than throwing — UI degrades gracefully
@@ -519,7 +546,7 @@ export const brokerService = {
   // Also auto-pushes notifications when trades are copied to a child.
   async getBalanceAlert(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/balance-alert`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/balance-alert`));
       return normalizeBalanceAlert(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load balance alert'));
@@ -533,7 +560,7 @@ export const brokerService = {
   // Flow: POST /brokers/accounts → POST .../login (SESSION_ACTIVE) → GET .../dashboard
   async getDashboard(accountId) {
     try {
-      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/dashboard`);
+      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/dashboard`));
       const data = res.data?.data || res.data;
       
       // Normalize everything from the dashboard response
@@ -555,6 +582,13 @@ export const brokerService = {
           status: String(account.status || '').toUpperCase(),
           sessionActive: Boolean(account.sessionActive ?? account.isActive),
           linkedAt: account.linkedAt || account.createdAt || null,
+          proxyHost: String(account.proxyHost || '').trim(),
+          proxyPort: Number(account.proxyPort ?? 0),
+          proxyUser: account.proxyUser || '',
+          proxyConfigured: Boolean(
+            parseBooleanLike(account.proxyConfigured) ??
+            (String(account.proxyHost || '').trim() && Number(account.proxyPort ?? 0) > 0)
+          ),
         },
         margin: {
           availableMargin: Number(margin.availableMargin ?? margin.available ?? margin.net ?? 0),

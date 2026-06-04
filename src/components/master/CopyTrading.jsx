@@ -973,9 +973,6 @@ const CopyTrading = () => {
 
   const tradeBlockers = useMemo(() => {
     const issues = [];
-    if (!masterConnected) {
-      issues.push({ severity: 'error', msg: 'No master account connected. Engine has nothing to poll.' });
-    }
     if (masterConnected && !pollingEnabled) {
       issues.push({ severity: 'warning', msg: 'Auto-polling is OFF. Enable it so the engine detects master trades.' });
     }

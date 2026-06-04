@@ -22,53 +22,38 @@ const parseActive = (v) => {
 
 const OpenPositions = () => {
   const { addToast } = useToast();
-
-  // Accounts
-  const [accounts, setAccounts]             = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
-
-  // Session
-  const [sessionActive, setSessionActive]   = useState(null); // null = unknown, true/false
+  const [sessionActive, setSessionActive] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(false);
-
-  // Positions
-  const [positions, setPositions]           = useState([]);
-  const [positionsMeta, setPositionsMeta]   = useState({});
-  const [loading, setLoading]               = useState(false);
-  const [refreshing, setRefreshing]         = useState(false);
-
-  // Modals
-  const [closeModal, setCloseModal]               = useState(false);
-  const [selectedPos, setSelectedPos]             = useState(null);
-  const [childDetailModal, setChildDetailModal]   = useState(false);
-  const [selectedChildren, setSelectedChildren]   = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [positionsMeta, setPositionsMeta] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [childDetailModal, setChildDetailModal] = useState(false);
+  const [selectedChildren, setSelectedChildren] = useState([]);
   const [selectedInstrument, setSelectedInstrument] = useState('');
 
-  // ── 1. Load broker accounts on mount ────────────────────────────────────────
   useEffect(() => {
     const loadAccounts = async () => {
       try {
         const [allAccounts, activeAcc] = await Promise.all([
           brokerService.getAccounts(),
-          masterService.getActiveAccount().catch(() => null)
+          masterService.getActiveAccount().catch(() => null),
         ]);
-        
+
         setAccounts(allAccounts);
-        
-        // Priority: 1. Active Master Account, 2. First account from list
         const activeId = activeAcc?.brokerAccountId || activeAcc?.accountId;
         const fallbackId = allAccounts.length > 0 ? (allAccounts[0]?.accountId || allAccounts[0]?.id) : '';
-        
         setSelectedAccountId(activeId || fallbackId);
       } catch (e) {
         addToast(e.message, 'error');
       }
     };
-    
+
     loadAccounts();
   }, [addToast]);
 
-  // ── 2. Check session + load positions whenever account changes ───────────────
   const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
@@ -93,7 +78,6 @@ const OpenPositions = () => {
           parseActive(statusData?.sessionStatus) ||
           parseActive(statusData?.connectionHealth);
       } catch {
-        // Degrade gracefully: allow positions API to determine auth/session validity.
         isActive = true;
       }
 
@@ -104,7 +88,6 @@ const OpenPositions = () => {
         return;
       }
 
-      // Session is active → prefer dashboard payload (more consistent across brokers)
       const dashboard = await brokerService.getDashboard(accountId).catch(() => null);
       const dashboardPositions = Array.isArray(dashboard?.positions) ? dashboard.positions : [];
       if (dashboardPositions.length > 0) {
@@ -114,7 +97,6 @@ const OpenPositions = () => {
         setPositions(data);
       }
     } catch (e) {
-      // If the error is a session error, mark session as inactive
       const msg = e.message || '';
       if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('login')) {
         setSessionActive(false);
@@ -137,17 +119,18 @@ const OpenPositions = () => {
 
   useEffect(() => {
     if (sessionActive !== true) return undefined;
-
     const interval = window.setInterval(() => {
       loadPositions(selectedAccountId, true);
     }, 15000);
-
     return () => window.clearInterval(interval);
   }, [selectedAccountId, sessionActive, loadPositions]);
 
-  // ── 3. WebSocket for real-time updates ──────────────────────────────────────
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadPositions(selectedAccountId, true);
+  }, [loadPositions, selectedAccountId]);
+
   useEffect(() => {
-    // 3.1 Listen to positions channel for P&L and status updates
     const posSub = connectChannel(
       'positions',
       (event, data) => {
@@ -172,7 +155,7 @@ const OpenPositions = () => {
                 avgPrice,
                 unrealizedPnl: Number.isFinite(nextPnl) ? nextPnl : p.unrealizedPnl,
               };
-            })
+            }),
           );
         }
       },
@@ -180,12 +163,10 @@ const OpenPositions = () => {
       null,
     );
 
-    // 3.2 Listen to trades channel to refresh list when a new trade is copied
     const tradeSub = connectChannel(
       'trades',
       (event) => {
         if (['TRADE_COPIED', 'copy_trade', 'TRADE_DETECTED', 'trade_detected'].includes(event)) {
-          // New trade occurred, refresh the full positions list
           handleRefresh();
         }
       },
@@ -197,47 +178,20 @@ const OpenPositions = () => {
       posSub.close();
       tradeSub.close();
     };
-  }, [selectedAccountId]);
+  }, [handleRefresh]);
 
-  // ── 4. Close position ────────────────────────────────────────────────────────
-  const confirmClose = async () => {
-    if (!selectedPos) return;
-    try {
-      await masterService.squareOffPosition({
-        symbol: selectedPos.symbol || selectedPos.instrument,
-        qty: selectedPos.qty,
-        type: selectedPos.type === 'BUY' ? 'SELL' : 'BUY',
-        product: selectedPos.raw?.product || selectedPos.orderType || 'MIS',
-        exchange: selectedPos.exchange || selectedPos.raw?.exchange || 'NSE',
-      });
-      setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
-      setCloseModal(false);
-      addToast(`${selectedPos.instrument} position closed`, 'success');
-    } catch (e) {
-      addToast(e.message || 'Failed to close position', 'error');
-      setCloseModal(false);
-    }
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadPositions(selectedAccountId, true);
-  };
-
-  // ── Derived stats ─────────────────────────────────────────────────────────────
-  const totalUnrealized   = Number.isFinite(Number(positionsMeta.totalPnl))
+  const totalUnrealized = Number.isFinite(Number(positionsMeta.totalPnl))
     ? Number(positionsMeta.totalPnl)
     : positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
-  const followersCount    = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
-  const selectedAccount   = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
+  const followersCount = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
+  const selectedAccount = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
 
-  // ── Render: No accounts ───────────────────────────────────────────────────────
   if (accounts.length === 0 && !loading && !sessionLoading && positionsMeta.errorCode === 'LEGACY_NO_ACCOUNTS') {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
+          <p className="text-sm text-muted-foreground">Your live positions - followers are copying these in real-time</p>
         </div>
         <GlassCard>
           <div className="py-16 text-center">
@@ -250,20 +204,18 @@ const OpenPositions = () => {
     );
   }
 
-  // ── Render: Session inactive ──────────────────────────────────────────────────
   const showSessionWarning = sessionActive === false && !sessionLoading;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Open Positions</h1>
-          <p className="text-sm text-muted-foreground">Your live positions — followers are copying these in real-time</p>
+          <p className="text-sm text-muted-foreground">Your live positions - followers are copying these in real-time</p>
         </div>
         <div className="flex items-center gap-2">
           {accounts.length > 1 && (
-                        <DivSelect
+            <DivSelect
               value={selectedAccountId}
               onChange={setSelectedAccountId}
               includeEmptyOption={false}
@@ -286,15 +238,13 @@ const OpenPositions = () => {
         </div>
       </div>
 
-      {/* Session expired banner */}
       {showSessionWarning && (
         <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
           <WifiOff className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-400">Broker session expired</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {positionsMeta.error || `Your ${selectedAccount?.broker || 'broker'} session is not active.`}
-              {' '}
+              {positionsMeta.error || `Your ${selectedAccount?.broker || 'broker'} session is not active.`}{' '}
               <a href="/master/demat" className="underline text-brand-purple">
                 {positionsMeta.action === 'LOGIN_BROKER' ? 'Connect Broker' : 'Re-login to broker'}
               </a>
@@ -303,7 +253,6 @@ const OpenPositions = () => {
         </div>
       )}
 
-      {/* Session active indicator */}
       {sessionActive === true && (
         <div className="flex items-center gap-2 text-xs text-emerald-500">
           <Wifi className="w-3.5 h-3.5" />
@@ -311,24 +260,21 @@ const OpenPositions = () => {
         </div>
       )}
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[
-          { label: 'Open Positions',     value: positions.length },
+          { label: 'Open Positions', value: positions.length },
           {
             label: 'Unrealized P&L',
             value: formatCurrency(Math.abs(totalUnrealized)),
             color: totalUnrealized >= 0 ? 'text-success' : 'text-danger',
             prefix: totalUnrealized < 0 ? '-' : '',
           },
-          { label: 'Followers Copying',    value: followersCount,  color: 'text-brand-purple' },
-          { label: 'Total Child Positions', value: followersCount,  color: 'text-brand-blue'   },
+          { label: 'Followers Copying', value: followersCount, color: 'text-brand-purple' },
+          { label: 'Total Child Positions', value: followersCount, color: 'text-brand-blue' },
         ].map((s) => (
           <GlassCard key={s.label}>
             <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className={`text-xl font-bold mt-1 ${s.color || ''}`}>
-              {s.prefix}{s.value}
-            </p>
+            <p className={`text-xl font-bold mt-1 ${s.color || ''}`}>{s.prefix}{s.value}</p>
           </GlassCard>
         ))}
       </div>
@@ -356,7 +302,6 @@ const OpenPositions = () => {
         );
       })()}
 
-      {/* Table */}
       <GlassCard noPadding>
         {(loading || sessionLoading) ? (
           <div className="p-4"><SkeletonLoader type="table" rows={5} columns={10} /></div>
@@ -370,7 +315,7 @@ const OpenPositions = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Instrument', 'Type', 'Qty', 'Price', 'Unrealized P&L', 'Change %', 'Children Copying', 'Action'].map((h) => (
+                  {['#', 'Instrument', 'Type', 'Qty', 'Price', 'Unrealized P&L', 'Change %', 'Children Copying'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -389,11 +334,7 @@ const OpenPositions = () => {
                       <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
                       <td className="px-4 py-3 font-semibold text-sm">{pos.instrument || pos.symbol}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
-                          pos.type === 'BUY'
-                            ? 'bg-success/20 text-success border-success/30'
-                            : 'bg-danger/20 text-danger border-danger/30'
-                        }`}>
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${pos.type === 'BUY' ? 'bg-success/20 text-success border-success/30' : 'bg-danger/20 text-danger border-danger/30'}`}>
                           {pos.type}
                         </span>
                       </td>
@@ -412,29 +353,25 @@ const OpenPositions = () => {
                       <td className="px-4 py-3">
                         {childList.length > 0 ? (
                           <button
-                            onClick={() => { setSelectedChildren(childList); setSelectedInstrument(pos.instrument); setChildDetailModal(true); }}
+                            onClick={() => {
+                              setSelectedChildren(childList);
+                              setSelectedInstrument(pos.instrument);
+                              setChildDetailModal(true);
+                            }}
                             className="text-xs text-brand-purple font-medium hover:underline"
                           >
                             {childList.length}
                           </button>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">-</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => { setSelectedPos(pos); setCloseModal(true); }}
-                          className="px-3 py-1 bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger rounded text-xs font-bold transition-colors"
-                        >
-                          Close
-                        </button>
                       </td>
                     </motion.tr>
                   );
                 })}
                 {positions.length === 0 && !showSessionWarning && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No open positions for this account
                     </td>
                   </tr>
@@ -445,33 +382,6 @@ const OpenPositions = () => {
         )}
       </GlassCard>
 
-      {/* Close Position Modal */}
-      <Modal isOpen={closeModal} onClose={() => setCloseModal(false)} title="Close Position" size="sm">
-        {selectedPos && (
-          <div className="space-y-4">
-            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
-              {[
-                ['Instrument', selectedPos.instrument],
-                ['Type', selectedPos.type],
-                ['Qty', selectedPos.qty],
-                ['LTP', `₹${(selectedPos.ltp || 0).toFixed(2)}`],
-                ['Unrealized P&L', ((selectedPos.unrealizedPnl || 0) >= 0 ? '+' : '') + formatCurrency(selectedPos.unrealizedPnl || 0)],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-muted-foreground">{k}</span>
-                  <span className="font-medium">{v}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-              <button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Close Position</button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Children Detail Modal */}
       <Modal isOpen={childDetailModal} onClose={() => setChildDetailModal(false)} title={`Children copying ${selectedInstrument}`} size="md">
         <div className="space-y-3">
           {selectedChildren.map((c, idx) => (
@@ -491,4 +401,3 @@ const OpenPositions = () => {
 };
 
 export default OpenPositions;
-

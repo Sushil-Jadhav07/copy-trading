@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap } from 'lucide-react';
+import { RefreshCw, Eye, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap, Server } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -18,6 +18,7 @@ const normalizeLoginMethod = (value) => String(value || '').trim().toLowerCase()
 const isTotpBroker = (loginMethod, brokerKey) =>
   normalizeBrokerKey(loginMethod) === 'totp' ||
   ['angelone', 'angel one'].includes(normalizeBrokerKey(brokerKey));
+const IP_WHITELIST_BROKERS = ['dhan', 'groww', 'angelone', 'angel one'];
 
 const getLoginMethodLabel = (method) => {
   switch (normalizeLoginMethod(method)) {
@@ -44,6 +45,10 @@ const EMPTY_FORM = {
   apiKey: '',
   apiSecret: '',
   accessToken: '',
+  proxyHost: '',
+  proxyPort: '',
+  proxyUser: '',
+  proxyPass: '',
 };
 
 /* ── Status helpers ── */
@@ -71,6 +76,72 @@ const formatLinkedAt = (raw) => {
   try {
     return new Date(raw).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   } catch { return null; }
+};
+
+const parseProxyPort = (value) => {
+  if (value == null || value === '') return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : NaN;
+};
+
+const buildProxyPayload = (values = {}) => {
+  const proxyHost = String(values.proxyHost || '').trim();
+  const proxyUser = String(values.proxyUser || '').trim();
+  const proxyPass = String(values.proxyPass || '').trim();
+  const proxyPort = parseProxyPort(values.proxyPort);
+
+  if (!proxyHost && !proxyPort && !proxyUser && !proxyPass) {
+    return {};
+  }
+
+  return {
+    proxyHost,
+    proxyPort: Number.isFinite(proxyPort) ? proxyPort : values.proxyPort,
+    proxyUser,
+    proxyPass,
+  };
+};
+
+const validateProxyConfig = (values = {}) => {
+  const proxyHost = String(values.proxyHost || '').trim();
+  const proxyUser = String(values.proxyUser || '').trim();
+  const proxyPass = String(values.proxyPass || '').trim();
+  const rawProxyPort = values.proxyPort;
+  const proxyPort = parseProxyPort(rawProxyPort);
+  const hasCoreProxyFields = Boolean(proxyHost || rawProxyPort);
+  const hasCredentials = Boolean(proxyUser || proxyPass);
+
+  if (!hasCoreProxyFields && !hasCredentials) {
+    return {};
+  }
+
+  const errors = {};
+  if (!proxyHost) errors.proxyHost = 'Required when proxy routing is enabled';
+  if (!rawProxyPort && rawProxyPort !== 0) {
+    errors.proxyPort = 'Required when proxy routing is enabled';
+  } else if (!Number.isInteger(proxyPort) || proxyPort <= 0) {
+    errors.proxyPort = 'Enter a valid port number';
+  }
+
+  return errors;
+};
+
+const getProxyStatusMeta = (account = {}) => {
+  const proxyHost = String(account.proxyHost || '').trim();
+  const proxyPort = Number(account.proxyPort ?? 0);
+  if (account.proxyConfigured && proxyHost && proxyPort > 0) {
+    return {
+      label: `Proxy ${proxyHost}:${proxyPort}`,
+      badgeClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      helper: 'Requests route through the configured proxy',
+    };
+  }
+
+  return {
+    label: 'Direct',
+    badgeClass: 'border-border bg-black/5 text-muted-foreground dark:bg-white/5',
+    helper: 'Broker API calls use the default platform route',
+  };
 };
 
 const UserManagement = ({
@@ -165,7 +236,7 @@ const UserManagement = ({
   );
 
   const filtered = accounts.filter((a) =>
-    !search || `${a.broker} ${a.userId} ${a.nickname}`.toLowerCase().includes(search.toLowerCase())
+    !search || `${a.broker} ${a.userId} ${a.nickname} ${a.proxyHost || ''}`.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleBrokerChange = (value) => {
@@ -261,11 +332,13 @@ const UserManagement = ({
       if (!form.dhanClientId?.trim()) errors.dhanClientId = 'Required';
       if (form.dhanOption === 'accessToken' && !form.accessToken.trim()) errors.accessToken = 'Required';
     }
+    Object.assign(errors, validateProxyConfig(form));
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
     setAddLoading(true);
     try {
+      const proxyPayload = buildProxyPayload(form);
       if (isDhan) {
         const dhanClientId = form.dhanClientId.trim();
         if (form.dhanOption === 'accessToken') {
@@ -274,12 +347,13 @@ const UserManagement = ({
             clientId: dhanClientId,
             accessToken: form.accessToken.trim(),
             accountNickname: form.nickname,
+            ...proxyPayload,
           });
           addToast('Dhan account connected successfully', 'success');
           refetch(); setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null);
           return;
         }
-        const newAcc = await brokerService.addAccount({ brokerId: 'dhan', clientId: dhanClientId, accountNickname: form.nickname });
+        const newAcc = await brokerService.addAccount({ brokerId: 'dhan', clientId: dhanClientId, accountNickname: form.nickname, ...proxyPayload });
         setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
         await openLoginModal(newAcc.accountId || newAcc.id, 'dhan');
         return;
@@ -291,6 +365,7 @@ const UserManagement = ({
           clientId: form.clientId.trim(),
           apiSecret: form.apiSecret.trim(),
           accountNickname: form.nickname,
+          ...proxyPayload,
         });
         setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
         await openLoginModal(newAcc.accountId || newAcc.id, normalizedBrokerId);
@@ -298,7 +373,7 @@ const UserManagement = ({
       }
       if (loginMethod === 'token') {
         if (form.growwOption === 'accessToken') {
-          const newAcc = await brokerService.addAccount({ brokerId: 'groww', accessToken: form.accessToken, accountNickname: form.nickname });
+          const newAcc = await brokerService.addAccount({ brokerId: 'groww', accessToken: form.accessToken, accountNickname: form.nickname, ...proxyPayload });
           // Activate the session so the backend stores and uses the accessToken
           // for subsequent Groww API calls (margins, positions, orders, etc.)
           const newAccId = newAcc?.accountId || newAcc?.id;
@@ -313,12 +388,12 @@ const UserManagement = ({
           refetch(); setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null);
           return;
         }
-        const newAcc = await brokerService.addAccount({ brokerId: 'groww', apiKey: form.apiKey, accountNickname: form.nickname });
+        const newAcc = await brokerService.addAccount({ brokerId: 'groww', apiKey: form.apiKey, accountNickname: form.nickname, ...proxyPayload });
         setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
         await openLoginModal(newAcc.accountId || newAcc.id, 'groww');
         return;
       }
-      const newAcc = await brokerService.addAccount({ brokerId: normalizedBrokerId, accountNickname: form.nickname });
+      const newAcc = await brokerService.addAccount({ brokerId: normalizedBrokerId, accountNickname: form.nickname, ...proxyPayload });
       setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
       await openLoginModal(newAcc.accountId || newAcc.id, normalizedBrokerId);
     } catch (e) {
@@ -627,6 +702,9 @@ const UserManagement = ({
   const selectedLoginMethod = normalizeLoginMethod(activeLoginMethod || loginConfig?.recommendedLoginMethod || loginConfig?.loginMethod);
   const selectedLoginOption = loginOptions.find((option) => normalizeLoginMethod(option.method) === selectedLoginMethod) || null;
   const inputCls = 'w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40';
+  const selectedBrokerMeta = brokerMetaMap[normalizeBrokerKey(form.broker)];
+  const selectedBrokerKey = normalizeBrokerKey(selectedBrokerMeta?.brokerId || selectedBrokerMeta?.name || form.broker);
+  const showWhitelistHint = IP_WHITELIST_BROKERS.includes(selectedBrokerKey);
 
   return (
     <div className="space-y-6">
@@ -661,9 +739,9 @@ const UserManagement = ({
 
           {/* Dynamic broker fields */}
           {(() => {
-            const brokerMeta = brokerMetaMap[normalizeBrokerKey(form.broker)];
+            const brokerMeta = selectedBrokerMeta;
             const loginMethod = brokerMeta?.loginMethod || 'oauth';
-            const normalizedBrokerId = normalizeBrokerKey(brokerMeta?.brokerId || brokerMeta?.name || form.broker);
+            const normalizedBrokerId = selectedBrokerKey;
             const isDhan = normalizedBrokerId === 'dhan';
             const isTotp = isTotpBroker(loginMethod, normalizedBrokerId);
             if (!form.broker) return null;
@@ -742,6 +820,75 @@ const UserManagement = ({
           })()}
         </div>
 
+        {form.broker && (
+          <div className="mb-4 rounded-2xl border border-border/60 bg-black/5 p-4 dark:bg-white/5">
+            <div className="mb-3 flex items-center gap-2">
+              <Server className="h-4 w-4 text-brand-purple" />
+              <div>
+                <p className="text-sm font-semibold">Advanced: Proxy Routing</p>
+                <p className="text-xs text-muted-foreground">
+                  Optional. Use this only when the broker must route requests through a whitelisted IP.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1">
+                <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Host</label>
+                <input
+                  value={form.proxyHost}
+                  onChange={(e) => setForm((prev) => ({ ...prev, proxyHost: e.target.value }))}
+                  placeholder="127.0.0.1"
+                  className={inputCls}
+                />
+                {formErrors.proxyHost && <p className="text-danger text-xs mt-1">{formErrors.proxyHost}</p>}
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Port</label>
+                <input
+                  value={form.proxyPort}
+                  onChange={(e) => setForm((prev) => ({ ...prev, proxyPort: e.target.value.replace(/[^\d]/g, '') }))}
+                  placeholder="8889"
+                  inputMode="numeric"
+                  className={inputCls}
+                />
+                {formErrors.proxyPort && <p className="text-danger text-xs mt-1">{formErrors.proxyPort}</p>}
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Username</label>
+                <input
+                  value={form.proxyUser}
+                  onChange={(e) => setForm((prev) => ({ ...prev, proxyUser: e.target.value }))}
+                  placeholder="Optional"
+                  className={inputCls}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Password</label>
+                <input
+                  type="password"
+                  value={form.proxyPass}
+                  onChange={(e) => setForm((prev) => ({ ...prev, proxyPass: e.target.value }))}
+                  placeholder="Optional"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span>Leave all fields empty to use a direct broker connection.</span>
+              {showWhitelistHint && (
+                <span className="text-amber-600 dark:text-amber-400">
+                  {selectedBrokerMeta?.name || 'This broker'} commonly requires IP whitelisting. Match the broker dashboard whitelist to your proxy exit IP.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Test result */}
         {testResult && (
           <div className={`mb-3 p-2.5 rounded-lg text-xs flex items-center gap-2 ${testResult.ok ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400'}`}>
@@ -781,7 +928,7 @@ const UserManagement = ({
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Account', 'Broker', 'Client ID', 'Balance', 'Positions', 'Signal', 'Latency', 'Status', 'Last Synced', 'Actions'].map((h) => (
+                  {['#', 'Account', 'Broker', 'Client ID', 'Routing', 'Balance', 'Positions', 'Signal', 'Latency', 'Status', 'Last Synced', 'Actions'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -795,6 +942,7 @@ const UserManagement = ({
                   const positions = Number(metrics.positions ?? acc.positions ?? 0);
                   const quality = String(metrics.quality || 'unknown');
                   const latencyMs = metrics.latencyMs;
+                  const proxyMeta = getProxyStatusMeta(acc);
                   return (
                     <motion.tr key={id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
                       className="border-b border-border/30 hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
@@ -807,6 +955,16 @@ const UserManagement = ({
                       </td>
                       <td className="px-4 py-3 text-sm whitespace-nowrap">{acc.broker || '—'}</td>
                       <td className="px-4 py-3 text-sm whitespace-nowrap">{acc.clientId || acc.userId || '—'}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        <div className="space-y-1">
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 font-medium ${proxyMeta.badgeClass}`}>
+                            {proxyMeta.label}
+                          </span>
+                          {acc.proxyConfigured && (
+                            <p className="text-[11px] text-muted-foreground">Edit from account details</p>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div>
                           <p className="text-sm font-medium">
@@ -841,10 +999,11 @@ const UserManagement = ({
                           <ActionBtn title="Test Connection" color="amber" onClick={() => handleTestAccount(acc)} spin={testing[id]}>
                             <Zap className="w-3.5 h-3.5" />
                           </ActionBtn>
-                          {/* View Details */}
-                          <ActionBtn title="View Details" color="blue" onClick={() => navigate(`${detailBasePath}/${id}`)}>
-                            <Eye className="w-3.5 h-3.5" />
-                          </ActionBtn>
+                          {!isChildScope && (
+                            <ActionBtn title="View Details" color="blue" onClick={() => navigate(`${detailBasePath}/${id}`)}>
+                              <Eye className="w-3.5 h-3.5" />
+                            </ActionBtn>
+                          )}
                           {/* Connect/Disconnect */}
                           <ActionBtn title={active ? 'Disconnect' : 'Connect'} color={active ? 'warning' : 'success'}
                             onClick={() => handleToggleConnect(acc)}>

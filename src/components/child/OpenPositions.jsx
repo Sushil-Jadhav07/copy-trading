@@ -1,8 +1,7 @@
-﻿import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCw, WifiOff, Wifi, Activity } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
-import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { brokerService } from '@/lib/broker';
@@ -13,31 +12,20 @@ import { connectChannel } from '@/lib/websocket';
 
 const ChildOpenPositions = () => {
   const { addToast } = useToast();
-
-  // Accounts
-  const [accounts, setAccounts]             = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
-
-  // Session
-  const [sessionActive, setSessionActive]   = useState(null); // null = unknown, true/false
+  const [sessionActive, setSessionActive] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(false);
-
-  // Positions
-  const [positions, setPositions]           = useState([]);
-  const [positionsMeta, setPositionsMeta]   = useState({});
-  const [loading, setLoading]               = useState(false);
-  const [refreshing, setRefreshing]         = useState(false);
-
-  // Modals
-  const [closeModal, setCloseModal]               = useState(false);
-  const [selectedPos, setSelectedPos]             = useState(null);
+  const [positions, setPositions] = useState([]);
+  const [positionsMeta, setPositionsMeta] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const loadAccounts = async () => {
       try {
         const allAccounts = await brokerService.getAccounts();
         setAccounts(allAccounts);
-        
         if (allAccounts.length > 0) {
           setSelectedAccountId(allAccounts[0]?.accountId || allAccounts[0]?.id);
         }
@@ -45,7 +33,7 @@ const ChildOpenPositions = () => {
         addToast(e.message, 'error');
       }
     };
-    
+
     loadAccounts();
   }, [addToast]);
 
@@ -87,14 +75,17 @@ const ChildOpenPositions = () => {
     return () => window.clearInterval(interval);
   }, [selectedAccountId, sessionActive, loadPositions]);
 
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadPositions(selectedAccountId, true);
+  }, [loadPositions, selectedAccountId]);
+
   useEffect(() => {
     const posSub = connectChannel(
       'positions',
       (event, data) => {
         if (['POSITION_UPDATE', 'position_update', 'POSITION_UPDATED', 'MESSAGE'].includes(event)) {
-          setPositions((prev) =>
-            prev.map((p) => (p.symbol === data?.symbol ? { ...p, ...data } : p))
-          );
+          setPositions((prev) => prev.map((p) => (p.symbol === data?.symbol ? { ...p, ...data } : p)));
         }
       },
       null,
@@ -116,18 +107,12 @@ const ChildOpenPositions = () => {
       posSub.close();
       tradeSub.close();
     };
-  }, [selectedAccountId]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadPositions(selectedAccountId, true);
-  };
+  }, [handleRefresh]);
 
   const totalUnrealized = Number.isFinite(Number(positionsMeta.totalPnl))
     ? Number(positionsMeta.totalPnl)
     : positions.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
   const selectedAccount = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
-
   const showSessionWarning = sessionActive === false && !sessionLoading;
   const totalRealized = Number.isFinite(Number(positionsMeta?.totalRealizedPnl))
     ? Number(positionsMeta.totalRealizedPnl)
@@ -145,24 +130,6 @@ const ChildOpenPositions = () => {
     const num = Number(raw);
     if (!Number.isFinite(num) || num <= 0) return '-';
     return num.toFixed(2);
-  };
-
-  const confirmClose = async () => {
-    if (!selectedPos) return;
-    try {
-      await childService.squareOffPosition?.({
-        symbol: selectedPos.symbol || selectedPos.instrument,
-        qty: selectedPos.qty,
-        type: 'SELL',
-        product: selectedPos.product || 'MIS',
-      });
-      setPositions((prev) => prev.filter((p) => p.id !== selectedPos.id));
-      setCloseModal(false);
-      addToast(`${selectedPos.instrument || selectedPos.symbol || 'Position'} closed`, 'success');
-    } catch (e) {
-      addToast(e.message || 'Failed to close position', 'error');
-      setCloseModal(false);
-    }
   };
 
   return (
@@ -202,8 +169,7 @@ const ChildOpenPositions = () => {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-400">Broker session expired</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {positionsMeta.error || 'Your broker session is not active. Go to Demat Accounts and connect your broker.'}
-              {' '}
+              {positionsMeta.error || 'Your broker session is not active. Go to Demat Accounts and connect your broker.'}{' '}
               <a href="/child/demat" className="underline text-brand-purple">
                 {positionsMeta.action === 'LOGIN_BROKER' ? 'Connect Broker' : 'Re-login to broker'}
               </a>
@@ -278,7 +244,7 @@ const ChildOpenPositions = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50 bg-black/3 dark:bg-white/3">
-                  {['#', 'Instrument', 'Exchange', 'Product', 'Qty', 'Filled Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Realized P&L', 'Change %', 'Trigger Price', 'Master', 'Action'].map((h) => (
+                  {['#', 'Instrument', 'Exchange', 'Product', 'Qty', 'Filled Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Realized P&L', 'Change %', 'Trigger Price', 'Master'].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -335,19 +301,11 @@ const ChildOpenPositions = () => {
                     </td>
                     <td className="px-6 py-4 text-sm font-black tabular-nums">{getTriggerValue(pos)}</td>
                     <td className="px-6 py-4 text-xs font-bold">{getDisplayText(pos.masterName || pos.master_name || pos.copiedFromMaster)}</td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => { setSelectedPos(pos); setCloseModal(true); }}
-                        className="px-3 py-1 bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger rounded text-xs font-bold transition-colors"
-                      >
-                        Close
-                      </button>
-                    </td>
                   </motion.tr>
                 ))}
                 {positions.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-6 py-20 text-center">
+                    <td colSpan={13} className="px-6 py-20 text-center">
                       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                         <Activity className="h-8 w-8 text-muted-foreground/20" />
                       </div>
@@ -361,36 +319,8 @@ const ChildOpenPositions = () => {
           </div>
         )}
       </GlassCard>
-
-      <Modal isOpen={closeModal} onClose={() => setCloseModal(false)} title="Close Position" size="sm">
-        {selectedPos && (
-          <div className="space-y-4">
-            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
-              {[
-                ['Instrument', getDisplayText(selectedPos.instrument || selectedPos.symbol)],
-                ['Product', getDisplayText(selectedPos.product)],
-                ['Type', getDisplayText(selectedPos.type)],
-                ['Qty to close', getDisplayCount(selectedPos.qty)],
-                ['LTP', formatCurrency(selectedPos.ltp || 0)],
-                ['Unrealized P&L', `${(selectedPos.unrealizedPnl || 0) >= 0 ? '+' : ''}${formatCurrency(selectedPos.unrealizedPnl || 0)}`],
-                ['Master', getDisplayText(selectedPos.masterName || selectedPos.master_name)],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-muted-foreground">{k}</span>
-                  <span className="font-medium">{v}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setCloseModal(false)} className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
-              <button onClick={confirmClose} className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors">Confirm Close</button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };
 
 export default ChildOpenPositions;
-

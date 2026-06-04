@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Wifi, WifiOff, AlertTriangle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Wifi, WifiOff, AlertTriangle, AlertCircle, Server } from 'lucide-react';
 import { motion } from 'framer-motion';
-import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { formatCurrency, formatRelativeTime } from '@/lib/utils';
@@ -55,6 +54,36 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(num) ? num : fallback;
 };
 
+const buildProxyFormState = (source = {}) => ({
+  proxyHost: String(source.proxyHost || '').trim(),
+  proxyPort: source.proxyPort ? String(source.proxyPort) : '',
+  proxyUser: String(source.proxyUser || '').trim(),
+  proxyPass: '',
+});
+
+const validateProxyForm = (values = {}) => {
+  const proxyHost = String(values.proxyHost || '').trim();
+  const rawProxyPort = String(values.proxyPort || '').trim();
+  const proxyUser = String(values.proxyUser || '').trim();
+  const proxyPass = String(values.proxyPass || '').trim();
+
+  if (!proxyHost && !rawProxyPort && !proxyUser && !proxyPass) {
+    return {};
+  }
+
+  const errors = {};
+  if (!proxyHost) errors.proxyHost = 'Proxy host is required';
+
+  const port = Number(rawProxyPort);
+  if (!rawProxyPort) {
+    errors.proxyPort = 'Proxy port is required';
+  } else if (!Number.isInteger(port) || port <= 0) {
+    errors.proxyPort = 'Enter a valid port number';
+  }
+
+  return errors;
+};
+
 const TransBadge = ({ type }) => (
   <span
     className={`px-2.5 py-0.5 rounded text-xs font-bold ${
@@ -89,8 +118,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Positions');
-  const [squareOffModal, setSquareOffModal] = useState(false);
-  const [selectedPos, setSelectedPos] = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [account, setAccount] = useState(null);
@@ -105,6 +132,10 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const [balanceAlert, setBalanceAlert] = useState(null);
   const [growwReAuthToken, setGrowwReAuthToken] = useState('');
   const [growwReAuthLoading, setGrowwReAuthLoading] = useState(false);
+  const [proxyForm, setProxyForm] = useState(buildProxyFormState());
+  const [proxyErrors, setProxyErrors] = useState({});
+  const [proxySaving, setProxySaving] = useState(false);
+  const [proxyRemoving, setProxyRemoving] = useState(false);
   const isChildScope = scope === 'child';
 
   const resolvedBack = onBack || (() => navigate('/master/user-management'));
@@ -126,7 +157,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
 
         if (data.signal) setSignal(data.signal);
         if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
-        setAccount({
+        const nextAccount = {
           broker: data.account.brokerName || data.account.brokerId || '',
           userId: data.account.clientId || '',
           nickname: data.account.nickname || '',
@@ -134,7 +165,14 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           sessionActive: data.account.sessionActive,
           status: data.account.status,
           linkedAt: data.account.linkedAt || null,
-        });
+          proxyHost: data.account.proxyHost || '',
+          proxyPort: data.account.proxyPort || 0,
+          proxyUser: data.account.proxyUser || '',
+          proxyConfigured: Boolean(data.account.proxyConfigured),
+        };
+        setAccount(nextAccount);
+        setProxyForm(buildProxyFormState(nextAccount));
+        setProxyErrors({});
 
         if (data.errors?.positions) {
           setPositionsError(data.errors.positions);
@@ -195,16 +233,28 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
 
       if (data.signal) setSignal(data.signal);
       if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
-      setAccount((prev) => ({
-        ...(prev || {}),
-        broker: data.account.brokerName || data.account.brokerId || prev?.broker || '',
-        userId: data.account.clientId || prev?.userId || '',
-        nickname: data.account.nickname || prev?.nickname || '',
-        margin: data.margin?.availableMargin ?? prev?.margin ?? 0,
-        sessionActive: data.account.sessionActive,
-        status: data.account.status,
-        linkedAt: data.account.linkedAt || prev?.linkedAt || null,
-      }));
+      let refreshedAccount = null;
+      setAccount((prev) => {
+        refreshedAccount = {
+          ...(prev || {}),
+          broker: data.account.brokerName || data.account.brokerId || prev?.broker || '',
+          userId: data.account.clientId || prev?.userId || '',
+          nickname: data.account.nickname || prev?.nickname || '',
+          margin: data.margin?.availableMargin ?? prev?.margin ?? 0,
+          sessionActive: data.account.sessionActive,
+          status: data.account.status,
+          linkedAt: data.account.linkedAt || prev?.linkedAt || null,
+          proxyHost: data.account.proxyHost || '',
+          proxyPort: data.account.proxyPort || 0,
+          proxyUser: data.account.proxyUser || '',
+          proxyConfigured: Boolean(data.account.proxyConfigured),
+        };
+        return refreshedAccount;
+      });
+      if (refreshedAccount) {
+        setProxyForm(buildProxyFormState(refreshedAccount));
+        setProxyErrors({});
+      }
 
       if (data.errors?.positions) {
         setPositionsError(data.errors.positions);
@@ -282,31 +332,29 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
       const data = await brokerService.getDashboard(accountId);
       if (data.signal) setSignal(data.signal);
       if (data.balanceAlert) setBalanceAlert(data.balanceAlert);
-      setAccount((prev) => ({ ...prev, sessionActive: data.account.sessionActive, margin: data.margin?.availableMargin ?? prev?.margin ?? 0 }));
+      let refreshedAccount = null;
+      setAccount((prev) => {
+        refreshedAccount = {
+          ...(prev || {}),
+          sessionActive: data.account.sessionActive,
+          margin: data.margin?.availableMargin ?? prev?.margin ?? 0,
+          proxyHost: data.account.proxyHost || '',
+          proxyPort: data.account.proxyPort || 0,
+          proxyUser: data.account.proxyUser || '',
+          proxyConfigured: Boolean(data.account.proxyConfigured),
+        };
+        return refreshedAccount;
+      });
+      if (refreshedAccount) {
+        setProxyForm(buildProxyFormState(refreshedAccount));
+        setProxyErrors({});
+      }
       setPositions(data.positions || []);
       setOrders(data.orders || []);
     } catch (e) {
       addToast(e.message || 'Re-authentication failed. Check your token and try again.', 'error');
     } finally {
       setGrowwReAuthLoading(false);
-    }
-  };
-
-  const confirmSquareOff = async () => {
-    if (!selectedPos) return;
-    try {
-      await brokerService.closePosition(accountId, {
-        symbol: selectedPos.symbol,
-        qty: selectedPos.qty,
-        type: 'SELL',
-        product: selectedPos.market || 'MIS',
-      });
-      setPositions((p) => p.filter((x) => x.id !== selectedPos.id));
-      setSquareOffModal(false);
-      addToast(`${selectedPos.symbol} squared off`, 'success');
-    } catch (e) {
-      addToast(e.message || 'Square off failed', 'error');
-      setSquareOffModal(false);
     }
   };
 
@@ -326,6 +374,49 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
 
     const days = Math.floor(hrs / 24);
     return `Last synced: ${days} day${days === 1 ? '' : 's'} ago`;
+  };
+
+  const handleProxyFieldChange = (field, value) => {
+    setProxyForm((prev) => ({ ...prev, [field]: value }));
+    setProxyErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const handleSaveProxy = async () => {
+    const errors = validateProxyForm(proxyForm);
+    setProxyErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setProxySaving(true);
+    try {
+      await brokerService.updateAccount(accountId, {
+        proxyHost: proxyForm.proxyHost.trim(),
+        proxyPort: Number(proxyForm.proxyPort),
+        proxyUser: proxyForm.proxyUser.trim(),
+        proxyPass: proxyForm.proxyPass,
+      });
+      await handleRefresh();
+      setProxyForm((prev) => ({ ...prev, proxyPass: '' }));
+      addToast('Proxy settings updated', 'success');
+    } catch (e) {
+      addToast(e.message || 'Unable to update proxy settings', 'error');
+    } finally {
+      setProxySaving(false);
+    }
+  };
+
+  const handleRemoveProxy = async () => {
+    setProxyRemoving(true);
+    try {
+      await brokerService.updateAccount(accountId, { proxyHost: '', proxyPort: 0, proxyUser: '', proxyPass: '' });
+      await handleRefresh();
+      setProxyForm(buildProxyFormState());
+      setProxyErrors({});
+      addToast('Proxy removed. Broker is back on direct routing.', 'success');
+    } catch (e) {
+      addToast(e.message || 'Unable to remove proxy', 'error');
+    } finally {
+      setProxyRemoving(false);
+    }
   };
 
   if (!account && !loadingData) {
@@ -372,6 +463,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     const parts = [nickname, broker, userId].filter(Boolean);
     return parts.length ? parts.join(' - ').toUpperCase() : 'DEMAT ACCOUNT';
   })();
+  const proxyActive = Boolean(account?.proxyConfigured && account?.proxyHost && Number(account?.proxyPort) > 0);
 
   return (
     <div className="space-y-6">
@@ -461,6 +553,91 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
         </div>
       )}
 
+      <div className="glass-card p-4 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Server className="w-4 h-4 text-brand-purple" />
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wide">Proxy Routing</h2>
+              <p className="text-xs text-muted-foreground">
+                Optional. Use this when your broker requires a whitelisted source IP.
+              </p>
+            </div>
+          </div>
+          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${proxyActive ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-border bg-black/5 text-muted-foreground dark:bg-white/5'}`}>
+            {proxyActive ? `Active: ${account?.proxyHost}:${account?.proxyPort}` : 'Direct connection'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-1">
+            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Host</label>
+            <input
+              value={proxyForm.proxyHost}
+              onChange={(e) => handleProxyFieldChange('proxyHost', e.target.value)}
+              placeholder="127.0.0.1"
+              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
+            />
+            {proxyErrors.proxyHost && <p className="text-danger text-xs">{proxyErrors.proxyHost}</p>}
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Port</label>
+            <input
+              value={proxyForm.proxyPort}
+              onChange={(e) => handleProxyFieldChange('proxyPort', e.target.value.replace(/[^\d]/g, ''))}
+              placeholder="8889"
+              inputMode="numeric"
+              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
+            />
+            {proxyErrors.proxyPort && <p className="text-danger text-xs">{proxyErrors.proxyPort}</p>}
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Username</label>
+            <input
+              value={proxyForm.proxyUser}
+              onChange={(e) => handleProxyFieldChange('proxyUser', e.target.value)}
+              placeholder="Optional"
+              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Password</label>
+            <input
+              type="password"
+              value={proxyForm.proxyPass}
+              onChange={(e) => handleProxyFieldChange('proxyPass', e.target.value)}
+              placeholder={proxyActive ? 'Enter only when changing password' : 'Optional'}
+              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Leave all fields empty for direct routing. Proxy passwords are not returned by the API, so only re-enter them when changing credentials.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={handleRemoveProxy}
+              disabled={proxyRemoving || proxySaving || !proxyActive}
+              className="px-4 py-2 rounded-lg border border-border/70 bg-black/5 text-sm transition-colors hover:bg-black/10 disabled:opacity-50 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              {proxyRemoving ? 'Removing...' : 'Remove Proxy'}
+            </button>
+            <button
+              onClick={handleSaveProxy}
+              disabled={proxySaving || proxyRemoving}
+              className="px-4 py-2 rounded-lg bg-brand-purple text-sm font-medium text-white transition-colors hover:bg-brand-purple/90 disabled:opacity-60"
+            >
+              {proxySaving ? 'Saving...' : 'Save Proxy'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="glass-card overflow-hidden">
         <div className="flex border-b border-border/50">
           {TABS.map((tab) => (
@@ -507,7 +684,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Trans', 'Square Off'].map((h) => (
+                  {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Trans'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       {h}
                     </th>
@@ -545,25 +722,12 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
                           SELL
                         </button>
                       </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => {
-                            setSelectedPos(pos);
-                            setSquareOffModal(true);
-                          }}
-                          className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
-                            pnl >= 0 ? 'bg-success hover:bg-success/90 text-white' : 'bg-danger hover:bg-danger/90 text-white'
-                          }`}
-                        >
-                          Square OFF
-                        </button>
-                      </td>
                     </motion.tr>
                   );
                 })}
                 {filteredPositions.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       {loadingData ? 'Loading positions...' : positionsError ? 'Positions are unavailable' : 'No positions found'}
                     </td>
                   </tr>
@@ -641,7 +805,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Status', 'Square Off'].map((h) => (
+                  {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Status'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       {h}
                     </th>
@@ -685,23 +849,12 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
                       <td className="px-4 py-3">
                         <StatusBadge status={pos.status || 'ACTIVE'} />
                       </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => {
-                            setSelectedPos(pos);
-                            setSquareOffModal(true);
-                          }}
-                          className="px-3 py-1 rounded text-xs font-bold bg-danger hover:bg-danger/90 text-white transition-colors"
-                        >
-                          Square OFF
-                        </button>
-                      </td>
                     </motion.tr>
                   );
                 })}
                 {filteredPositions.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No active options positions found
                     </td>
                   </tr>
@@ -721,50 +874,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
         </div>
       </div>
 
-      <Modal isOpen={squareOffModal} onClose={() => setSquareOffModal(false)} title="Square Off Position" size="sm">
-        {selectedPos && (
-          <div className="space-y-4">
-            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-2 text-sm">
-              {[
-                ['Symbol', selectedPos.symbol],
-                ['Qty', selectedPos.qty],
-                ['LTP', `Rs ${toNumber(selectedPos.ltp).toFixed(2)}`],
-                ['Unrealized P&L', `${toNumber(selectedPos.pnl) >= 0 ? '+' : ''}${formatCurrency(toNumber(selectedPos.pnl))}`],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-muted-foreground">{k}</span>
-                  <span
-                    className={
-                      k === 'Unrealized P&L'
-                        ? toNumber(selectedPos.pnl) >= 0
-                          ? 'text-success font-semibold'
-                          : 'text-danger font-semibold'
-                        : 'font-medium'
-                    }
-                  >
-                    {v}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">This will place a market order to exit this position immediately.</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setSquareOffModal(false)}
-                className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmSquareOff}
-                className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                Confirm Square Off
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };
