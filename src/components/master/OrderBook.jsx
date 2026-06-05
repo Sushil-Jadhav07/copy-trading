@@ -213,7 +213,7 @@ const OrderBook = () => {
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status', 'Latency'].map((h) => (
+                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -281,20 +281,11 @@ const OrderBook = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        {order.latencyMs != null && order.latencyMs > 0 ? (
-                          <span className={`text-xs font-black tabular-nums ${order.latencyMs < 200 ? 'text-emerald-500' : order.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
-                            {order.latencyMs}ms
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
                   </motion.tr>
                 ))}
                 {orders.length === 0 && !showSessionWarning && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No orders found for today
                     </td>
                   </tr>
@@ -310,3 +301,6 @@ const OrderBook = () => {
 };
 
 export default OrderBook;
+
+
+

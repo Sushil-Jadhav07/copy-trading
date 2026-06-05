@@ -11,6 +11,7 @@ import {
   Cell,
 } from 'recharts';
 import { useTheme } from '@/context/ThemeContext';
+import { formatCompactINR } from '@/lib/utils';
 
 const BarChart = ({
   data,
@@ -20,14 +21,20 @@ const BarChart = ({
   colors = ['#00C896', '#EF4444', '#00A878', '#F59E0B'],
   height = 300,
   stacked = false,
-  yAxisFormatter = (val) => `₹${(val / 1000).toFixed(0)}K`,
-  tooltipFormatter = (val) => `₹${val.toLocaleString('en-IN')}`,
+  yAxisFormatter = formatCompactINR,
+  tooltipFormatter = (val) => `₹${Number(val || 0).toLocaleString('en-IN')}`,
   showLegend = false,
 }) => {
   const { isDark } = useTheme();
+  const isFlat = data.length === 0 || data.every((item) => {
+    if (Array.isArray(yKeys) && yKeys.length > 0) {
+      return yKeys.every((key) => Number(item?.[key] ?? 0) === 0);
+    }
+    return Number(item?.[yKey] ?? 0) === 0;
+  });
 
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
-  const axisColor = isDark ? 'rgba(255,255,255,0.3)'  : 'rgba(0,0,0,0.35)';
+  const axisColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.35)';
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -44,6 +51,15 @@ const BarChart = ({
     }
     return null;
   };
+
+  if (isFlat) {
+    return (
+      <div className="flex h-full min-h-[120px] flex-col items-center justify-center gap-2 text-center">
+        <p className="text-xs font-medium text-muted-foreground">No P&amp;L yet</p>
+        <div className="mt-2 w-full border-t border-dashed border-border/40" />
+      </div>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height={height}>

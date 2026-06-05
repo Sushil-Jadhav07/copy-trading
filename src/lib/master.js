@@ -28,6 +28,28 @@ const toNumber = (...values) => {
   return 0;
 };
 
+const deriveOrderSegment = (order = {}) => {
+  const explicitSegment = String(order.segment || order.market || '').trim().toUpperCase();
+  if (explicitSegment) return explicitSegment;
+
+  const exchange = String(order.exchange || '').trim().toUpperCase();
+  const symbol = String(
+    order.tradingsymbol || order.trading_symbol || order.symbol || ''
+  ).trim().toUpperCase();
+
+  if (
+    ['NFO', 'BFO', 'FO'].includes(exchange) ||
+    /(?:CE|PE)$/.test(symbol)
+  ) {
+    return 'FNO';
+  }
+
+  if (['NSE', 'BSE'].includes(exchange)) return 'EQ';
+  if (['CDS', 'BCD'].includes(exchange)) return 'CDS';
+  if (exchange.startsWith('MCX')) return 'COMMODITY';
+  return '';
+};
+
 const expandChildRecords = (rawList = []) =>
   rawList.flatMap((entry = {}) => {
     const subs = Array.isArray(entry.subscriptions)
@@ -597,7 +619,7 @@ export const masterService = {
         id: order.order_id || order.orderId || order.id || `order-${index}`,
         symbol: order.tradingsymbol || order.trading_symbol || order.symbol || 'N/A',
         exchange: order.exchange || 'NSE',
-        segment: order.segment || order.market || '',
+        segment: deriveOrderSegment(order),
         orderType: order.order_type || order.orderType || 'MARKET',
         type: String(order.transaction_type || order.transactionType || order.type || order.side || 'BUY').toUpperCase(),
         qty: Number(order.quantity ?? order.qty ?? order.filled_quantity ?? 0),
@@ -678,8 +700,13 @@ export const masterService = {
         masterId: item.masterId || '',
         childId: item.childId || '',
         orderId: item.orderId || '',
+        childBrokerOrderId: item.childBrokerOrderId || '',
         createdAt: item.createdAt || null,
         childPlacedAt: item.childPlacedAt || null,
+        masterPlacedAt: item.masterPlacedAt || null,
+        instrumentType: String(item.instrumentType || '').toUpperCase(),
+        isOption: Boolean(item.isOption),
+        isFuture: Boolean(item.isFuture),
         time: item.createdAt || item.childPlacedAt || null,
         raw: item,
       }));

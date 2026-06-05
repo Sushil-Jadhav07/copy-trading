@@ -2,113 +2,121 @@ import { useCallback, useState } from 'react';
 import { riskService } from '@/lib/risk';
 import { pnlService } from '@/lib/pnl';
 
+const makeStatus = () => ({ loading: false, error: null });
+
 export const useRiskPnl = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [riskRules, setRiskRules] = useState(null);
   const [exposure, setExposure] = useState(null);
   const [pnlSummary, setPnlSummary] = useState([]);
+  const [status, setStatus] = useState({
+    fetchRiskRules: makeStatus(),
+    fetchExposure: makeStatus(),
+    checkMargin: makeStatus(),
+    fetchPnlSummary: makeStatus(),
+    fetchRealizedPnl: makeStatus(),
+    fetchUnrealizedPnl: makeStatus(),
+    fetchChildVsMaster: makeStatus(),
+  });
+
+  const setOp = useCallback((key, patch) => {
+    setStatus((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  }, []);
 
   const fetchRiskRules = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setOp('fetchRiskRules', { loading: true, error: null });
     try {
       const data = await riskService.getRules();
       setRiskRules(data);
       return data;
     } catch (error) {
-      setError(error.message);
+      setOp('fetchRiskRules', { error: error.message || 'Failed to load risk rules' });
       return null;
     } finally {
-      setLoading(false);
+      setOp('fetchRiskRules', { loading: false });
     }
-  }, []);
+  }, [setOp]);
 
   const fetchExposure = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setOp('fetchExposure', { loading: true, error: null });
     try {
       const data = await riskService.getExposure();
       setExposure(data);
       return data;
     } catch (error) {
-      setError(error.message);
+      setOp('fetchExposure', { error: error.message || 'Failed to load exposure' });
       return null;
     } finally {
-      setLoading(false);
+      setOp('fetchExposure', { loading: false });
     }
-  }, []);
+  }, [setOp]);
 
   const checkMargin = useCallback(async (params) => {
-    setLoading(true);
-    setError(null);
+    setOp('checkMargin', { loading: true, error: null });
     try {
       return await riskService.checkMargin(params);
     } catch (error) {
-      setError(error.message);
+      setOp('checkMargin', { error: error.message || 'Margin check failed' });
       throw error;
     } finally {
-      setLoading(false);
+      setOp('checkMargin', { loading: false });
     }
-  }, []);
+  }, [setOp]);
 
   const fetchPnlSummary = useCallback(async (period = 'DAILY') => {
-    setLoading(true);
-    setError(null);
+    setOp('fetchPnlSummary', { loading: true, error: null });
     try {
       const data = await pnlService.getSummary(period);
       setPnlSummary(data);
       return data;
     } catch (error) {
-      setError(error.message);
+      setOp('fetchPnlSummary', { error: error.message || 'Failed to load P&L summary' });
       return [];
     } finally {
-      setLoading(false);
+      setOp('fetchPnlSummary', { loading: false });
     }
-  }, []);
+  }, [setOp]);
 
   const fetchRealizedPnl = useCallback(async (params) => {
-    setLoading(true);
-    setError(null);
+    setOp('fetchRealizedPnl', { loading: true, error: null });
     try {
       return await pnlService.getRealizedPnl(params);
     } catch (error) {
-      setError(error.message);
+      setOp('fetchRealizedPnl', { error: error.message || 'Failed to load realized P&L' });
       throw error;
     } finally {
-      setLoading(false);
+      setOp('fetchRealizedPnl', { loading: false });
     }
-  }, []);
+  }, [setOp]);
 
   const fetchUnrealizedPnl = useCallback(async (brokerAccountId) => {
-    setLoading(true);
-    setError(null);
+    setOp('fetchUnrealizedPnl', { loading: true, error: null });
     try {
       return await pnlService.getUnrealizedPnl(brokerAccountId);
     } catch (error) {
-      setError(error.message);
+      setOp('fetchUnrealizedPnl', { error: error.message || 'Failed to load unrealized P&L' });
       throw error;
     } finally {
-      setLoading(false);
+      setOp('fetchUnrealizedPnl', { loading: false });
     }
-  }, []);
+  }, [setOp]);
 
   const fetchChildVsMaster = useCallback(async (masterId) => {
-    setLoading(true);
-    setError(null);
+    setOp('fetchChildVsMaster', { loading: true, error: null });
     try {
       return await pnlService.getChildVsMaster(masterId);
     } catch (error) {
-      setError(error.message);
+      setOp('fetchChildVsMaster', { error: error.message || 'Failed to load child vs master comparison' });
       throw error;
     } finally {
-      setLoading(false);
+      setOp('fetchChildVsMaster', { loading: false });
     }
-  }, []);
+  }, [setOp]);
+
+  const loading = Object.values(status).some((item) => item.loading);
 
   return {
     loading,
-    error,
+    status,
     riskRules,
     exposure,
     pnlSummary,

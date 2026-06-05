@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
@@ -9,7 +9,6 @@ import { normalizeCopiedTrade } from '@/lib/child';
 import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const fmtDateShort = (raw) => {
   if (!raw) return '-';
@@ -98,38 +97,36 @@ const CopiedTrades = () => {
 
   const getErrorReason = (trade) => {
     if (String(trade.status).toUpperCase() !== 'FAILED') return '-';
-    return trade.message || trade.raw?.message || trade.raw?.error || trade.raw?.errorMessage || trade.raw?.reason || 'Order failed (reason not provided by API)';
+    return trade.message || trade.raw?.message || trade.raw?.error || trade.raw?.errorMessage || trade.raw?.reason || 'Order failed';
   };
 
-  // Skip reason labels — aligned with May 2026 API spec skipReasons
   const SKIP_REASON_UI_MAP = {
-    ZERO_QUANTITY: 'Scaled quantity is zero — increase your multiplier.',
-    SUB_LOT_SIZE: 'Below one F&O lot after scaling — increase multiplier.',
-    RISK_LIMIT: 'Risk limit reached — daily trades or position limit hit.',
-    MAX_CAPITAL_EXPOSURE: 'Margin utilization too high — reduce exposure.',
-    NO_POSITION: 'No copied BUY position for this symbol — SELL skipped.',
-    INSUFFICIENT_POSITION: 'Not enough shares to sell at current quantity.',
-    SELL_BLOCKED: 'Sell not allowed for this subscription (BUY_ONLY mode).',
-    MARKET_CLOSED: 'Intraday copy blocked — market closed after 15:20 IST.',
-    COPY_PAUSED: 'Copy trading is currently paused.',
-    SESSION_EXPIRED: 'Broker session expired — please re-login.',
-    // Legacy reasons (kept for backward compat)
-    NO_POSITION_LIVE_CHECK: 'SELL skipped - live position check shows flat. Broker may have auto-squared at 3:20 PM.',
-    BELOW_LOT_SIZE: 'Scaled quantity is below 1 lot. Increase your multiplier.',
-    DAILY_LIMIT_REACHED: 'Daily trade limit reached.',
-    MAX_POSITIONS_REACHED: 'Max open positions limit reached.',
-    CAPITAL_EXPOSURE_EXCEEDED: 'This trade would exceed your capital exposure limit.',
-    MARGIN_CHECK_FAILED: 'Insufficient margin for this trade.',
-    SEGMENT_DISABLED: 'This segment (e.g. F&O) is disabled for your account.',
-    SELL_NOT_ALLOWED: 'Copy Direction is BUY_ONLY — enable SELL in Risk Settings.',
-    SESSION_INACTIVE: 'Broker session expired — please re-login.',
-    SYMBOL_TRANSLATION_FAILED: 'Could not translate this symbol for your broker.',
+    ZERO_QUANTITY: 'Qty scaled to 0',
+    SUB_LOT_SIZE: 'Below min lot size',
+    RISK_LIMIT: 'Risk limit reached',
+    MAX_CAPITAL_EXPOSURE: 'Margin limit hit',
+    NO_POSITION: 'No BUY position to sell',
+    INSUFFICIENT_POSITION: 'Not enough shares',
+    SELL_BLOCKED: 'Sell not allowed',
+    MARKET_CLOSED: 'Market closed',
+    COPY_PAUSED: 'Copy paused',
+    SESSION_EXPIRED: 'Broker session expired',
+    SESSION_INACTIVE: 'Broker inactive',
+    NO_POSITION_LIVE_CHECK: 'Position flat at 3:20 PM',
+    BELOW_LOT_SIZE: 'Below min lot size',
+    DAILY_LIMIT_REACHED: 'Daily limit reached',
+    MAX_POSITIONS_REACHED: 'Max positions reached',
+    CAPITAL_EXPOSURE_EXCEEDED: 'Capital exposure exceeded',
+    MARGIN_CHECK_FAILED: 'Margin check failed',
+    SEGMENT_DISABLED: 'Segment disabled',
+    SELL_NOT_ALLOWED: 'Sell not allowed',
+    SYMBOL_TRANSLATION_FAILED: 'Symbol translation failed',
   };
 
   const getSkipReason = (trade) => {
     if (String(trade.status).toUpperCase() !== 'SKIPPED') return '-';
     const reason = trade.skipReason || trade.raw?.skipReason || trade.raw?.reason || trade.message || '-';
-    return skipReasonLabels[reason] || SKIP_REASON_UI_MAP[reason] || reason || 'Skipped (reason not provided)';
+    return skipReasonLabels[reason] || SKIP_REASON_UI_MAP[reason] || reason || 'Skipped';
   };
 
   const filtered = useMemo(() => {
@@ -297,173 +294,164 @@ const CopiedTrades = () => {
                     )}
                     {group.rows.map((trade, groupIdx) => {
                       const idx = group.startIndex + groupIdx;
-                  const status = String(trade.status || '').toUpperCase();
-                  const isExecuted = ['EXECUTED', 'SUCCESS'].includes(status);
-                  const isFailed = status === 'FAILED';
-                  const isSkipped = status === 'SKIPPED';
-                  const isPartial = ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(status);
+                      const status = String(trade.status || '').toUpperCase();
+                      const isExecuted = ['EXECUTED', 'SUCCESS'].includes(status);
+                      const isFailed = status === 'FAILED';
+                      const isSkipped = status === 'SKIPPED';
+                      const isPartial = ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(status);
 
-                  const symbol = (trade.instrument && trade.instrument !== 'N/A') ? trade.instrument : (trade.reference || 'UNKNOWN');
-                  const qty = trade.myQty ?? trade.masterQty ?? 0;
-                  const side = String(trade.type || trade.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
-                  const broker = trade.broker || trade.raw?.broker || '-';
-                  const pnl = Number(trade.pnl || 0);
-                  const entry = Number(trade.entry ?? trade.price ?? 0);
-                  const ltp = Number(trade.ltp || trade.current || 0);
-                  const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : isPartial ? 'Partial' : status || 'Pending';
-                  const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
-                  const showReloginCta = isSkipped && ['SESSION_EXPIRED', 'SESSION_INACTIVE'].includes(String(trade.skipReason || trade.raw?.skipReason || '').toUpperCase());
+                      const symbol = (trade.instrument && trade.instrument !== 'N/A') ? trade.instrument : (trade.reference || 'UNKNOWN');
+                      const qty = trade.myQty ?? trade.masterQty ?? 0;
+                      const side = String(trade.type || trade.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+                      const broker = trade.broker || trade.raw?.broker || '-';
+                      const pnl = Number(trade.pnl || 0);
+                      const entry = Number(trade.entry ?? trade.price ?? 0);
+                      const ltp = Number(trade.ltp || trade.current || 0);
+                      const childLabel = isExecuted ? 'Executed' : isFailed ? 'Failed' : isSkipped ? 'Skipped' : isPartial ? 'Partial' : status || 'Pending';
+                      const whyNotCopied = isFailed ? getErrorReason(trade) : getSkipReason(trade);
+                      const showReloginCta = isSkipped && ['SESSION_EXPIRED', 'SESSION_INACTIVE'].includes(String(trade.skipReason || trade.raw?.skipReason || '').toUpperCase());
 
-                  return (
-                    <motion.tr
-                      key={`${trade.id || 'row'}-${idx}`}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.015 }}
-                      className="hover:bg-black/5 dark:hover:bg-white/2 transition-colors"
-                    >
-                      <td className="px-6 py-5 text-sm font-bold text-muted-foreground">{idx + 1}</td>
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-black uppercase tracking-tight truncate max-w-[150px]">
-                            {symbol}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            {trade.exchange && (
-                              <span className="text-[8px] font-bold text-muted-foreground px-1 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 uppercase">
-                                {trade.exchange}
+                      return (
+                        <motion.tr
+                          key={`${trade.id || 'row'}-${idx}`}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.015 }}
+                          className="hover:bg-black/5 dark:hover:bg-white/2 transition-colors"
+                        >
+                          <td className="px-6 py-5 text-sm font-bold text-muted-foreground">{idx + 1}</td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-black uppercase tracking-tight truncate max-w-[150px]">
+                                {symbol}
                               </span>
-                            )}
-                            {trade.segment && (
-                              <span className={`text-[8px] font-bold px-1 py-0.5 rounded border uppercase ${
-                                trade.segment === 'FNO' ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-black/5 text-muted-foreground border-border/30'
+                              <div className="flex items-center gap-1.5">
+                                {trade.exchange && (
+                                  <span className="text-[8px] font-bold text-muted-foreground px-1 py-0.5 rounded bg-black/5 dark:bg-white/5 border border-border/30 uppercase">
+                                    {trade.exchange}
+                                  </span>
+                                )}
+                                {trade.segment && (
+                                  <span className={`text-[8px] font-bold px-1 py-0.5 rounded border uppercase ${
+                                    trade.segment === 'FNO' ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-black/5 text-muted-foreground border-border/30'
+                                  }`}>
+                                    {trade.segment}
+                                  </span>
+                                )}
+                                {trade.product && (
+                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded border uppercase bg-black/5 text-muted-foreground border-border/30 dark:bg-white/5">
+                                    {trade.product}
+                                  </span>
+                                )}
+                                {trade.orderType && (
+                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded border uppercase bg-amber-500/10 text-amber-500 border-amber-500/20">
+                                    {trade.orderType}
+                                  </span>
+                                )}
+                                {(() => {
+                                  const s = String(trade.instrument || '').toUpperCase();
+                                  const itype = s.endsWith('CE') ? 'CE' : s.endsWith('PE') ? 'PE' : s.includes('FUT') ? 'FUT' : 'EQ';
+                                  const cfg = {
+                                    CE: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                                    PE: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+                                    FUT: 'bg-brand-blue/10 text-brand-blue border-brand-blue/20',
+                                    EQ: 'bg-black/5 text-muted-foreground border-border/30 dark:bg-white/5',
+                                  }[itype];
+                                  return (
+                                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded border uppercase ${cfg}`}>
+                                      {itype}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-black uppercase tracking-tight text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-1 rounded-lg border border-border/30">
+                                {trade.masterName || trade.master || 'Master'}
+                              </span>
+                              <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                                Copied from master
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
+                              {side}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <span className={`text-xs font-black ${
+                                isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : isPartial ? 'text-brand-blue' : 'text-muted-foreground'
                               }`}>
-                                {trade.segment}
+                                {childLabel}
                               </span>
-                            )}
-                            {trade.product && (
-                              <span className="text-[8px] font-bold px-1 py-0.5 rounded border uppercase bg-black/5 text-muted-foreground border-border/30 dark:bg-white/5">
-                                {trade.product}
-                              </span>
-                            )}
-                            {trade.orderType && (
-                              <span className="text-[8px] font-bold px-1 py-0.5 rounded border uppercase bg-amber-500/10 text-amber-500 border-amber-500/20">
-                                {trade.orderType}
-                              </span>
-                            )}
-                            {(() => {
-                              const s = String(trade.instrument || '').toUpperCase();
-                              const itype = s.endsWith('CE') ? 'CE' : s.endsWith('PE') ? 'PE' : s.includes('FUT') ? 'FUT' : 'EQ';
-                              const cfg = {
-                                CE: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-                                PE: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
-                                FUT: 'bg-brand-blue/10 text-brand-blue border-brand-blue/20',
-                                EQ: 'bg-black/5 text-muted-foreground border-border/30 dark:bg-white/5',
-                              }[itype];
-                              return (
-                                <span className={`text-[8px] font-bold px-1 py-0.5 rounded border uppercase ${cfg}`}>
-                                  {itype}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs font-black uppercase tracking-tight text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-1 rounded-lg border border-border/30">
-                            {trade.masterName || trade.master || 'Master'}
-                          </span>
-                          <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
-                            Copied from master
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
-                          {side}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-black ${
-                            isExecuted ? 'text-emerald-500' : isFailed ? 'text-rose-500' : isSkipped ? 'text-amber-500' : isPartial ? 'text-brand-blue' : 'text-muted-foreground'
-                          }`}>
-                            {childLabel}
-                          </span>
-                          
-                          {(isFailed || isSkipped) && (
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button className="text-muted-foreground hover:text-foreground transition-colors">
-                                      <Info className="h-3.5 w-3.5" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-[200px] text-xs font-medium">
+                              {(isFailed || isSkipped) && whyNotCopied && whyNotCopied !== '-' && (
+                                <div className="flex max-w-[220px] items-start gap-1.5">
+                                  <span className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${isFailed ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                  <span className={`text-xs font-semibold leading-snug ${isFailed ? 'text-rose-400' : 'text-amber-400'}`}>
                                     {whyNotCopied}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                                  </span>
+                                </div>
+                              )}
                               {showReloginCta && (
                                 <button
                                   onClick={() => navigate('/platform/dematconnected')}
-                                  className="text-xs font-bold text-amber-500 underline hover:no-underline"
+                                  className="text-xs font-bold text-amber-500 underline hover:no-underline text-left"
                                 >
-                                  Re-login broker -
+                                  Re-login broker →
                                 </button>
                               )}
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
-                      <td className="px-6 py-5 text-sm font-black">{qty}</td>
-                      <td className="px-6 py-5 text-sm font-black tabular-nums">{entry ? entry.toFixed(2) : '-'}</td>
-                      <td className="px-6 py-5 text-sm font-black tabular-nums text-muted-foreground">
-                        {(['SL', 'SL-M', 'SL_M', 'STOPLOSS', 'STOPLOSS_LIMIT', 'STOPLOSS_MARKET'].includes(String(trade.orderType || trade.raw?.orderType || '').toUpperCase()))
-                          ? (Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || trade.raw?.triggerprice || 0) > 0
-                              ? Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || 0).toFixed(2)
-                              : '-')
-                          : '-'
-                        }
-                      </td>
-                      <td className="px-6 py-5 text-sm font-black tabular-nums">{ltp ? ltp.toFixed(2) : '-'}</td>
-                      <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-5">
-                        {trade.latencyMs != null && trade.latencyMs > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            <span className={`text-xs font-black tabular-nums ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 500 ? 'text-amber-500' : 'text-rose-500'}`}>
-                              {trade.latencyMs}ms
-                            </span>
-                            <div className="flex flex-col gap-0.5">
-                              {trade.engineReceivedAt && (
-                                <span className="text-[9px] font-bold text-muted-foreground uppercase">
-                                  Engine: {new Date(trade.engineReceivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </td>
+                          <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
+                          <td className="px-6 py-5 text-sm font-black">{qty}</td>
+                          <td className="px-6 py-5 text-sm font-black tabular-nums">{entry ? entry.toFixed(2) : '-'}</td>
+                          <td className="px-6 py-5 text-sm font-black tabular-nums text-muted-foreground">
+                            {(['SL', 'SL-M', 'SL_M', 'STOPLOSS', 'STOPLOSS_LIMIT', 'STOPLOSS_MARKET'].includes(String(trade.orderType || trade.raw?.orderType || '').toUpperCase()))
+                              ? (Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || trade.raw?.triggerprice || 0) > 0
+                                  ? Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || 0).toFixed(2)
+                                  : '-')
+                              : '-'
+                            }
+                          </td>
+                          <td className="px-6 py-5 text-sm font-black tabular-nums">{ltp ? ltp.toFixed(2) : '-'}</td>
+                          <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-5">
+                            {trade.latencyMs != null && trade.latencyMs > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-xs font-black tabular-nums ${trade.latencyMs < 200 ? 'text-emerald-500' : trade.latencyMs < 500 ? 'text-amber-500' : 'text-rose-500'}`}>
+                                  {trade.latencyMs}ms
                                 </span>
-                              )}
-                              {(trade.childPlacedAt || trade.placedAt) && (
-                                <span className="text-[9px] font-bold text-muted-foreground uppercase">
-                                  Placed: {new Date(trade.childPlacedAt || trade.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                </span>
-                              )}
-                              {trade.masterOrderTime && trade.masterTriggeredAt && (
-                                <span className="text-[8px] font-bold text-amber-500 uppercase">
-                                  Det: {Math.max(0, new Date(trade.masterTriggeredAt).getTime() - new Date(trade.masterOrderTime).getTime())}ms
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{fmtDateShort(trade.time)}</td>
-                    </motion.tr>
-                  );
+                                <div className="flex flex-col gap-0.5">
+                                  {trade.engineReceivedAt && (
+                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                      Engine: {new Date(trade.engineReceivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                    </span>
+                                  )}
+                                  {(trade.childPlacedAt || trade.placedAt) && (
+                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                      Placed: {new Date(trade.childPlacedAt || trade.placedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                    </span>
+                                  )}
+                                  {trade.masterOrderTime && trade.masterTriggeredAt && (
+                                    <span className="text-[8px] font-bold text-amber-500 uppercase">
+                                      Det: {Math.max(0, new Date(trade.masterTriggeredAt).getTime() - new Date(trade.masterOrderTime).getTime())}ms
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{fmtDateShort(trade.time)}</td>
+                        </motion.tr>
+                      );
                     })}
                   </React.Fragment>
                 ))}

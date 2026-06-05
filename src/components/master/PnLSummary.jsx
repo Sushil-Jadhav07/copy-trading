@@ -3,7 +3,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
 import { useMasterAnalytics, useMasterTradePnl } from '@/hooks/useMaster';
-import { formatCurrency } from '@/lib/utils';
+import { formatCompactINR, formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const PnLSummary = () => {
@@ -15,9 +15,11 @@ const PnLSummary = () => {
   const totalPnLFromSummary = Number(summary.totalRealisedPnl || 0) + Number(summary.totalUnrealisedPnl || 0);
   const totalPnL = totalPnLFromSummary || monthlyPnL.reduce((sum, m) => sum + Number(m.netPnL || 0), 0);
   const totalTrades = Number(summary.totalTrades || 0) || monthlyPnL.reduce((sum, m) => sum + Number(m.trades || 0), 0);
-  const avgWinRate = Number(summary.winRate || 0) || (monthlyPnL.length
-    ? monthlyPnL.reduce((sum, m) => sum + (m.winRate || 0), 0) / monthlyPnL.length
-    : 0);
+  const avgWinRate = Number(summary.winRate || 0) || (() => {
+    const totalMonthlyTrades = monthlyPnL.reduce((sum, m) => sum + Number(m.trades || 0), 0);
+    if (!totalMonthlyTrades) return 0;
+    return monthlyPnL.reduce((sum, m) => sum + Number(m.winRate || 0) * Number(m.trades || 0), 0) / totalMonthlyTrades;
+  })();
 
   useEffect(() => {
     if (tradePnlError) addToast(tradePnlError, 'error');
@@ -32,11 +34,7 @@ const PnLSummary = () => {
       header: 'Net P&L',
       accessor: 'netPnL',
       cell: (row) => (
-        <span
-          className={`font-medium ${
-            row.netPnL >= 0 ? 'text-success' : 'text-danger'
-          }`}
-        >
+        <span className={`font-medium ${row.netPnL >= 0 ? 'text-success' : 'text-danger'}`}>
           {row.netPnL >= 0 ? '+' : ''}
           {formatCurrency(row.netPnL)}
         </span>
@@ -54,15 +52,10 @@ const PnLSummary = () => {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         <GlassCard>
           <p className="text-sm text-muted-foreground">Total Net P&L</p>
-          <p
-            className={`text-2xl font-bold ${
-              totalPnL >= 0 ? 'text-success' : 'text-danger'
-            }`}
-          >
+          <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-success' : 'text-danger'}`}>
             {totalPnL >= 0 ? '+' : ''}
             {formatCurrency(totalPnL)}
           </p>
@@ -98,18 +91,16 @@ const PnLSummary = () => {
         </GlassCard>
       </div>
 
-      {/* Monthly Chart */}
       <GlassCard title="Monthly P&L">
         <BarChart
           data={monthlyPnL}
           xKey="month"
           yKey="netPnL"
           height={300}
-          yAxisFormatter={(val) => `₹${val / 1000}K`}
+          yAxisFormatter={formatCompactINR}
         />
       </GlassCard>
 
-      {/* Breakdown Table */}
       <GlassCard title="Monthly Breakdown">
         <DataTable
           columns={columns}

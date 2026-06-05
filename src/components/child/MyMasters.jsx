@@ -16,7 +16,11 @@ import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
-const clampMultiplier = (value) => Math.min(10, Math.max(0.01, Number(value) || 1));
+const clampMultiplier = (value) => {
+  const n = Number(value);
+  const safe = value === null || value === undefined || value === '' ? 1 : n;
+  return Math.min(10, Math.max(0.01, Number.isFinite(safe) ? safe : 1));
+};
 const clampPriceTolerance = (value) => Math.min(10, Math.max(0, Number(value) || 0));
 const normalizeStatus = (status) => String(status || 'INACTIVE').toUpperCase();
 

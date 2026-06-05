@@ -10,16 +10,22 @@ import {
   WifiOff,
   CheckCircle2,
   AlertTriangle,
-  Info,
+  CalendarDays,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
 import { formatCurrency } from '@/lib/utils';
+
+const DATE_FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
 
 const normalizeSymbol = (value = '') =>
   String(value || '')
@@ -34,6 +40,7 @@ const isOptionSymbol = (value = '') =>
 const getSymbol = (item = {}) => item.symbol || item.instrument || item.tradingSymbol || '';
 
 const isOptionRecord = (item = {}) => {
+  if (item.isOption === true) return true;
   const symbol = getSymbol(item);
   if (isOptionSymbol(symbol)) return true;
 
@@ -58,25 +65,75 @@ const toMs = (value) => {
   return Number.isFinite(ms) ? ms : 0;
 };
 
-const formatTime = (value) => {
-  if (!value) return '-';
+const getTradeTimestamp = (trade = {}) =>
+  trade.childPlacedAt || trade.createdAt || trade.masterPlacedAt || trade.time || null;
+
+const getTradeTypeLabel = (trade = {}) => {
+  const instrumentType = String(
+    trade.instrumentType ||
+    trade.raw?.instrumentType ||
+    trade.raw?.instrument_type ||
+    ''
+  ).toUpperCase();
+
+  if (instrumentType) return instrumentType;
+  if (trade.isOption === true || trade.raw?.isOption === true) return 'OPTION';
+  if (trade.isFuture === true || trade.raw?.isFuture === true) return 'FUTURE';
+  return '—';
+};
+
+const getTradeClassLabel = (trade = {}) => {
+  if (trade.isOption === true || trade.raw?.isOption === true) return 'OPTION';
+  if (trade.isFuture === true || trade.raw?.isFuture === true) return 'FUTURE';
+  return '—';
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '—';
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '-';
+  if (!Number.isFinite(date.getTime())) return '—';
   return date.toLocaleString('en-IN', {
     day: '2-digit',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
     hour12: false,
-  });
+  }) + `.${String(date.getMilliseconds()).padStart(3, '0')}`;
 };
 
-const formatReason = (value) => {
-  if (!value) return '-';
-  return String(value)
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+const matchesDateFilter = (value, filterKey) => {
+  const date = new Date(value || '');
+  if (!Number.isFinite(date.getTime())) return false;
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (filterKey === 'today') {
+    return date >= startOfToday;
+  }
+
+  if (filterKey === 'yesterday') {
+    const start = new Date(startOfToday);
+    start.setDate(start.getDate() - 1);
+    return date >= start && date < startOfToday;
+  }
+
+  if (filterKey === 'week') {
+    const day = startOfToday.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const weekStart = new Date(startOfToday);
+    weekStart.setDate(weekStart.getDate() - diff);
+    return date >= weekStart;
+  }
+
+  if (filterKey === 'month') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return date >= monthStart;
+  }
+
+  return true;
 };
 
 const getSideClass = (side) => {
@@ -92,7 +149,7 @@ const getStatusMeta = (status) => {
     return {
       className: 'bg-emerald-500/10 text-emerald-500',
       icon: CheckCircle2,
-      label: value || 'EXECUTED',
+      label: value || 'SUCCESS',
     };
   }
   if (['SKIPPED', 'FAILED', 'REJECTED', 'ERROR'].includes(value)) {
@@ -119,6 +176,7 @@ const ChildOptionsStatus = () => {
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [trades, setTrades] = useState([]);
+  const [dateFilter, setDateFilter] = useState('today');
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -196,8 +254,9 @@ const ChildOptionsStatus = () => {
     () =>
       trades
         .filter((item) => isOptionRecord(item))
-        .sort((a, b) => toMs(b.childPlacedAt || b.createdAt) - toMs(a.childPlacedAt || a.createdAt)),
-    [trades],
+        .filter((item) => matchesDateFilter(getTradeTimestamp(item), dateFilter))
+        .sort((a, b) => toMs(getTradeTimestamp(b)) - toMs(getTradeTimestamp(a))),
+    [trades, dateFilter],
   );
 
   const totalOpenQty = optionPositions.reduce((sum, item) => sum + Number(item.qty || 0), 0);
@@ -209,7 +268,7 @@ const ChildOptionsStatus = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Options Status</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Track child option positions, order flow, and copied option executions.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Track child option positions and copied option executions.</p>
         </div>
         <div className="flex items-center gap-2">
           {accounts.length > 1 && (
@@ -275,7 +334,7 @@ const ChildOptionsStatus = () => {
         <GlassCard>
           <div className="mb-2 flex items-center gap-2">
             <BarChart2 className="h-4 w-4 text-brand-teal" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Taken Option Trades</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Filtered Option Trades</p>
           </div>
           <p className="text-xl font-black">{optionTrades.length}</p>
         </GlassCard>
@@ -291,15 +350,35 @@ const ChildOptionsStatus = () => {
         </GlassCard>
       </div>
 
-      <GlassCard title="Taken Option Trades" subtitle="Option trades copied into your child broker account">
+      <GlassCard title="Taken Option Trades" subtitle="Only the necessary copied option trade fields">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-black/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground dark:bg-white/5">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Date Filter
+          </div>
+          {DATE_FILTERS.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setDateFilter(item.key)}
+              className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                dateFilter === item.key
+                  ? 'bg-brand-purple text-white'
+                  : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
-          <SkeletonLoader type="table" rows={6} columns={13} />
+          <SkeletonLoader type="table" rows={6} columns={8} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px]">
+            <table className="w-full min-w-[1080px]">
               <thead>
                 <tr className="border-b border-border/40">
-                  {['#', 'Instrument', 'Group', 'Side', 'Qty', 'Master Qty', 'Child Qty', 'Status', 'Child Status', 'Master Status', 'Skip/Failure', 'Latency', 'Time'].map((header) => (
+                  {['#', 'Symbol', 'Type', 'Side', 'Qty', 'Status', 'Order ID', 'Latency', 'Date & Time'].map((header) => (
                     <th key={header} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       {header}
                     </th>
@@ -319,26 +398,26 @@ const ChildOptionsStatus = () => {
                     <td className="px-4 py-3">
                       <div className="space-y-0.5">
                         <p className="text-sm font-bold">{trade.symbol || '-'}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {trade.instrumentType || '-'}
-                          {' '}
-                          {trade.isOption ? 'Option' : trade.isFuture ? 'Future' : ''}
-                          {trade.copyGroupId ? ` · ${trade.copyGroupId.slice(0, 8)}` : ''}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>{trade.copyGroupId ? trade.copyGroupId.slice(0, 8) : '—'}</span>
+                          <span className="rounded-full border border-border/40 px-2 py-0.5 font-semibold uppercase tracking-wide text-foreground/80">
+                            {getTradeClassLabel(trade)}
+                          </span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{trade.copyGroupId || '-'}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">
+                      {getTradeTypeLabel(trade)}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex min-w-[3.75rem] items-center justify-center rounded px-2 py-1 text-[10px] font-black tracking-wide ${getSideClass(trade.side)}`}>
                         {trade.side || 'UNKNOWN'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.qty ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.masterQty ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.childQty ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm font-semibold">{trade.childQty ?? trade.qty ?? '—'}</td>
                     <td className="px-4 py-3">
                       {(() => {
-                        const meta = getStatusMeta(trade.status);
+                        const meta = getStatusMeta(trade.childStatus || trade.status);
                         const StatusIcon = meta.icon;
                         return (
                           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
@@ -348,66 +427,19 @@ const ChildOptionsStatus = () => {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const meta = getStatusMeta(trade.childStatus);
-                        const StatusIcon = meta.icon;
-                        return (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {meta.label}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const meta = getStatusMeta(trade.masterStatus);
-                        const StatusIcon = meta.icon;
-                        return (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {meta.label}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-[11px] text-muted-foreground">
-                      {(() => {
-                        const reason = formatReason(trade.skipReason || trade.failureReason);
-                        const tooltipParts = [reason !== '-' ? reason : '', trade.errorMessage || ''].filter(Boolean);
-                        const tooltip = tooltipParts.length ? tooltipParts.join(' | ') : 'No skip or failure reason';
-                        return (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm ring-1 ring-black/5 dark:bg-white/95"
-                                  aria-label={tooltip}
-                                >
-                                  <Info className="h-3 w-3" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="max-w-[240px] text-xs font-medium">
-                                {tooltip}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      })()}
-                    </td>
+                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{trade.childBrokerOrderId || trade.orderId || '—'}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {trade.latencyMs != null ? `${trade.latencyMs} ms` : '-'}
+                      {trade.latencyMs != null ? `${trade.latencyMs} ms` : '—'}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-[10px] text-muted-foreground">
-                      {formatTime(trade.childPlacedAt || trade.createdAt)}
+                    <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                      {formatDateTime(getTradeTimestamp(trade))}
                     </td>
                   </motion.tr>
                 ))}
                 {optionTrades.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No taken option trades found for this account
+                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      No option trades found for the selected date range
                     </td>
                   </tr>
                 )}

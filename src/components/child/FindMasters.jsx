@@ -10,7 +10,7 @@ import { useChildMasters, useChildSubscriptions } from '@/hooks/useChild';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
 import { engineService } from '@/lib/engine';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, formatPercent } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
@@ -75,13 +75,13 @@ const FindMasters = () => {
       id: m.id || m.masterId,
       name: m.name || m.masterName || 'Unknown',
       initials: (m.name || m.masterName || 'UN').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
-      winRate: m.winRate || m.win_rate || 0,
+      winRate: m.winRate ?? m.win_rate ?? null,
       totalTrades: m.totalTrades || m.tradeCount || 0,
       avgPnl: m.avgPnl || 0,
       subscribers: m.subscribers || m.followerCount || 0,
       followers: m.subscribers || m.followers || m.followerCount || 0,
-      return30d: m.return30d || 0,
-      returnYTD: m.returnYTD || 0,
+      return30d: m.return30d ?? null,
+      returnYTD: m.returnYTD ?? null,
       riskLevel: m.riskLevel || 'Medium',
       bestTrade: m.bestTrade || 'N/A',
       worstTrade: m.worstTrade || 'N/A',
@@ -343,7 +343,7 @@ const FindMasters = () => {
 
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-1.5 mb-3">
-                    {[['30D Return', `${master.return30d > 0 ? '+' : ''}${master.return30d}%`, master.return30d >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Win Rate', `${master.winRate}%`, ''], ['YTD', `${master.returnYTD > 0 ? '+' : ''}${master.returnYTD}%`, master.returnYTD >= 0 ? 'text-emerald-500' : 'text-red-500']].map(([k, v, c]) => (
+                    {[['30D Return', master.return30d != null ? `${master.return30d > 0 ? '+' : ''}${formatPercent(master.return30d)}` : '—', master.return30d == null ? 'text-muted-foreground' : master.return30d >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Win Rate', formatPercent(master.winRate), master.winRate == null ? 'text-muted-foreground' : ''], ['YTD', master.returnYTD != null ? `${master.returnYTD > 0 ? '+' : ''}${formatPercent(master.returnYTD)}` : '—', master.returnYTD == null ? 'text-muted-foreground' : master.returnYTD >= 0 ? 'text-emerald-500' : 'text-red-500']].map(([k, v, c]) => (
                       <div key={k} className="p-2 bg-black/4 dark:bg-white/4 rounded-lg text-center">
                         <p className="text-[10px] text-muted-foreground">{k}</p>
                         <p className={`text-xs font-bold mt-0.5 ${c}`}>{v}</p>
@@ -396,7 +396,7 @@ const FindMasters = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {[['30D Return', `${selectedMaster.return30d > 0 ? '+' : ''}${selectedMaster.return30d}%`, selectedMaster.return30d >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Win Rate', `${selectedMaster.winRate}%`, ''], ['YTD', `${selectedMaster.returnYTD > 0 ? '+' : ''}${selectedMaster.returnYTD}%`, selectedMaster.returnYTD >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Total Trades', formatNumber(selectedMaster.totalTrades), ''], ['Best Trade', selectedMaster.bestTrade, 'text-emerald-500'], ['Worst Trade', selectedMaster.worstTrade, 'text-red-500']].map(([k, v, c]) => (
+              {[['30D Return', selectedMaster.return30d != null ? `${selectedMaster.return30d > 0 ? '+' : ''}${formatPercent(selectedMaster.return30d)}` : '—', selectedMaster.return30d == null ? 'text-muted-foreground' : selectedMaster.return30d >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Win Rate', formatPercent(selectedMaster.winRate), selectedMaster.winRate == null ? 'text-muted-foreground' : ''], ['YTD', selectedMaster.returnYTD != null ? `${selectedMaster.returnYTD > 0 ? '+' : ''}${formatPercent(selectedMaster.returnYTD)}` : '—', selectedMaster.returnYTD == null ? 'text-muted-foreground' : selectedMaster.returnYTD >= 0 ? 'text-emerald-500' : 'text-red-500'], ['Total Trades', formatNumber(selectedMaster.totalTrades), ''], ['Best Trade', selectedMaster.bestTrade, 'text-emerald-500'], ['Worst Trade', selectedMaster.worstTrade, 'text-red-500']].map(([k, v, c]) => (
                 <div key={k} className="p-3 bg-black/4 dark:bg-white/4 rounded-lg border border-border/30">
                   <p className="text-xs text-muted-foreground">{k}</p>
                   <p className={`font-bold mt-0.5 text-sm ${c}`}>{v}</p>

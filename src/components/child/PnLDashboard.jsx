@@ -7,6 +7,8 @@ import { useChildAnalytics, useChildCopiedTrades, useChildSubscriptions } from '
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
+const PAISA_THRESHOLD = 0.01;
+
 const fmtDate = (raw) => {
   if (!raw) return '-';
   const dt = new Date(raw);
@@ -20,11 +22,16 @@ const safeNum = (v) => {
 };
 
 const metricCard = (icon, value, label) => ({ icon, value, label });
+const pnlClass = (value, label) => {
+  if (label === 'Win Rate' || label === 'Total Copied Trades') return 'text-foreground';
+  if (Math.abs(Number(value) || 0) < PAISA_THRESHOLD) return 'text-muted-foreground';
+  return Number(value) > 0 ? 'text-success' : 'text-danger';
+};
 
 const PnLDashboard = () => {
   const { analytics, loading, error } = useChildAnalytics();
   const { trades } = useChildCopiedTrades();
-  const { subscriptions } = useChildSubscriptions();
+  useChildSubscriptions();
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -45,7 +52,7 @@ const PnLDashboard = () => {
   const copiedPnl = safeNum(analytics.copiedPnL ?? analytics.totalPnL);
   const personalPnl = safeNum(analytics.personalPnL);
   const realizedPnl = copiedPnl;
-  const unrealizedPnl = Math.max(0, totalPnl - realizedPnl);
+  const unrealizedPnl = totalPnl - realizedPnl;
   const winRate = safeNum(analytics.winRate);
   const totalCopiedTrades = safeNum(analytics.copiedTrades ?? trades.length);
 
@@ -93,8 +100,8 @@ const PnLDashboard = () => {
       }
       const row = map.get(t.instrument);
       row.totalTrades += 1;
-      if (t.pnl >= 0) row.wins += 1;
-      row.totalPnl += t.pnl;
+      if (t.pnl >= PAISA_THRESHOLD) row.wins += 1;
+      row.totalPnl = Math.round((row.totalPnl + t.pnl) * 100) / 100;
     });
 
     return Array.from(map.values()).map((r) => ({
@@ -120,7 +127,7 @@ const PnLDashboard = () => {
       <GlassCard>
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground mb-2">Total P&L This Month</p>
-          <p className={`text-5xl font-black ${totalPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+          <p className={`text-5xl font-black ${pnlClass(totalPnl, 'Total P&L This Month')}`}>
             {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
           </p>
         </div>
@@ -131,7 +138,7 @@ const PnLDashboard = () => {
           <GlassCard key={m.label}>
             <div className="text-center py-2">
               <m.icon className="w-5 h-5 mx-auto text-success mb-2" />
-              <p className={`text-3xl font-black ${m.label === 'Win Rate' ? 'text-success' : m.value >= 0 ? 'text-success' : 'text-danger'}`}>
+              <p className={`text-3xl font-black ${pnlClass(m.value, m.label)}`}>
                 {m.label === 'Win Rate' ? `${Math.round(m.value)}%` : m.label === 'Total Copied Trades' ? Math.round(m.value) : `${m.value >= 0 ? '+' : ''}${formatCurrency(m.value)}`}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{m.label}</p>
@@ -237,10 +244,10 @@ const PnLDashboard = () => {
                   <td className="px-4 py-3 font-semibold">{r.instrument}</td>
                   <td className="px-4 py-3">{r.totalTrades}</td>
                   <td className="px-4 py-3">{r.winRate}%</td>
-                  <td className={`px-4 py-3 ${r.totalPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                  <td className={`px-4 py-3 ${pnlClass(r.totalPnl, 'Total P&L')}`}>
                     {r.totalPnl >= 0 ? '+' : ''}{formatCurrency(r.totalPnl)}
                   </td>
-                  <td className={`px-4 py-3 ${r.avgPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                  <td className={`px-4 py-3 ${pnlClass(r.avgPnl, 'Avg P&L/Trade')}`}>
                     {r.avgPnl >= 0 ? '+' : ''}{formatCurrency(r.avgPnl)}
                   </td>
                 </tr>

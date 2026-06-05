@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { TrendingUp, Users, Percent, IndianRupee, Zap } from 'lucide-react';
 import StatCard from '@/components/shared/StatCard';
 import GlassCard from '@/components/shared/GlassCard';
 import DataTable from '@/components/shared/DataTable';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPnl } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren, useMasterTradePnl } from '@/hooks/useMaster';
 import { useAuth } from '@/context/AuthContext';
@@ -22,6 +22,7 @@ const Overview = () => {
   const { user } = useAuth();
   const [openPositions, setOpenPositions] = useState([]);
   const [positionsLoading, setPositionsLoading] = useState(false);
+  const [positionsError, setPositionsError] = useState(null);
   const { analytics, error: analyticsError } = useMasterAnalytics();
   const { tradePnl } = useMasterTradePnl();
   const { trades: recentTrades, loading: tradesLoading, error: tradesError } = useMasterTradeHistory();
@@ -33,40 +34,49 @@ const Overview = () => {
     if (tradesError) addToast(tradesError, 'error');
   }, [analyticsError, tradesError, addToast]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadOpenPositions = async () => {
-      setPositionsLoading(true);
-      try {
-        const [accounts, active] = await Promise.all([
-          brokerService.getAccounts(),
-          masterService.getActiveAccount().catch(() => null),
-        ]);
-        const activeId = active?.brokerAccountId || active?.accountId;
-        const selectedId = activeId || accounts[0]?.accountId || accounts[0]?.id;
-        if (!selectedId) {
-          if (isMounted) setOpenPositions([]);
-          return;
-        }
-        const positions = await brokerService.getPositions(selectedId);
-        if (isMounted) setOpenPositions(Array.isArray(positions) ? positions : []);
-      } catch {
-        if (isMounted) setOpenPositions([]);
-      } finally {
-        if (isMounted) setPositionsLoading(false);
+  const loadOpenPositions = useCallback(async (mountedRef) => {
+    setPositionsLoading(true);
+    setPositionsError(null);
+    try {
+      const [accounts, active] = await Promise.all([
+        brokerService.getAccounts(),
+        masterService.getActiveAccount().catch(() => null),
+      ]);
+      const activeId = active?.brokerAccountId || active?.accountId;
+      const selectedId = activeId || accounts[0]?.accountId || accounts[0]?.id;
+      if (!selectedId) {
+        if (mountedRef.current) setOpenPositions([]);
+        return;
       }
-    };
-    loadOpenPositions();
+      const positions = await brokerService.getPositions(selectedId);
+      if (mountedRef.current) setOpenPositions(Array.isArray(positions) ? positions : []);
+    } catch (error) {
+      if (mountedRef.current) {
+        setOpenPositions([]);
+        setPositionsError(error.message || 'Failed to load positions');
+        addToast(error.message || 'Failed to load positions', 'error');
+      }
+    } finally {
+      if (mountedRef.current) setPositionsLoading(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    const mountedRef = { current: true };
+    loadOpenPositions(mountedRef);
     return () => {
-      isMounted = false;
+      mountedRef.current = false;
     };
-  }, []);
+  }, [loadOpenPositions]);
 
   const childrenPerformance = children.map((child, index) => ({
     id: child.id || child.childId || index,
     name: child.name || child.childName || 'Unknown',
     broker: formatBrokerName(child.broker || child.brokerName),
-    scaling: Number(child.multiplier || 1),
+    scaling: (() => {
+      const n = Number(child.multiplier);
+      return Number.isFinite(n) ? n : 1;
+    })(),
     pnl: Number(child.pnlToday ?? child.pnl ?? child.totalPnL ?? 0),
     status: String(child.status || (child.tradingEnabled ? 'ACTIVE' : 'PAUSED')).toUpperCase(),
   }));
@@ -103,7 +113,7 @@ const Overview = () => {
         <StatCard title="Today's P&L" value={todaysPnl} isCurrency icon={IndianRupee} gradient="from-brand-blue to-brand-teal" />
         <StatCard title="Active Children" value={activeChildren} icon={Users} />
         <StatCard title="Trades Copied Today" value={tradesCopiedToday} icon={Zap} gradient="from-brand-teal to-success" />
-        <StatCard title="Copy Success Rate" value={analytics.winRate || 0} suffix="%" decimals={1} icon={Percent} gradient="from-brand-teal to-success" />
+        <StatCard title="Copy Success Rate" value={analytics.winRate ?? null} suffix="%" decimals={1} icon={Percent} gradient="from-brand-teal to-success" emptyLabel="—" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -130,7 +140,7 @@ const Overview = () => {
                     <td className="px-3 py-2 text-sm">{row.broker}</td>
                     <td className="px-3 py-2 text-sm">{row.scaling}x</td>
                     <td className={`px-3 py-2 text-sm font-medium ${row.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                      {row.pnl >= 0 ? '+' : ''}{formatCurrency(row.pnl)}
+                      {formatPnl(row.pnl)}
                     </td>
                     <td className="px-3 py-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${row.status === 'ACTIVE' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
@@ -151,7 +161,17 @@ const Overview = () => {
       </div>
 
       <GlassCard title="Open Positions">
-        {positionsLoading ? (
+        {positionsError ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-sm font-semibold text-rose-400">{positionsError}</p>
+            <button
+              onClick={() => loadOpenPositions({ current: true })}
+              className="text-xs font-black uppercase tracking-widest text-brand-purple hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        ) : positionsLoading ? (
           <SkeletonLoader type="table" rows={4} columns={9} />
         ) : (
           <div className="">
@@ -186,7 +206,7 @@ const Overview = () => {
                       <td className="px-3 py-2 text-sm">{formatCurrency(entry)}</td>
                       <td className="px-3 py-2 text-sm">{formatCurrency(current)}</td>
                       <td className={`px-3 py-2 text-sm font-semibold ${pnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                        {formatPnl(pnl)}
                       </td>
                       <td className={`px-3 py-2 text-sm font-semibold ${pnlPct >= 0 ? 'text-success' : 'text-danger'}`}>
                         {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
@@ -212,6 +232,3 @@ const Overview = () => {
 };
 
 export default Overview;
-
-
-

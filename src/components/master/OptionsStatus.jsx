@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Target, TrendingUp, Activity, BarChart2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import {
+  Target,
+  TrendingUp,
+  Activity,
+  BarChart2,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  CheckCircle2,
+  AlertTriangle,
+  CalendarDays,
+} from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
@@ -8,6 +19,13 @@ import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
+
+const DATE_FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
 
 const normalizeSymbol = (value = '') =>
   String(value || '')
@@ -20,7 +38,9 @@ const isOptionSymbol = (value = '') =>
   /(?:\d{2}[A-Z]{3}\d+|[A-Z]+)\d+(?:CE|PE)$/.test(normalizeSymbol(value));
 
 const getSymbol = (item = {}) => item.symbol || item.instrument || item.tradingSymbol || '';
+
 const isOptionRecord = (item = {}) => {
+  if (item.isOption === true) return true;
   const symbol = getSymbol(item);
   if (isOptionSymbol(symbol)) return true;
   const exchange = String(item.exchange || item.raw?.exchange || '').toUpperCase();
@@ -33,7 +53,7 @@ const isOptionRecord = (item = {}) => {
     ''
   ).toUpperCase();
   if (exchange.includes('NFO') || exchange.includes('BFO') || exchange.includes('FO')) return true;
-  if (segment.includes('OPT') || segment.includes('OPTION')) return true;
+  if (segment.includes('OPT') || segment.includes('OPTION') || segment.includes('FNO')) return true;
   if (instrumentType.includes('OPT') || instrumentType.includes('CE') || instrumentType.includes('PE')) return true;
   return false;
 };
@@ -41,6 +61,105 @@ const isOptionRecord = (item = {}) => {
 const toMs = (value) => {
   const ms = new Date(value || '').getTime();
   return Number.isFinite(ms) ? ms : 0;
+};
+
+const getTradeTimestamp = (trade = {}) =>
+  trade.createdAt || trade.childPlacedAt || trade.time || trade.date || null;
+
+const getTradeTypeLabel = (trade = {}) => {
+  const instrumentType = String(
+    trade.instrumentType ||
+    trade.raw?.instrumentType ||
+    trade.raw?.instrument_type ||
+    ''
+  ).toUpperCase();
+
+  if (instrumentType) return instrumentType;
+  if (trade.isOption === true || trade.raw?.isOption === true) return 'OPTION';
+  if (trade.isFuture === true || trade.raw?.isFuture === true) return 'FUTURE';
+  return '—';
+};
+
+const getTradeClassLabel = (trade = {}) => {
+  if (trade.isOption === true || trade.raw?.isOption === true) return 'OPTION';
+  if (trade.isFuture === true || trade.raw?.isFuture === true) return 'FUTURE';
+  return '—';
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '—';
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }) + `.${String(date.getMilliseconds()).padStart(3, '0')}`;
+};
+
+const matchesDateFilter = (value, filterKey) => {
+  const date = new Date(value || '');
+  if (!Number.isFinite(date.getTime())) return false;
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (filterKey === 'today') return date >= startOfToday;
+
+  if (filterKey === 'yesterday') {
+    const start = new Date(startOfToday);
+    start.setDate(start.getDate() - 1);
+    return date >= start && date < startOfToday;
+  }
+
+  if (filterKey === 'week') {
+    const day = startOfToday.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const weekStart = new Date(startOfToday);
+    weekStart.setDate(weekStart.getDate() - diff);
+    return date >= weekStart;
+  }
+
+  if (filterKey === 'month') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return date >= monthStart;
+  }
+
+  return true;
+};
+
+const getSideClass = (side) => {
+  const value = String(side || '').toUpperCase();
+  if (value === 'BUY') return 'bg-emerald-500/10 text-emerald-500';
+  if (value === 'SELL') return 'bg-rose-500/10 text-rose-500';
+  return 'bg-amber-500/10 text-amber-500';
+};
+
+const getStatusMeta = (status) => {
+  const value = String(status || '').toUpperCase();
+  if (['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(value)) {
+    return {
+      className: 'bg-emerald-500/10 text-emerald-500',
+      icon: CheckCircle2,
+      label: value || 'SUCCESS',
+    };
+  }
+  if (['SKIPPED', 'FAILED', 'REJECTED', 'ERROR'].includes(value)) {
+    return {
+      className: 'bg-amber-500/10 text-amber-500',
+      icon: AlertTriangle,
+      label: value || 'SKIPPED',
+    };
+  }
+  return {
+    className: 'bg-amber-500/10 text-amber-500',
+    icon: AlertTriangle,
+    label: value || 'UNKNOWN',
+  };
 };
 
 const OptionsStatus = () => {
@@ -53,6 +172,7 @@ const OptionsStatus = () => {
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [trades, setTrades] = useState([]);
+  const [dateFilter, setDateFilter] = useState('today');
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -126,13 +246,13 @@ const OptionsStatus = () => {
     () =>
       trades
         .filter((item) => isOptionRecord(item))
-        .sort((a, b) => toMs(b.time || b.date) - toMs(a.time || a.date)),
-    [trades],
+        .filter((item) => matchesDateFilter(getTradeTimestamp(item), dateFilter))
+        .sort((a, b) => toMs(getTradeTimestamp(b)) - toMs(getTradeTimestamp(a))),
+    [trades, dateFilter],
   );
 
   const totalOpenQty = optionPositions.reduce((sum, item) => sum + Number(item.qty || 0), 0);
   const totalOptionsPnl = optionPositions.reduce((sum, item) => sum + Number(item.unrealizedPnl || item.pnl || 0), 0);
-
   const showSessionWarning = sessionActive === false;
 
   return (
@@ -140,7 +260,7 @@ const OptionsStatus = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Options Status</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Track option positions, order flow, and taken option trades for master account.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Track master option positions and executed option trades.</p>
         </div>
         <div className="flex items-center gap-2">
           {accounts.length > 1 && (
@@ -172,7 +292,7 @@ const OptionsStatus = () => {
       {sessionActive === true && (
         <div className="flex items-center gap-2 text-xs text-emerald-500">
           <Wifi className="w-3.5 h-3.5" />
-          <span>Live — reading options from {selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}</span>
+          <span>Live - reading options from {selectedAccount?.broker || 'broker'} {selectedAccount?.clientId ? `(${selectedAccount.clientId})` : ''}</span>
         </div>
       )}
 
@@ -203,7 +323,7 @@ const OptionsStatus = () => {
         <GlassCard>
           <div className="flex items-center gap-2 mb-2">
             <BarChart2 className="w-4 h-4 text-brand-teal" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Taken Option Trades</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Filtered Option Trades</p>
           </div>
           <p className="text-xl font-black">{optionTrades.length}</p>
         </GlassCard>
@@ -219,15 +339,35 @@ const OptionsStatus = () => {
         </GlassCard>
       </div>
 
-      <GlassCard title="Taken Option Trades" subtitle="Executed option trades for selected master broker account">
+      <GlassCard title="Taken Option Trades" subtitle="Only the necessary executed option trade fields">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-black/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground dark:bg-white/5">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Date Filter
+          </div>
+          {DATE_FILTERS.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setDateFilter(item.key)}
+              className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                dateFilter === item.key
+                  ? 'bg-brand-purple text-white'
+                  : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
-          <SkeletonLoader type="table" rows={6} columns={7} />
+          <SkeletonLoader type="table" rows={6} columns={8} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[980px]">
               <thead>
                 <tr className="border-b border-border/40">
-                  {['#', 'Instrument', 'Side', 'Qty', 'Latency', 'Status', 'Time'].map((h) => (
+                  {['#', 'Symbol', 'Type', 'Side', 'Qty', 'Status', 'Latency', 'Date & Time'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       {h}
                     </th>
@@ -244,30 +384,50 @@ const OptionsStatus = () => {
                     className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                   >
                     <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
-                    <td className="px-4 py-3 text-sm font-bold">{trade.symbol || trade.instrument}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${String(trade.side || trade.type || 'BUY').toUpperCase() === 'BUY' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-brand-purple/10 text-brand-purple'}`}>
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-bold">{trade.symbol || trade.instrument || '—'}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>{trade.copyGroupId ? trade.copyGroupId.slice(0, 8) : '—'}</span>
+                          <span className="rounded-full border border-border/40 px-2 py-0.5 font-semibold uppercase tracking-wide text-foreground/80">
+                            {getTradeClassLabel(trade)}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">
+                      {getTradeTypeLabel(trade)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getSideClass(trade.side || trade.type || 'BUY')}`}>
                         {trade.side || trade.type || 'BUY'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold">{trade.qty}</td>
-                    <td className="px-4 py-3 text-sm">{trade.price ? formatCurrency(trade.price) : (trade.latencyMs ? `${trade.latencyMs}ms` : '—')}</td>
+                    <td className="px-4 py-3 text-sm font-semibold">{trade.qty ?? '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        ['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(String(trade.status).toUpperCase())
-                          ? 'bg-emerald-500/10 text-emerald-500'
-                          : 'bg-rose-500/10 text-rose-500'
-                      }`}>
-                        {trade.status || 'UNKNOWN'}
-                      </span>
+                      {(() => {
+                        const meta = getStatusMeta(trade.status);
+                        const StatusIcon = meta.icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${meta.className}`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {meta.label}
+                          </span>
+                        );
+                      })()}
                     </td>
-                    <td className="px-4 py-3 text-[10px] text-muted-foreground">{trade.createdAt || trade.time || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {trade.latencyMs != null ? `${trade.latencyMs} ms` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {formatDateTime(getTradeTimestamp(trade))}
+                    </td>
                   </motion.tr>
                 ))}
                 {optionTrades.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No taken option trades found for this account
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      No option trades found for the selected date range
                     </td>
                   </tr>
                 )}

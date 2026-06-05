@@ -11,11 +11,11 @@ import {
   Pause,
   Play,
   Clock,
-  TrendingUp,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import Modal from '@/components/shared/Modal';
+import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
 import { riskService } from '@/lib/risk';
 
@@ -101,13 +101,12 @@ const getDirectionClasses = (tone, selected) => {
 
 const RiskSettings = () => {
   const { addToast } = useToast();
-  const [rules, setRules] = useState(DEFAULT_RULES);
+  const [rules, setRules] = useState(null);
   const [riskStatus, setRiskStatus] = useState({ allowed: true, reason: null });
   const [exposure, setExposure] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
-
   const [consentModal, setConsentModal] = useState(false);
   const [pendingSide, setPendingSide] = useState(null);
   const [consentChecked, setConsentChecked] = useState(false);
@@ -116,18 +115,20 @@ const RiskSettings = () => {
     setLoading(true);
     try {
       const [rulesResponse, statusResponse, exposureResponse, fullStatusResponse] = await Promise.all([
-        riskService.getRules().catch(() => DEFAULT_RULES),
+        riskService.getRules().catch(() => null),
         riskService.checkRisk().catch(() => ({ allowed: true, reason: null })),
         riskService.getExposure().catch(() => null),
         riskService.getStatus().catch(() => null),
       ]);
 
-      setRules({
+      const mergedRules = {
         ...DEFAULT_RULES,
-        ...rulesResponse,
+        ...(rulesResponse || {}),
         marginCheckEnabled: Boolean(rulesResponse?.marginCheckEnabled ?? DEFAULT_RULES.marginCheckEnabled),
-        allowedSides: rulesResponse?.allowedSides || 'BUY_ONLY',
-      });
+        allowedSides: rulesResponse?.allowedSides || DEFAULT_RULES.allowedSides,
+      };
+
+      setRules(mergedRules);
       setRiskStatus({
         allowed: Boolean((fullStatusResponse ?? statusResponse)?.allowed ?? true),
         reason: (fullStatusResponse ?? statusResponse)?.reason || null,
@@ -157,18 +158,18 @@ const RiskSettings = () => {
   useEffect(() => { load(); }, []);
 
   const updateField = (field, value) => {
-    setRules((prev) => ({ ...prev, [field]: value }));
+    setRules((prev) => ({ ...(prev || DEFAULT_RULES), [field]: value }));
   };
 
   const handleSideSelect = (value) => {
-    const option = COPY_DIRECTION_OPTIONS.find((o) => o.value === value);
-    if (option?.requiresConsent && value !== rules.allowedSides) {
+    const option = COPY_DIRECTION_OPTIONS.find((item) => item.value === value);
+    if (option?.requiresConsent && value !== rules?.allowedSides) {
       setPendingSide(value);
       setConsentChecked(false);
       setConsentModal(true);
-    } else {
-      updateField('allowedSides', value);
+      return;
     }
+    updateField('allowedSides', value);
   };
 
   const confirmConsent = () => {
@@ -216,8 +217,8 @@ const RiskSettings = () => {
       await riskService.pauseCopying({ reason: 'Manual pause via Risk Settings' });
       setRiskStatus((prev) => ({ ...prev, copyPaused: true }));
       addToast('Copy trading paused', 'success');
-    } catch (e) {
-      addToast(e.message || 'Failed to pause', 'error');
+    } catch (error) {
+      addToast(error.message || 'Failed to pause', 'error');
     }
   };
 
@@ -226,12 +227,13 @@ const RiskSettings = () => {
       await riskService.resumeCopying();
       setRiskStatus((prev) => ({ ...prev, copyPaused: false, pausedUntil: null }));
       addToast('Copy trading resumed', 'success');
-    } catch (e) {
-      addToast(e.message || 'Failed to resume', 'error');
+    } catch (error) {
+      addToast(error.message || 'Failed to resume', 'error');
     }
   };
 
   const saveRules = async () => {
+    if (!rules) return;
     setSaving(true);
     try {
       const payload = {
@@ -252,7 +254,19 @@ const RiskSettings = () => {
     }
   };
 
-  const currentSideOption = COPY_DIRECTION_OPTIONS.find((option) => option.value === (rules.allowedSides || 'BUY_ONLY')) || COPY_DIRECTION_OPTIONS[0];
+  if (loading && rules === null) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Risk Settings</h1>
+        </div>
+        <SkeletonLoader type="card" count={3} />
+      </div>
+    );
+  }
+
+  const currentRules = rules || DEFAULT_RULES;
+  const currentSideOption = COPY_DIRECTION_OPTIONS.find((option) => option.value === (currentRules.allowedSides || 'BUY_ONLY')) || COPY_DIRECTION_OPTIONS[0];
   const statusTone = riskStatus.allowed ? 'emerald' : 'rose';
   const statusClasses = riskStatus.allowed
     ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500'
@@ -267,17 +281,17 @@ const RiskSettings = () => {
     {
       label: 'Exposure Used',
       value: `${Number(exposure?.exposurePercent || 0).toFixed(1)}%`,
-      sub: `limit ${rules.maxCapitalExposure}%`,
+      sub: `limit ${currentRules.maxCapitalExposure}%`,
     },
     {
       label: 'Open Positions',
       value: String(exposure?.openPositions || 0),
-      sub: `limit ${rules.maxOpenPositions}`,
+      sub: `limit ${currentRules.maxOpenPositions}`,
     },
     {
       label: 'Trades Today',
       value: String(exposure?.tradesPlacedToday || 0),
-      sub: `limit ${rules.maxTradesPerDay}`,
+      sub: `limit ${currentRules.maxTradesPerDay}`,
     },
   ];
 
@@ -302,7 +316,6 @@ const RiskSettings = () => {
               {riskStatus.allowed ? 'Risk OK' : 'Limit Reached'}
             </span>
           </div>
-          {/* Pause / Resume buttons */}
           {riskStatus.copyPaused ? (
             <button
               onClick={handleResumeCopying}
@@ -331,7 +344,6 @@ const RiskSettings = () => {
         </div>
       </div>
 
-      {/* Red banner for blocked or margin issues */}
       {(riskStatus.marginBlocked || !riskStatus.allowed) && (
         <div className="flex items-start gap-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -386,65 +398,55 @@ const RiskSettings = () => {
             </div>
           </div>
 
-          {loading ? (
-            <div className="p-6">
-              <div className="space-y-4">
-                {[1, 2, 3].map((item) => (
-                  <div key={item} className="h-28 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 p-5">
-              {FIELD_CONFIG.map((field) => {
-                const progress = getProgress(rules[field.key], field.min, field.max);
+          <div className="space-y-4 p-5">
+            {FIELD_CONFIG.map((field) => {
+              const progress = getProgress(currentRules[field.key], field.min, field.max);
 
-                return (
-                  <div key={field.key} className="rounded-2xl border border-border/50 bg-background/40 p-4">
-                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-sm font-black">{field.label}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{field.helper}</p>
-                      </div>
-                      <div className="flex items-center gap-2 self-start">
-                        <input
-                          type="number"
-                          min={field.min}
-                          max={field.max}
-                          value={rules[field.key] ?? ''}
-                          onChange={(event) => updateField(field.key, event.target.value)}
-                          className="h-10 w-24 rounded-xl border border-border bg-black/5 px-3 text-right text-sm font-black tabular-nums focus:border-brand-purple focus:outline-none dark:bg-white/5"
-                        />
-                        <span className="w-16 text-[10px] font-black uppercase tracking-widest text-muted-foreground">{field.suffix}</span>
-                      </div>
+              return (
+                <div key={field.key} className="rounded-2xl border border-border/50 bg-background/40 p-4">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-black">{field.label}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{field.helper}</p>
                     </div>
-
-                    <div className="space-y-2">
+                    <div className="flex items-center gap-2 self-start">
                       <input
-                        type="range"
+                        type="number"
                         min={field.min}
                         max={field.max}
-                        value={rules[field.key] ?? field.min}
-                        onChange={(event) => updateField(field.key, Number(event.target.value))}
-                        className="w-full accent-brand-purple"
+                        value={currentRules?.[field.key] ?? ''}
+                        onChange={(event) => updateField(field.key, event.target.value)}
+                        className="h-10 w-24 rounded-xl border border-border bg-black/5 px-3 text-right text-sm font-black tabular-nums focus:border-brand-purple focus:outline-none dark:bg-white/5"
                       />
-                      <div className="h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-brand-purple"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        <span>{field.min}</span>
-                        <span>{Math.round(progress)}%</span>
-                        <span>{field.max}</span>
-                      </div>
+                      <span className="w-16 text-[10px] font-black uppercase tracking-widest text-muted-foreground">{field.suffix}</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  <div className="space-y-2">
+                    <input
+                      type="range"
+                      min={field.min}
+                      max={field.max}
+                      value={currentRules?.[field.key] ?? field.min}
+                      onChange={(event) => updateField(field.key, Number(event.target.value))}
+                      className="w-full accent-brand-purple"
+                    />
+                    <div className="h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-brand-purple"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <span>{field.min}</span>
+                      <span>{Math.round(progress)}%</span>
+                      <span>{field.max}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </GlassCard>
 
         <div className="space-y-6">
@@ -460,8 +462,8 @@ const RiskSettings = () => {
                 </div>
               </div>
               <ToggleSwitch
-                checked={Boolean(rules.marginCheckEnabled)}
-                onChange={() => updateField('marginCheckEnabled', !rules.marginCheckEnabled)}
+                checked={Boolean(currentRules.marginCheckEnabled)}
+                onChange={() => updateField('marginCheckEnabled', !currentRules.marginCheckEnabled)}
                 showStateText
               />
             </div>
@@ -483,7 +485,7 @@ const RiskSettings = () => {
 
             <div className="grid gap-3">
               {COPY_DIRECTION_OPTIONS.map((option) => {
-                const isSelected = (rules.allowedSides || 'BUY_ONLY') === option.value;
+                const isSelected = (currentRules.allowedSides || 'BUY_ONLY') === option.value;
                 return (
                   <button
                     key={option.value}
@@ -509,7 +511,7 @@ const RiskSettings = () => {
               })}
             </div>
 
-            {(rules.allowedSides === 'SELL_ONLY' || rules.allowedSides === 'BOTH') && (
+            {(currentRules.allowedSides === 'SELL_ONLY' || currentRules.allowedSides === 'BOTH') && (
               <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <p className="text-xs font-medium leading-relaxed text-amber-600 dark:text-amber-400">
@@ -531,13 +533,13 @@ const RiskSettings = () => {
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Margin Check</span>
-                <span className={rules.marginCheckEnabled ? 'font-black text-emerald-500' : 'font-black text-muted-foreground'}>
-                  {rules.marginCheckEnabled ? 'Enabled' : 'Disabled'}
+                <span className={currentRules.marginCheckEnabled ? 'font-black text-emerald-500' : 'font-black text-muted-foreground'}>
+                  {currentRules.marginCheckEnabled ? 'Enabled' : 'Disabled'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Capital Limit</span>
-                <span className="font-black">{rules.maxCapitalExposure}%</span>
+                <span className="font-black">{currentRules.maxCapitalExposure}%</span>
               </div>
             </div>
           </GlassCard>
@@ -552,7 +554,7 @@ const RiskSettings = () => {
           </div>
           <button
             onClick={saveRules}
-            disabled={saving || loading}
+            disabled={saving || loading || rules === null}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-3 text-xs font-black uppercase tracking-widest text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             <Save className="h-4 w-4" />

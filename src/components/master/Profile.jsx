@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/lib/auth';
 import { userProfileService } from '@/lib/userProfile';
 import TelegramSettings from '@/components/shared/TelegramSettings';
+import { formatDuration } from '@/lib/utils';
 
 const Profile = () => {
   const { addToast } = useToast();
@@ -380,11 +381,11 @@ const Profile = () => {
           <div className="space-y-3">
             {user.brokerAccounts.map((account) => {
               const tokenExpiresAt = account.tokenExpiresAt || account.expiresAt;
-              const expiresInHours = tokenExpiresAt
-                ? Math.round((new Date(tokenExpiresAt).getTime() - Date.now()) / 3600000)
+              const expiresInHoursRaw = tokenExpiresAt
+                ? (new Date(tokenExpiresAt).getTime() - Date.now()) / 3600000
                 : null;
-              const isExpired = expiresInHours !== null && expiresInHours < 0;
-              const isExpiringSoon = expiresInHours !== null && expiresInHours >= 0 && expiresInHours < 24;
+              const isExpired = expiresInHoursRaw !== null && expiresInHoursRaw < 0;
+              const isExpiringSoon = expiresInHoursRaw !== null && expiresInHoursRaw >= 0 && expiresInHoursRaw < 24;
               const sessionActive = account.sessionActive ?? account.isActive ?? false;
 
               return (
@@ -413,7 +414,7 @@ const Profile = () => {
                       </span>
                     ) : isExpiringSoon ? (
                       <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-500">
-                        Expires in {expiresInHours}h
+                        Expires in {formatDuration(expiresInHoursRaw)}
                       </span>
                     ) : sessionActive ? (
                       <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-500">
@@ -950,7 +951,7 @@ const Profile = () => {
 
                     {acc.tokenExpiresInHours != null && !acc.isTokenExpired && (
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        Session expires in {acc.tokenExpiresInHours}h
+                        Session expires in {formatDuration(Number(acc.tokenExpiresInHours))}
                         {acc.lastSyncedAt && ` · Synced ${new Date(acc.lastSyncedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
                       </p>
                     )}

@@ -188,7 +188,7 @@ const TradeTimeline = () => {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
-  const [datePreset, setDatePreset] = useState('today');
+  const [datePreset, setDatePreset] = useState('7d');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -300,7 +300,7 @@ const TradeTimeline = () => {
   }, [filteredTrades]);
 
   const clearFilters = () => {
-    setDatePreset('today');
+    setDatePreset('7d');
     setCustomFrom('');
     setCustomTo('');
     setStatusFilter('ALL');
@@ -480,13 +480,25 @@ const TradeTimeline = () => {
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
               <Search className="h-7 w-7 text-muted-foreground/30" />
             </div>
-            <h3 className="text-base font-bold uppercase tracking-tight">No Matching Trades</h3>
-            <p className="mt-2 max-w-[280px] text-xs text-muted-foreground">
-              Adjust the date, status, side, or search filters to see more timeline rows.
+            <h3 className="text-base font-bold uppercase tracking-tight">No Trades Found</h3>
+            <p className="mt-2 max-w-[280px] text-xs text-muted-foreground leading-relaxed">
+              {datePreset === 'today'
+                ? `No trades today — ${trades.length} trade${trades.length !== 1 ? 's' : ''} in the last 30 days.`
+                : 'No trades match the current filters.'}
             </p>
-            <button onClick={clearFilters} className="mt-5 text-xs font-black uppercase tracking-widest text-brand-purple hover:underline">
-              Reset filters
-            </button>
+            <div className="mt-5 flex flex-col items-center gap-2">
+              {datePreset === 'today' && trades.length > 0 && (
+                <button
+                  onClick={() => setDatePreset('30d')}
+                  className="text-xs font-black uppercase tracking-widest text-brand-purple hover:underline"
+                >
+                  Show last 30 days ({trades.length})
+                </button>
+              )}
+              <button onClick={clearFilters} className="text-xs font-black uppercase tracking-widest text-muted-foreground hover:underline">
+                Reset all filters
+              </button>
+            </div>
           </div>
         </GlassCard>
       ) : (

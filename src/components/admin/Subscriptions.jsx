@@ -54,10 +54,11 @@ const Subscriptions = () => {
 
   const stats = useMemo(() => {
     const active = subscriptions.filter((subscription) => subscription.status === 'Active');
+    const monthlyRevenue = Math.round(active.reduce((sum, item) => sum + Number(item.amount || 0), 0) * 100) / 100;
 
     return [
       { label: 'Active Subscriptions', value: active.length, icon: Users, color: 'text-emerald-400' },
-      { label: 'Monthly Revenue', value: formatCurrency(active.reduce((sum, item) => sum + item.amount, 0)), icon: CreditCard, color: 'text-cyan-400' },
+      { label: 'Monthly Revenue', value: formatCurrency(monthlyRevenue), icon: CreditCard, color: 'text-cyan-400' },
       { label: 'Total Subscriptions', value: subscriptions.length, icon: TrendingUp, color: 'text-foreground' },
       { label: 'Cancelled', value: subscriptions.filter((item) => item.status === 'Cancelled').length, icon: XCircle, color: 'text-red-400' },
     ];

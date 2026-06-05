@@ -40,6 +40,12 @@ import TradeLatencyCard from '@/components/master/TradeLatencyCard';
 import TradeTimeline from '@/components/master/TradeTimeline';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
+const snapMultiplier = (value) => Math.round(Number(value) * 100) / 100;
+const clampScalingFactor = (value, fallback = 1) => {
+  const parsed = Number(value);
+  const safeValue = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.min(10, Math.max(0.25, snapMultiplier(safeValue)));
+};
 
 const RESULT_CFG = {
   SUCCESS: {
@@ -750,7 +756,7 @@ const CopyTrading = () => {
 
     const selectedChildRow = childOptions.find((item) => String(item.id) === String(selectedChild));
     const targetChildId = selectedChildRow?.childId || selectedChild;
-    const scalingFactor = Number(childMultiplier) || 1;
+    const scalingFactor = clampScalingFactor(childMultiplier);
 
     try {
       await masterService.linkChild(targetChildId, scalingFactor);
@@ -806,7 +812,7 @@ const CopyTrading = () => {
       await masterService.bulkLinkChildren(
         selectedBulkChildren.map((rowId) => ({
           childId: childOptions.find((child) => String(child.id) === String(rowId))?.childId || rowId,
-          scalingFactor: Number(childMultiplier) || 1,
+          scalingFactor: clampScalingFactor(childMultiplier),
         })),
       );
       setSelectedBulkChildren([]);
@@ -901,10 +907,11 @@ const CopyTrading = () => {
     }
   };
 
-  const handleMultiplierChange = async (id, value) => {
+  const handleMultiplierChange = async (id, rawValue) => {
     const child = connectedRows.find((item) => item.id === id);
     if (!child) return;
     const targetChildId = child.childId;
+    const value = clampScalingFactor(rawValue, child.multiplier);
     setChildren((prev) =>
       prev.map((item) => ((item.id || item.childId) === targetChildId ? { ...item, multiplier: value } : item)),
     );
@@ -1221,28 +1228,6 @@ const CopyTrading = () => {
         </GlassCard>
       </div>
 
-      {tradeBlockers.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tradeBlockers.map((issue, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`flex items-start gap-3 rounded-2xl border p-4 text-xs font-medium ${
-                issue.severity === 'error'
-                  ? 'border-rose-500/20 bg-rose-500/5 text-rose-500'
-                  : issue.severity === 'warning'
-                  ? 'border-amber-500/20 bg-amber-500/5 text-amber-500'
-                  : 'border-brand-blue/20 bg-brand-blue/5 text-brand-blue'
-              }`}
-            >
-              <AlertCircle className="shrink-0 h-4 w-4" />
-              <span>{issue.msg}</span>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
       {masterConnected && (
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-black/5 dark:bg-white/3 border border-border/40">
@@ -1524,7 +1509,7 @@ const CopyTrading = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => handleMultiplierChange(child.id, Math.max(0.25, child.multiplier - 0.25))}
+                            onClick={() => handleMultiplierChange(child.id, Math.max(0.25, snapMultiplier(child.multiplier - 0.25)))}
                             className="w-6 h-6 flex items-center justify-center rounded-md bg-black/5 dark:bg-white/5 hover:bg-brand-purple hover:text-white transition-all text-[10px] font-black"
                           >
                             -
@@ -1533,7 +1518,7 @@ const CopyTrading = () => {
                             {child.multiplier}x
                           </span>
                           <button
-                            onClick={() => handleMultiplierChange(child.id, child.multiplier + 0.25)}
+                            onClick={() => handleMultiplierChange(child.id, Math.min(10, snapMultiplier(child.multiplier + 0.25)))}
                             className="w-6 h-6 flex items-center justify-center rounded-md bg-black/5 dark:bg-white/5 hover:bg-brand-purple hover:text-white transition-all text-[10px] font-black"
                           >
                             +

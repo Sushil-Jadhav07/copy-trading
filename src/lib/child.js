@@ -27,6 +27,26 @@ const toNumber = (...values) => {
   return 0;
 };
 
+const deriveOrderSegment = (order = {}) => {
+  const explicitSegment = String(order.segment || order.market || '').trim().toUpperCase();
+  if (explicitSegment) return explicitSegment;
+
+  const exchange = String(order.exchange || '').trim().toUpperCase();
+  const symbol = String(order.tradingsymbol || order.symbol || '').trim().toUpperCase();
+
+  if (
+    ['NFO', 'BFO', 'FO'].includes(exchange) ||
+    /(?:CE|PE)$/.test(symbol)
+  ) {
+    return 'FNO';
+  }
+
+  if (['NSE', 'BSE'].includes(exchange)) return 'EQ';
+  if (['CDS', 'BCD'].includes(exchange)) return 'CDS';
+  if (exchange.startsWith('MCX')) return 'COMMODITY';
+  return '';
+};
+
 const clampPriceTolerance = (value, fallback = 2) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -273,7 +293,7 @@ const normalizeOpenBookOrder = (order = {}, index = 0) => ({
   id: order.order_id || order.orderId || order.id || `order-${index}`,
   symbol: order.tradingsymbol || order.symbol || 'N/A',
   exchange: order.exchange || 'NSE',
-  segment: order.segment || order.market || '',
+  segment: deriveOrderSegment(order),
   orderType: order.order_type || order.orderType || 'MARKET',
   type: String(order.transaction_type || order.type || order.side || 'BUY').toUpperCase(),
   qty: Number(order.quantity ?? order.qty ?? 0),

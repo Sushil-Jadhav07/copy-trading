@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useAnimatedCounter, useAnimatedDecimal } from '@/hooks/useAnimatedCounter';
+import { formatCurrency } from '@/lib/utils';
 
 const StatCard = ({
   title,
@@ -15,15 +16,18 @@ const StatCard = ({
   gradient = 'from-brand-purple to-brand-blue',
   isCurrency = false,
   isPercentage = false,
+  emptyLabel = '—',
 }) => {
-  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+  const hasValue = value != null && Number.isFinite(Number(value));
+  const safeValue = hasValue ? Number(value) : 0;
   const animatedValue = decimals > 0
     ? useAnimatedDecimal(safeValue, 2000, decimals)
     : useAnimatedCounter(safeValue, 2000);
 
   const formatValue = (val) => {
+    if (!hasValue) return emptyLabel;
     const normalized = Number.isFinite(Number(val)) ? Number(val) : 0;
-    if (isCurrency) return new Intl.NumberFormat('en-IN').format(normalized);
+    if (isCurrency) return formatCurrency(normalized);
     if (isPercentage) return normalized.toFixed(decimals);
     return normalized;
   };
@@ -39,15 +43,15 @@ const StatCard = ({
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest">{title}</p>
           <h3 className="text-2xl sm:text-3xl font-extrabold mt-1 text-slate-900 dark:text-foreground break-words tracking-tight">
-            {prefix}
+            {hasValue ? prefix : ''}
             {formatValue(animatedValue)}
-            {suffix}
+            {hasValue ? suffix : ''}
           </h3>
           {change !== undefined && (
             <div className="flex items-center gap-1.5 mt-3">
               <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                change >= 0 
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' 
+                change >= 0
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'
                   : 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'
               }`}>
                 {change >= 0 ? (

@@ -31,7 +31,7 @@ const DonutChart = ({
           <p className="text-sm font-medium" style={{ color: item.color }}>{item.name}</p>
           <p className="text-lg font-semibold text-foreground">{tooltipFormatter(item.value)}</p>
           <p className="text-xs text-muted-foreground">
-            {((item.value / item.payload.total) * 100).toFixed(1)}%
+            {item.payload.total > 0 ? ((item.value / item.payload.total) * 100).toFixed(1) : '0.0'}%
           </p>
         </div>
       );
