@@ -139,29 +139,36 @@ const matchesDateFilter = (value, filterKey) => {
 
 const getSideClass = (side) => {
   const value = String(side || '').toUpperCase();
-  if (value === 'BUY') return 'bg-emerald-500/10 text-emerald-500';
-  if (value === 'SELL') return 'bg-rose-500/10 text-rose-500';
-  return 'bg-amber-500/10 text-amber-500';
+  if (value === 'BUY') return 'bg-emerald-500 text-white';
+  if (value === 'SELL') return 'bg-rose-500 text-white';
+  return 'bg-amber-500 text-white';
 };
 
 const getStatusMeta = (status) => {
   const value = String(status || '').toUpperCase();
   if (['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(value)) {
     return {
-      className: 'bg-emerald-500/10 text-emerald-500',
+      className: 'bg-emerald-500 text-white',
       icon: CheckCircle2,
       label: value || 'SUCCESS',
     };
   }
-  if (['SKIPPED', 'FAILED', 'REJECTED', 'ERROR'].includes(value)) {
+  if (['FAILED', 'REJECTED', 'ERROR'].includes(value)) {
     return {
-      className: 'bg-amber-500/10 text-amber-500',
+      className: 'bg-rose-500 text-white',
       icon: AlertTriangle,
-      label: value || 'SKIPPED',
+      label: value || 'FAILED',
+    };
+  }
+  if (value === 'SKIPPED') {
+    return {
+      className: 'bg-amber-500 text-white',
+      icon: AlertTriangle,
+      label: 'SKIPPED',
     };
   }
   return {
-    className: 'bg-amber-500/10 text-amber-500',
+    className: 'bg-amber-500 text-white',
     icon: AlertTriangle,
     label: value || 'UNKNOWN',
   };

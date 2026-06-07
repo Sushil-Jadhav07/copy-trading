@@ -54,8 +54,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
               animate={{ opacity: 1, y: i * 48 }}
               exit={{ opacity: 0, y: -48 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="relative overflow-hidden flex items-center justify-between gap-3 px-4 py-2.5 h-12"
-              style={{ background: 'linear-gradient(90deg, #dc2626 0%, #b91c1c 100%)', boxShadow: '0 4px 20px rgba(220,38,38,0.35)' }}
+              className="relative overflow-hidden flex items-center justify-between gap-3 px-4 py-2.5 h-12 bg-danger-gradient shadow-ticker-danger"
             >
               {/* shimmer overlay */}
               <motion.div
@@ -103,13 +102,13 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
 
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             {/* Theme */}
-            <button onClick={toggleTheme} className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-600 dark:text-foreground">
+            <button onClick={toggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-600 dark:text-foreground">
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-slate-600" />}
             </button>
 
             {/* Bell */}
             <div className="relative" ref={notificationRef}>
-              <button onClick={() => setShowNotifications((p) => !p)} className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors relative text-slate-600 dark:text-foreground">
+              <button onClick={() => setShowNotifications((p) => !p)} aria-label="Notifications" className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors relative text-slate-600 dark:text-foreground">
                 <Bell className="w-5 h-5" />
                 <AnimatePresence>
                   {unreadCount > 0 && (
@@ -141,7 +140,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold text-foreground">Notifications</h3>
                         {unreadCount > 0 && (
-                          <span className="px-2 py-0.5 bg-rose-500/12 text-rose-500 text-[10px] font-black rounded-full">{unreadCount} new</span>
+                          <span className="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full">{unreadCount} new</span>
                         )}
                       </div>
                       {unreadCount > 0 && (
@@ -214,8 +213,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                 onClick={() => setShowUserMenu((p) => !p)}
                 className="flex items-center gap-2 p-1 pr-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-all border border-transparent hover:border-slate-200/60 dark:hover:border-white/10 group"
               >
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center relative overflow-hidden"
-                  style={{ boxShadow: '0 4px 14px rgba(0,200,150,0.3)' }}>
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center relative overflow-hidden shadow-avatar">
                   <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span className="text-xs font-bold text-white uppercase relative z-10">
                     {user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'U'}

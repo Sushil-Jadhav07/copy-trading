@@ -4,7 +4,7 @@ import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { useMasterAnalytics, useMasterTradePnl } from '@/hooks/useMaster';
-import { formatCompactINR, formatCurrency } from '@/lib/utils';
+import { formatCompactINR, formatCurrency, safeAdd, safeSum, safeDiv, safeMul, roundTo } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const PnLSummary = () => {
@@ -14,13 +14,14 @@ const PnLSummary = () => {
   const [refreshing, setRefreshing] = useState(false);
   const monthlyPnL = analytics.pnl || analytics.pnlSummary || [];
   const summary = tradePnl?.summary || {};
-  const totalPnLFromSummary = Number(summary.totalRealisedPnl || 0) + Number(summary.totalUnrealisedPnl || 0);
-  const totalPnL = totalPnLFromSummary || monthlyPnL.reduce((sum, m) => sum + Number(m.netPnL || 0), 0);
-  const totalTrades = Number(summary.totalTrades || 0) || monthlyPnL.reduce((sum, m) => sum + Number(m.trades || 0), 0);
+  const totalPnLFromSummary = safeAdd(summary.totalRealisedPnl, summary.totalUnrealisedPnl);
+  const totalPnL = totalPnLFromSummary || safeSum(monthlyPnL.map((m) => m.netPnL));
+  const totalTrades = Number(summary.totalTrades || 0) || safeSum(monthlyPnL.map((m) => m.trades));
   const avgWinRate = Number(summary.winRate || 0) || (() => {
-    const totalMonthlyTrades = monthlyPnL.reduce((sum, m) => sum + Number(m.trades || 0), 0);
+    const totalMonthlyTrades = safeSum(monthlyPnL.map((m) => m.trades));
     if (!totalMonthlyTrades) return 0;
-    return monthlyPnL.reduce((sum, m) => sum + Number(m.winRate || 0) * Number(m.trades || 0), 0) / totalMonthlyTrades;
+    const weightedSum = safeSum(monthlyPnL.map((m) => safeMul(m.winRate, m.trades)));
+    return roundTo(safeDiv(weightedSum, totalMonthlyTrades), 1);
   })();
 
   useEffect(() => {
@@ -80,7 +81,7 @@ const PnLSummary = () => {
         </GlassCard>
         <GlassCard>
           <p className="text-sm text-muted-foreground">Avg Win Rate</p>
-          <p className="text-2xl font-bold">{avgWinRate.toFixed(1)}%</p>
+          <p className="text-2xl font-bold">{roundTo(avgWinRate, 1)}%</p>
         </GlassCard>
       </div>
 

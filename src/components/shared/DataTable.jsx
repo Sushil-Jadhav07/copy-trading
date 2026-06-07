@@ -61,33 +61,35 @@ const DataTable = ({
   const getStatusBadge = (status) => {
     const s = String(status || '').trim().toUpperCase();
     const styles = {
-      ACTIVE: 'bg-success/20 text-success',
-      PAUSED: 'bg-warning/20 text-warning',
-      SUSPENDED: 'bg-danger/20 text-danger',
-      CLOSED: 'bg-muted text-muted-foreground',
-      PENDING: 'bg-warning/20 text-warning',
-      EXECUTED: 'bg-success/20 text-success',
-      SUCCESS: 'bg-success/20 text-success',
-      CANCELLED: 'bg-danger/20 text-danger',
-      COMPLETED: 'bg-success/20 text-success',
-      ONLINE: 'bg-success/20 text-success',
-      DEGRADED: 'bg-warning/20 text-warning',
-      OFFLINE: 'bg-danger/20 text-danger',
-      HIGH: 'bg-danger/20 text-danger',
-      MEDIUM: 'bg-warning/20 text-warning',
-      LOW: 'bg-success/20 text-success',
-      BUY: 'bg-success/20 text-success',
-      SELL: 'bg-danger/20 text-danger',
-      FAILED: 'bg-danger/20 text-danger',
+      ACTIVE:    'bg-emerald-500 text-white',
+      PAUSED:    'bg-amber-500 text-white',
+      SUSPENDED: 'bg-rose-500 text-white',
+      CLOSED:    'bg-slate-500 text-white',
+      PENDING:   'bg-amber-500 text-white',
+      EXECUTED:  'bg-emerald-500 text-white',
+      SUCCESS:   'bg-emerald-500 text-white',
+      CANCELLED: 'bg-rose-500 text-white',
+      COMPLETED: 'bg-emerald-500 text-white',
+      ONLINE:    'bg-emerald-500 text-white',
+      DEGRADED:  'bg-amber-500 text-white',
+      OFFLINE:   'bg-rose-500 text-white',
+      HIGH:      'bg-rose-500 text-white',
+      MEDIUM:    'bg-amber-500 text-white',
+      LOW:       'bg-emerald-500 text-white',
+      BUY:       'bg-emerald-500 text-white',
+      SELL:      'bg-rose-500 text-white',
+      FAILED:    'bg-rose-500 text-white',
     };
-    return styles[s] || 'bg-muted text-muted-foreground';
+    return styles[s] || 'bg-slate-500 text-white';
   };
 
   return (
     <div className="space-y-4">
       {searchable && (
         <div className="flex items-center gap-4">
+          <label htmlFor="datatable-search" className="sr-only">Search</label>
           <input
+            id="datatable-search"
             type="text"
             placeholder={searchPlaceholder}
             value={searchQuery}

@@ -304,6 +304,7 @@ const Register = () => {
                       <div className="relative group">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
                         <input
+                          aria-label="First name"
                           type="text"
                           name="firstName"
                           autoComplete="given-name"
@@ -316,6 +317,7 @@ const Register = () => {
                         />
                       </div>
                       <input
+                        aria-label="Middle name"
                         type="text"
                         name="middleName"
                         autoComplete="additional-name"
@@ -326,6 +328,7 @@ const Register = () => {
                         style={inputStyle()}
                       />
                       <input
+                        aria-label="Last name"
                         type="text"
                         name="lastName"
                         autoComplete="family-name"
@@ -542,13 +545,8 @@ const Register = () => {
                   whileTap={{ scale: 0.98 }}
                   type="button"
                   onClick={handleNext}
-                  className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all flex items-center justify-center gap-2 overflow-hidden relative group"
-                  style={{ 
-                    background: 'linear-gradient(90deg, #00C896 0%, #00A878 100%)',
-                    boxShadow: '0 8px 20px -4px rgba(0,200,150,0.4)' 
-                  }}
+                  className="btn-primary w-full py-3.5 text-sm font-bold"
                 >
-                  <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-[-20deg]" />
                   Next →
                 </motion.button>
               ) : (
@@ -558,13 +556,8 @@ const Register = () => {
                   type="button"
                   onClick={handleCreateAccount}
                   disabled={loading || !passwordState.valid}
-                  className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 overflow-hidden relative group"
-                  style={{ 
-                    background: 'linear-gradient(90deg, #00C896 0%, #00A878 100%)',
-                    boxShadow: '0 8px 20px -4px rgba(0,200,150,0.4)' 
-                  }}
+                  className="btn-primary w-full py-3.5 text-sm font-bold"
                 >
-                  <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-[-20deg]" />
                   {loading ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : 'Create Account'}
                 </motion.button>
               )}

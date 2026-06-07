@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import Decimal from 'decimal.js'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -138,3 +139,49 @@ export function isTradeFilled(status: string): boolean {
   const s = String(status || '').toUpperCase();
   return ['FILLED', 'COMPLETE', 'TRADED', 'EXECUTED', 'COMPLETED', 'SUCCESS'].includes(s);
 }
+
+// ─── Safe Financial Arithmetic ──────────────────────────────────────────────
+
+const toD = (n: number | string | null | undefined): Decimal => {
+  if (n === null || n === undefined || n === '') return new Decimal(0);
+  const num = typeof n === 'string' ? n.trim() : String(n);
+  try {
+    const d = new Decimal(num);
+    return d.isNaN() || !d.isFinite() ? new Decimal(0) : d;
+  } catch {
+    return new Decimal(0);
+  }
+};
+
+export const safeAdd = (...nums: (number | string | null | undefined)[]): number =>
+  nums.reduce<Decimal>((acc, n) => acc.plus(toD(n)), new Decimal(0)).toNumber();
+
+export const safeSub = (a: number | string | null | undefined, b: number | string | null | undefined): number =>
+  toD(a).minus(toD(b)).toNumber();
+
+export const safeMul = (a: number | string | null | undefined, b: number | string | null | undefined): number =>
+  toD(a).times(toD(b)).toNumber();
+
+export const safeDiv = (a: number | string | null | undefined, b: number | string | null | undefined): number => {
+  const divisor = toD(b);
+  if (divisor.isZero()) return 0;
+  return toD(a).dividedBy(divisor).toNumber();
+};
+
+export const roundTo = (n: number | string | null | undefined, dp = 2): number =>
+  toD(n).toDecimalPlaces(dp, Decimal.ROUND_HALF_UP).toNumber();
+
+export const safeEq = (
+  a: number | string | null | undefined,
+  b: number | string | null | undefined,
+  tolerance = 0.001
+): boolean => Math.abs(toD(a).minus(toD(b)).toNumber()) < tolerance;
+
+export const safeSum = (arr: (number | string | null | undefined)[]): number =>
+  arr.reduce<Decimal>((acc, n) => acc.plus(toD(n)), new Decimal(0)).toNumber();
+
+export const safePct = (part: number | string | null | undefined, total: number | string | null | undefined): number =>
+  safeDiv(safeMul(part, 100), total);
+
+export const MONEY_TOLERANCE = 0.001;
+export const QTY_TOLERANCE   = 0.0001;

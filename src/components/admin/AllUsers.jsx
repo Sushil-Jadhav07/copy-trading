@@ -9,12 +9,12 @@ import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
 const RoleBadge = ({ role }) => (
-  <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold text-white ${
     role === 'Master'
-      ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400'
+      ? 'bg-emerald-500'
       : role === 'Admin'
-      ? 'border-amber-500/30 bg-amber-500/15 text-amber-400'
-      : 'border-cyan-500/30 bg-cyan-500/15 text-cyan-400'
+      ? 'bg-amber-500'
+      : 'bg-cyan-500'
   }`}>
     {role}
   </span>
@@ -23,10 +23,11 @@ const RoleBadge = ({ role }) => (
 const StatusBadge = ({ status }) => {
   const normalized = String(status || '').toUpperCase();
   const isActive = normalized === 'ACTIVE';
+  const isSuspended = normalized === 'SUSPENDED';
 
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-      isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${
+      isActive ? 'bg-emerald-500' : isSuspended ? 'bg-amber-500' : 'bg-rose-500'
     }`}>
       {isActive ? 'Active' : normalized || 'Unknown'}
     </span>
@@ -264,7 +265,7 @@ const AllUsers = ({ scope = 'all' }) => {
           </button>
           <button
             onClick={() => setCreateModal(true)}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-2 text-xs font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95 sm:px-4 sm:text-sm"
+            className="btn-primary flex-1 px-3 py-2 text-xs sm:px-4 sm:text-sm"
           >
             <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="whitespace-nowrap">Create Account</span>
@@ -284,7 +285,9 @@ const AllUsers = ({ scope = 'all' }) => {
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <label htmlFor="allusers-search" className="sr-only">Search users</label>
           <input
+            id="allusers-search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search by name, email, phone..."
@@ -588,7 +591,7 @@ const AllUsers = ({ scope = 'all' }) => {
             >
               Cancel
             </button>
-            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-500 py-2 text-sm font-medium text-white hover:bg-red-500/90">
+            <button onClick={handleDelete} className="btn-danger flex-1 py-2 text-sm">
               Delete
             </button>
           </div>

@@ -32,12 +32,12 @@ import { masterService } from '@/lib/master';
 import { engineService } from '@/lib/engine';
 import { brokerService } from '@/lib/broker';
 import { connectChannel } from '@/lib/websocket';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, safeMul, safeAdd, roundTo } from '@/lib/utils';
 import TradeLatencyCard from '@/components/master/TradeLatencyCard';
 import TradeTimeline from '@/components/master/TradeTimeline';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
-const snapMultiplier = (value) => Math.round(Number(value) * 100) / 100;
+const snapMultiplier = (value) => roundTo(Number(value), 2);
 const clampScalingFactor = (value, fallback = 1) => {
   const parsed = Number(value);
   const safeValue = Number.isFinite(parsed) ? parsed : fallback;
@@ -46,22 +46,22 @@ const clampScalingFactor = (value, fallback = 1) => {
 
 const RESULT_CFG = {
   SUCCESS: {
-    row: 'border-l-emerald-500 bg-emerald-500/8',
-    badge: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+    row: 'border-l-emerald-500 bg-emerald-500/10',
+    badge: 'bg-emerald-500 text-white',
     icon: CheckCircle2,
     iconCls: 'text-emerald-500',
     label: 'Success',
   },
   SKIPPED: {
     row: 'border-l-amber-500 bg-amber-500/10',
-    badge: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+    badge: 'bg-amber-500 text-white',
     icon: SkipForward,
     iconCls: 'text-amber-500',
     label: 'Skipped',
   },
   FAILED: {
-    row: 'border-l-rose-500 bg-rose-500/8',
-    badge: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',
+    row: 'border-l-rose-500 bg-rose-500/10',
+    badge: 'bg-rose-500 text-white',
     icon: AlertCircle,
     iconCls: 'text-rose-500',
     label: 'Failed',
@@ -85,22 +85,22 @@ const shortId = (value) => {
 
 const getModeBadgeClass = (mode = '') => {
   const normalized = String(mode).toLowerCase();
-  if (normalized === 'manual') return 'bg-brand-blue/12 text-brand-blue';
-  if (normalized === 'polling') return 'bg-amber-500/12 text-amber-600 dark:text-amber-400';
-  if (normalized === 'postback') return 'bg-brand-teal/12 text-brand-teal';
-  if (normalized === 'websocket') return 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400';
-  return 'bg-slate-500/10 text-slate-500 dark:text-slate-400';
+  if (normalized === 'manual')    return 'bg-blue-500 text-white';
+  if (normalized === 'polling')   return 'bg-amber-500 text-white';
+  if (normalized === 'postback')  return 'bg-teal-500 text-white';
+  if (normalized === 'websocket') return 'bg-emerald-500 text-white';
+  return 'bg-slate-500 text-white';
 };
 
 const getDetectionBadgeClass = (method = '') => {
   const normalized = String(method).toLowerCase();
   if (normalized.includes('websocket') || normalized.includes('postback')) {
-    return 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400';
+    return 'bg-emerald-500 text-white';
   }
   if (normalized.includes('polling')) {
-    return 'bg-amber-500/12 text-amber-600 dark:text-amber-400';
+    return 'bg-amber-500 text-white';
   }
-  return 'bg-slate-500/10 text-slate-500 dark:text-slate-400';
+  return 'bg-slate-500 text-white';
 };
 
 const isUuidLike = (value) =>
@@ -1005,7 +1005,7 @@ const CopyTrading = () => {
         <div className="space-y-6">
           <GlassCard className="relative overflow-hidden border-brand-purple/10">
             <div className="absolute top-0 right-0 p-4">
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${engineActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${engineActive ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${engineActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                 {engineStatus?.engineStatus || engineStatus?.status || 'UNKNOWN'}
               </div>
@@ -1088,7 +1088,7 @@ const CopyTrading = () => {
                 </div>
                 <button
                   onClick={handleConnectMaster}
-                  className="rounded-xl bg-emerald-500 px-8 py-3 font-black text-sm text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-widest"
+                  className="btn-primary px-8 py-3 text-sm font-black uppercase tracking-widest"
                 >
                   Connect Master
                 </button>
@@ -1139,7 +1139,7 @@ const CopyTrading = () => {
                 )}
                 <button
                   onClick={handleConnectMaster}
-                  className="w-full sm:w-auto rounded-xl bg-rose-500 px-5 py-2.5 text-xs font-black text-white transition-all hover:bg-rose-600 shadow-lg shadow-rose-500/20 uppercase tracking-widest"
+                  className="btn-danger px-5 py-2.5 text-xs font-black uppercase tracking-widest"
                 >
                   Disconnect
                 </button>
@@ -1185,7 +1185,7 @@ const CopyTrading = () => {
               <button
                 onClick={handleBulkLink}
                 disabled={selectedBulkChildren.length === 0}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-3 text-sm font-black text-white transition-all hover:bg-brand-purple/90 disabled:opacity-50 disabled:grayscale shadow-lg shadow-brand-purple/20"
+                className="btn-primary flex-1 px-6 py-3 text-sm font-black"
               >
                 <Link className="h-4 w-4" />
                 Connect {selectedBulkChildren.length > 0 ? `(${selectedBulkChildren.length})` : 'Selected'}
@@ -1362,7 +1362,7 @@ const CopyTrading = () => {
                       <button
                         onClick={handleManualCopyTrade}
                         disabled={triggeringManual || !manualTrade.symbol || !manualTrade.qty}
-                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-brand-purple/90 disabled:opacity-50 disabled:grayscale shadow-lg shadow-brand-purple/20"
+                        className="btn-primary w-full px-6 py-2.5 text-xs font-black uppercase tracking-widest"
                       >
                         {triggeringManual ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 fill-current" />}
                         Trigger Copy
@@ -1383,8 +1383,10 @@ const CopyTrading = () => {
             <p className="text-xs text-muted-foreground mt-0.5">{linkedRows.length} active child subscriptions</p>
           </div>
           <div className="relative">
+            <label htmlFor="follower-search" className="sr-only">Filter followers</label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
+              id="follower-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Filter followers..."
@@ -1603,7 +1605,7 @@ const CopyTrading = () => {
                   <span className="text-sm font-black uppercase tracking-tight">{copyResult.symbol}</span>
                 )}
                 {copyResult.side && (
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${copyResult.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'}`}>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full text-white ${copyResult.side === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                     {copyResult.side}
                   </span>
                 )}
@@ -1724,7 +1726,7 @@ const CopyTrading = () => {
                                         <Info className="h-3 w-3" />
                                       </button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-[220px] text-[10px] font-bold leading-relaxed">
+                                    <TooltipContent side="top" className="max-w-xs text-[10px] font-bold leading-relaxed break-words whitespace-normal">
                                       {r.skipReason === 'NO_POSITION'
                                         ? "SELL skipped because this child did not have a copied BUY position for this instrument."
                                         : r.skipReason || r.message}

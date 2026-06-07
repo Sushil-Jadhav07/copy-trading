@@ -534,7 +534,7 @@ const Profile = () => {
                 <button
                   onClick={handleProfileSave}
                   disabled={savingProfile || loadingProfile}
-                  className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary"
                 >
                   {savingProfile ? 'Saving Changes...' : 'Save Changes'}
                 </button>
@@ -622,6 +622,7 @@ const Profile = () => {
                   <label className="mb-1.5 block text-sm font-medium">Current Password</label>
                   <div className="relative">
                     <input
+                      aria-label="Current password"
                       type={showPassword.current ? 'text' : 'password'}
                       value={security.currentPassword}
                       onChange={(e) => setSecurity({ ...security, currentPassword: e.target.value })}
@@ -642,6 +643,7 @@ const Profile = () => {
                   <label className="mb-1.5 block text-sm font-medium">New Password</label>
                   <div className="relative">
                     <input
+                      aria-label="New password"
                       type={showPassword.next ? 'text' : 'password'}
                       value={security.newPassword}
                       onChange={(e) => setSecurity({ ...security, newPassword: e.target.value })}
@@ -689,7 +691,7 @@ const Profile = () => {
                     !security.newPassword ||
                     !security.confirmPassword
                   }
-                  className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary"
                 >
                   {savingPassword ? 'Updating Password...' : 'Update Password'}
                 </button>
@@ -730,7 +732,7 @@ const Profile = () => {
                   <button
                     onClick={handleEnableTwoFactor}
                     disabled={savingTwoFactor}
-                    className="rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 px-6 py-2.5 font-medium text-white shadow-[0_10px_30px_rgba(6,182,212,0.2)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-primary"
                   >
                     {savingTwoFactor ? 'Preparing...' : 'Enable Two-Factor Auth'}
                   </button>
@@ -755,7 +757,7 @@ const Profile = () => {
                       <button
                         onClick={handleVerifyTwoFactor}
                         disabled={savingTwoFactor || twoFactorCode.length !== 6}
-                        className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 font-medium text-white shadow-[0_10px_30px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="btn-primary"
                       >
                         {savingTwoFactor ? 'Verifying...' : 'Verify and Enable'}
                       </button>
@@ -799,7 +801,7 @@ const Profile = () => {
                   <button
                     onClick={handleDisableTwoFactor}
                     disabled={savingTwoFactor || disableTwoFactorForm.otp.length !== 6 || !disableTwoFactorForm.password}
-                    className="rounded-xl bg-red-500 px-6 py-2.5 font-medium text-white transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-danger"
                   >
                     {savingTwoFactor ? 'Disabling...' : 'Disable Two-Factor Auth'}
                   </button>

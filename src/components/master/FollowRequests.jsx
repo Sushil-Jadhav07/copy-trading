@@ -120,8 +120,7 @@ const FollowRequests = () => {
                   <GlassCard hover={false}>
                     {/* Header */}
                     <div className="flex items-start gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-lg text-white"
-                        style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}>
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-lg text-white bg-avatar-gradient">
                         {request.name.trim().split(' ').map(n => n[0] || '').slice(0, 2).join('').toUpperCase() || 'U'}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -167,8 +166,7 @@ const FollowRequests = () => {
                       <button
                         onClick={() => handleAction(request.id, 'approve')}
                         disabled={isAnyLoading}
-                        className="flex-1 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                        style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#10B981' }}>
+                        className="btn-success-ghost flex-1 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed">
                         {isApproving ? (
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         ) : (
@@ -179,8 +177,7 @@ const FollowRequests = () => {
                       <button
                         onClick={() => handleAction(request.id, 'decline')}
                         disabled={isAnyLoading}
-                        className="flex-1 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                        style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)', color: '#EF4444' }}>
+                        className="btn-danger-ghost flex-1 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed">
                         {isDeclining ? (
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         ) : (

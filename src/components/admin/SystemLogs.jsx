@@ -98,10 +98,10 @@ const SystemLogs = () => {
             <td className="px-4 py-3 text-sm">{log.qty || log.quantity || 0}</td>
             <td className="px-4 py-3 text-sm">{log.broker || 'â€”'}</td>
             <td className="px-4 py-3 text-sm">
-              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                log.status === 'error' ? 'bg-red-500/10 text-red-400' :
-                log.status === 'warning' ? 'bg-amber-500/10 text-amber-400' :
-                'bg-emerald-500/10 text-emerald-400'
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
+                log.status === 'error' ? 'bg-rose-500' :
+                log.status === 'warning' ? 'bg-amber-500' :
+                'bg-emerald-500'
               }`}>
                 {log.status || 'â€”'}
               </span>
@@ -132,8 +132,8 @@ const SystemLogs = () => {
             <tr key={entry.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <td className="px-4 py-3 text-sm font-semibold">{entry.name || 'â€”'}</td>
               <td className="px-4 py-3 text-sm">
-                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                  statusUp ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
+                  statusUp ? 'bg-emerald-500' : 'bg-rose-500'
                 }`}>
                   {entry.status || 'UNKNOWN'}
                 </span>
@@ -179,8 +179,8 @@ const SystemLogs = () => {
               <tr key={broker.brokerId || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3 text-sm font-semibold">{broker.name || broker.brokerId || 'â€”'}</td>
                 <td className="px-4 py-3 text-sm">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                    apiOk ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
+                    apiOk ? 'bg-emerald-500' : 'bg-rose-500'
                   }`}>
                     {broker.apiStatus || broker.status || 'UNKNOWN'}
                   </span>

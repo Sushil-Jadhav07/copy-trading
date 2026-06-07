@@ -44,9 +44,9 @@ const OrderFeed = () => {
 
   const getStatusColor = (log) => {
     const status = String(log.raw?.status || log.type || '').toUpperCase();
-    if (status === 'FAILED' || log.status === 'error') return 'bg-red-500/10 text-red-400';
-    if (status === 'CANCELLED' || log.status === 'warning') return 'bg-amber-500/10 text-amber-400';
-    return 'bg-emerald-500/10 text-emerald-400';
+    if (status === 'FAILED' || log.status === 'error') return 'bg-rose-500 text-white';
+    if (status === 'CANCELLED' || log.status === 'warning') return 'bg-amber-500 text-white';
+    return 'bg-emerald-500 text-white';
   };
 
   const getStatusLabel = (log) => log.raw?.status || log.type || 'UNKNOWN';

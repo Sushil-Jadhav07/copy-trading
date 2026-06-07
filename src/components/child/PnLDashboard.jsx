@@ -6,7 +6,7 @@ import DonutChart from '@/components/charts/DonutChart';
 import Sparkline from '@/components/charts/Sparkline';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildAnalytics, useChildCopiedTrades, useChildSubscriptions } from '@/hooks/useChild';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, safeAdd, safeSub, safeMul, safeDiv, safeSum, roundTo } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const PAISA_THRESHOLD = 0.01;
@@ -45,7 +45,7 @@ const PnLDashboard = () => {
       time: p.time || p.date || `D${i + 1}`,
       mine: safeNum(p.copied ?? p.child ?? p.value ?? 0),
       master: safeNum(p.personal ?? p.master ?? 0),
-      total: safeNum(p.personal ?? 0) + safeNum(p.copied ?? 0),
+      total: safeAdd(p.personal, p.copied),
     })),
     [analytics.pnlHistory],
   );
@@ -54,7 +54,7 @@ const PnLDashboard = () => {
   const copiedPnl = safeNum(analytics.copiedPnL ?? analytics.totalPnL);
   const personalPnl = safeNum(analytics.personalPnL);
   const realizedPnl = copiedPnl;
-  const unrealizedPnl = totalPnl - realizedPnl;
+  const unrealizedPnl = safeSub(totalPnl, realizedPnl);
   const winRate = safeNum(analytics.winRate);
   const totalCopiedTrades = safeNum(analytics.copiedTrades ?? trades.length);
 
@@ -103,13 +103,13 @@ const PnLDashboard = () => {
       const row = map.get(t.instrument);
       row.totalTrades += 1;
       if (t.pnl >= PAISA_THRESHOLD) row.wins += 1;
-      row.totalPnl = Math.round((row.totalPnl + t.pnl) * 100) / 100;
+      row.totalPnl = roundTo(safeAdd(row.totalPnl, t.pnl), 2);
     });
 
     return Array.from(map.values()).map((r) => ({
       ...r,
-      winRate: r.totalTrades > 0 ? Math.round((r.wins / r.totalTrades) * 100) : 0,
-      avgPnl: r.totalTrades > 0 ? r.totalPnl / r.totalTrades : 0,
+      winRate: r.totalTrades > 0 ? roundTo(safeMul(safeDiv(r.wins, r.totalTrades), 100), 1) : 0,
+      avgPnl: r.totalTrades > 0 ? roundTo(safeDiv(r.totalPnl, r.totalTrades), 2) : 0,
     })).sort((a, b) => b.totalPnl - a.totalPnl);
   }, [scoredTrades]);
 
@@ -221,14 +221,14 @@ const PnLDashboard = () => {
               </thead>
               <tbody>
                 {bestTrades.map((t, i) => {
-                  const pct = personalPnl !== 0 ? (t.pnl / Math.abs(personalPnl)) * 100 : 0;
+                  const pct = personalPnl !== 0 ? roundTo(safeMul(safeDiv(t.pnl, Math.abs(personalPnl)), 100), 1) : 0;
                   return (
                     <tr key={`${t.instrument}-${i}`} className="border-b border-border/20">
                       <td className="px-4 py-3 font-semibold">{t.instrument}</td>
                       <td className="px-4 py-3">{t.date}</td>
                       <td className="px-4 py-3">{t.qty}</td>
                       <td className="px-4 py-3 text-success">+{formatCurrency(t.pnl)}</td>
-                      <td className="px-4 py-3 text-success">+{Math.abs(pct).toFixed(0)}%</td>
+                      <td className="px-4 py-3 text-success">+{roundTo(Math.abs(pct), 0)}%</td>
                     </tr>
                   );
                 })}
@@ -252,14 +252,14 @@ const PnLDashboard = () => {
               </thead>
               <tbody>
                 {worstTrades.map((t, i) => {
-                  const pct = personalPnl !== 0 ? (t.pnl / Math.abs(personalPnl)) * 100 : 0;
+                  const pct = personalPnl !== 0 ? roundTo(safeMul(safeDiv(t.pnl, Math.abs(personalPnl)), 100), 1) : 0;
                   return (
                     <tr key={`${t.instrument}-${i}`} className="border-b border-border/20">
                       <td className="px-4 py-3 font-semibold">{t.instrument}</td>
                       <td className="px-4 py-3">{t.date}</td>
                       <td className="px-4 py-3">{t.qty}</td>
                       <td className="px-4 py-3 text-danger">{formatCurrency(t.pnl)}</td>
-                      <td className="px-4 py-3 text-danger">-{Math.abs(pct).toFixed(0)}%</td>
+                      <td className="px-4 py-3 text-danger">-{roundTo(Math.abs(pct), 0)}%</td>
                     </tr>
                   );
                 })}

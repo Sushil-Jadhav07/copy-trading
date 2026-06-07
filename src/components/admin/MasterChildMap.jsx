@@ -14,9 +14,9 @@ const STATUS_OPTIONS = [
 ];
 
 const statusClass = {
-  ACTIVE: 'bg-emerald-500/15 text-emerald-400',
-  PAUSED: 'bg-amber-500/15 text-amber-400',
-  PENDING_APPROVAL: 'bg-brand-blue/15 text-brand-blue',
+  ACTIVE:           'bg-emerald-500 text-white',
+  PAUSED:           'bg-amber-500 text-white',
+  PENDING_APPROVAL: 'bg-blue-500 text-white',
 };
 
 const MasterChildMap = () => {

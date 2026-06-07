@@ -216,8 +216,7 @@ const DematConnected = () => {
             ) : null}
 
             <button onClick={() => navigate('/')}
-              className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
-              style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.28)' }}>
+              className="btn-primary w-full py-2.5 text-sm font-semibold">
               Continue to Dashboard
             </button>
           </>
@@ -235,8 +234,7 @@ const DematConnected = () => {
 
             <div className="space-y-2">
               <button onClick={handleRetry} disabled={retrying}
-                className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.22)' }}>
+                className="btn-primary w-full py-2.5 text-sm font-semibold disabled:opacity-50">
                 <RefreshCw className={`w-4 h-4 ${retrying ? 'animate-spin' : ''}`} />
                 {retrying ? 'Retrying…' : 'Retry Connection'}
               </button>

@@ -228,8 +228,7 @@ const ForgotPassword = () => {
                   </p>
                 </div>
                 <button type="submit" disabled={loading}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
+                  className="btn-primary w-full py-3 text-sm font-semibold disabled:opacity-50">
                   {loading
                     ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     : 'Send Verification Code'}
@@ -261,8 +260,7 @@ const ForgotPassword = () => {
                     style={inputCls(isDark)} required />
                 </div>
                 <button type="submit" disabled={loading}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm"
-                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)' }}>
+                  className="btn-primary w-full py-3 text-sm font-semibold disabled:opacity-50">
                   {loading ? 'Resetting…' : 'Reset password'}
                 </button>
                 <button type="button" onClick={() => { setEmailStage('input'); setOtp(''); setError(''); }}
@@ -295,8 +293,7 @@ const ForgotPassword = () => {
                   </p>
                 </div>
                 <button type="submit" disabled={loading}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
+                  className="btn-primary w-full py-3 text-sm font-semibold disabled:opacity-50">
                   {loading
                     ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     : 'Send OTP'}
@@ -328,8 +325,7 @@ const ForgotPassword = () => {
                   </p>
                 </div>
                 <button type="submit" disabled={loading || otp.length < 4}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(90deg,#00C896,#00A878)', boxShadow: '0 2px 10px rgba(0,200,150,0.26)' }}>
+                  className="btn-primary w-full py-3 text-sm font-semibold disabled:opacity-50">
                   {loading
                     ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     : 'Verify & Login'}

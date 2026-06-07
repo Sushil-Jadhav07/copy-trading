@@ -312,7 +312,7 @@ const ActiveFollowers = () => {
                       <span className="px-2 py-0.5 rounded-md text-xs bg-brand-purple/20 text-brand-purple">{follower.multiplier}x</span>
                     </td>
                     <td className="px-5 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${follower.tradingEnabled ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium text-white ${follower.tradingEnabled ? 'bg-emerald-500' : 'bg-amber-500'}`}>
                         {follower.tradingEnabled ? 'Copying' : 'Paused'}
                       </span>
                     </td>

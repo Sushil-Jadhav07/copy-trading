@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
   AlertCircle,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -18,13 +17,14 @@ import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
+import { safeSum, safeDiv, safeMul, roundTo } from '@/lib/utils';
 
 const RANGE_OPTIONS = [
-  { key: 'today', label: 'Today', days: 1 },
-  { key: 'yesterday', label: 'Yesterday', days: 1 },
-  { key: '7d', label: '7D', days: 7 },
-  { key: '30d', label: '30D', days: 30 },
-  { key: 'all', label: 'All', days: null },
+  { key: 'today',     label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week',      label: 'This Week' },
+  { key: 'month',     label: 'This Month' },
+  { key: 'all',       label: 'All' },
 ];
 
 const STATUS_OPTIONS = [
@@ -58,14 +58,20 @@ const getRange = (key) => {
     return { from, to, statsDays: 1 };
   }
 
-  if (key === 'all') {
-    return { from: new Date(0), to: todayEnd, statsDays: 30 };
+  if (key === 'week') {
+    const from = new Date(todayStart);
+    from.setDate(from.getDate() - ((from.getDay() + 6) % 7));
+    return { from, to: todayEnd, statsDays: 7 };
   }
 
-  const days = key === '30d' ? 30 : 7;
-  const from = new Date(todayStart);
-  from.setDate(from.getDate() - (days - 1));
-  return { from, to: todayEnd, statsDays: days };
+  if (key === 'month') {
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from, to: todayEnd, statsDays: 30 };
+  }
+
+  if (key === 'all') return { from: new Date(0), to: todayEnd, statsDays: 30 };
+
+  return { from: todayStart, to: todayEnd, statsDays: 1 };
 };
 
 const fmtTime = (iso) => {
@@ -259,12 +265,12 @@ const LatencyHistory = () => {
       .map((event) => Number(event.avgChildLatencyMs))
       .filter((value) => Number.isFinite(value) && value > 0);
     const avgLatency = latencies.length
-      ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length)
+      ? roundTo(safeDiv(safeSum(latencies), latencies.length), 0)
       : null;
-    const totalChildren = filteredEvents.reduce((sum, event) => sum + Number(event.childrenTotal || 0), 0);
-    const succeeded = filteredEvents.reduce((sum, event) => sum + Number(event.childrenSucceeded || 0), 0);
-    const failed = filteredEvents.reduce((sum, event) => sum + Number(event.childrenFailed || 0), 0);
-    const successRate = totalChildren ? (succeeded / totalChildren) * 100 : null;
+    const totalChildren = safeSum(filteredEvents.map((e) => e.childrenTotal));
+    const succeeded     = safeSum(filteredEvents.map((e) => e.childrenSucceeded));
+    const failed        = safeSum(filteredEvents.map((e) => e.childrenFailed));
+    const successRate   = totalChildren ? roundTo(safeMul(safeDiv(succeeded, totalChildren), 100), 1) : null;
 
     return {
       avgLatency,
@@ -328,18 +334,17 @@ const LatencyHistory = () => {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {RANGE_OPTIONS.map((option) => (
               <button
                 key={option.key}
                 onClick={() => handleRangeChange(option.key)}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold transition-colors duration-200 ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
                   rangeKey === option.key
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500'
-                    : 'border-border/60 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:text-foreground'
+                    ? 'bg-brand-purple text-white'
+                    : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10'
                 }`}
               >
-                <CalendarDays className="h-3 w-3" />
                 {option.label}
               </button>
             ))}
@@ -391,7 +396,7 @@ const LatencyHistory = () => {
       ) : (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Avg Latency" value={displayStats.avgLatency != null ? `${displayStats.avgLatency}ms` : '-'} sub={`${displayStats.eventCount} filtered events`} icon={Clock} accent="cyan" />
-          <StatCard label="Success Rate" value={displayStats.successRate != null ? `${displayStats.successRate.toFixed(1)}%` : '-'} sub="Per-child outcomes" icon={CheckCircle2} accent="emerald" />
+          <StatCard label="Success Rate" value={displayStats.successRate != null ? `${roundTo(displayStats.successRate, 1)}%` : '-'} sub="Per-child outcomes" icon={CheckCircle2} accent="emerald" />
           <StatCard label="Latency" value={displayStats.p95 != null ? `${displayStats.p95}ms` : '-'} sub={`Stats window: ${rangeKey}`} icon={TrendingUp} accent="amber" />
           <StatCard label="Failed Children" value={displayStats.failed} sub="Across filtered events" icon={AlertCircle} accent="rose" />
         </div>

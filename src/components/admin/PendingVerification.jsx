@@ -130,7 +130,7 @@ const PendingVerification = () => {
                   <div className="min-w-0">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                       <h2 className="text-lg font-semibold">{request.name}</h2>
-                      <span className="text-xs px-2 py-1 rounded-full bg-warning/20 text-warning w-fit">
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-500 text-white w-fit">
                         Awaiting Review
                       </span>
                     </div>

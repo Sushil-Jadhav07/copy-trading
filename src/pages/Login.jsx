@@ -207,13 +207,8 @@ const Login = () => {
       whileTap={{ scale: 0.98 }}
       type="submit"
       disabled={disabled || loading}
-      className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 overflow-hidden relative group"
-      style={{ 
-        background: 'linear-gradient(90deg, #00C896 0%, #00A878 100%)',
-        boxShadow: '0 8px 20px -4px rgba(0,200,150,0.4)' 
-      }}
+      className="btn-primary w-full py-3 text-sm font-semibold"
     >
-      <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-[-20deg]" />
       {loading ? <Spinner /> : children}
     </motion.button>
   );
@@ -295,6 +290,7 @@ const Login = () => {
                   Resend OTP
                 </button>
                 <button onClick={() => { setStep('input'); setError(''); }}
+                  aria-label="Go back"
                   className="mt-6 w-full text-sm text-slate-400 hover:text-white transition-colors text-center flex items-center justify-center gap-1">
                   <ChevronLeft className="w-4 h-4" /> Back to sign in
                 </button>
@@ -305,6 +301,7 @@ const Login = () => {
             {step === 'otp-verify' && loginMethod === 'phone' && (
               <motion.div key="otp-verify" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
                 <button onClick={() => { setStep('input'); setError(''); }}
+                  aria-label="Go back"
                   className="mb-6 flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors">
                   <ChevronLeft className="w-4 h-4" /> Back
                 </button>
@@ -421,7 +418,7 @@ const Login = () => {
                         </div>
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-slate-300">Password</label>
+                            <label htmlFor="login-password" className="text-sm font-medium text-slate-300">Password</label>
                             <button type="button" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
                               onClick={() => navigate('/forgot-password')}>
                               Forgot Password?
@@ -430,6 +427,7 @@ const Login = () => {
                           <div className="relative group">
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
                             <input
+                              id="login-password"
                               type={showPass ? 'text' : 'password'} value={form.password}
                               onChange={(e) => setForm({ ...form, password: e.target.value })}
                               placeholder="Enter your password"
@@ -437,6 +435,7 @@ const Login = () => {
                               required
                             />
                             <button type="button" onClick={() => setShowPass(!showPass)}
+                              aria-label={showPass ? 'Hide password' : 'Show password'}
                               className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
                               {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>

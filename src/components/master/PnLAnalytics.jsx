@@ -9,7 +9,7 @@ import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
 import { pnlService } from '@/lib/pnl';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, safeAdd, safeSum, safeDiv, safeMul, roundTo } from '@/lib/utils';
 import { masterService } from '@/lib/master';
 
 const PERIODS = ['DAILY', 'WEEKLY', 'MONTHLY'];
@@ -134,21 +134,21 @@ const PnLAnalytics = () => {
     if (!unrealized) return 0;
     if (typeof unrealized.unrealizedPnl === 'number') return unrealized.unrealizedPnl;
     if (typeof unrealized.pnl === 'number') return unrealized.pnl;
-    if (Array.isArray(unrealized)) return unrealized.reduce((sum, pos) => sum + Number(pos.pnl || 0), 0);
+    if (Array.isArray(unrealized)) return safeSum(unrealized.map((pos) => pos.pnl));
     return 0;
   }, [unrealized]);
 
   const totalTrades = useMemo(() => {
-    if (summary.length) return summary.reduce((sum, row) => sum + Number(row.totalTrades || 0), 0);
+    if (summary.length) return safeSum(summary.map((row) => row.totalTrades));
     return realizedTrades.length;
   }, [summary, realizedTrades]);
 
   const avgWinRate = useMemo(() => {
     if (!summary.length) return 0;
-    return Math.round(summary.reduce((sum, row) => sum + Number(row.winRate || 0), 0) / summary.length);
+    return roundTo(safeDiv(safeSum(summary.map((row) => row.winRate)), summary.length), 1);
   }, [summary]);
 
-  const monthlyTotal = realizedPnlVal + unrealizedPnlVal;
+  const monthlyTotal = safeAdd(realizedPnlVal, unrealizedPnlVal);
 
   const dailyPnlChart = useMemo(() => {
     if (dailyChart.length > 0) {
@@ -166,9 +166,9 @@ const PnLAnalytics = () => {
     const buckets = [0, 0, 0, 0];
     summary.forEach((row, idx) => {
       const bucket = Math.min(3, Math.floor((idx / Math.max(1, summary.length)) * 4));
-      buckets[bucket] += Number(row.realizedPnl || 0) + Number(row.unrealizedPnl || 0);
+      buckets[bucket] = safeAdd(buckets[bucket], row.realizedPnl, row.unrealizedPnl);
     });
-    return buckets.map((v, i) => ({ month: `Week ${i + 1}`, value: Math.round(v) }));
+    return buckets.map((v, i) => ({ month: `Week ${i + 1}`, value: roundTo(v, 0) }));
   }, [summary]);
 
   const topInstruments = useMemo(() => {
@@ -176,7 +176,7 @@ const PnLAnalytics = () => {
     realizedTrades.forEach((t) => {
       const key = String(t.symbol || t.instrument || 'UNKNOWN').toUpperCase();
       const pnl = Number(t.pnl || t.realizedPnl || 0);
-      map.set(key, (map.get(key) || 0) + pnl);
+      map.set(key, safeAdd(map.get(key) ?? 0, pnl));
     });
     return Array.from(map.entries())
       .map(([instrument, pnl]) => ({ instrument, pnl }))

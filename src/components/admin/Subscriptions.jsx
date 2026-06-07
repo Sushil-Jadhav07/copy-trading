@@ -9,9 +9,9 @@ import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
 const statusClass = {
-  Active: 'bg-emerald-500/15 text-emerald-400',
-  Cancelled: 'bg-red-500/15 text-red-400',
-  Expired: 'bg-white/10 text-muted-foreground',
+  Active:    'bg-emerald-500 text-white',
+  Cancelled: 'bg-rose-500 text-white',
+  Expired:   'bg-slate-500 text-white',
 };
 
 const Subscriptions = () => {

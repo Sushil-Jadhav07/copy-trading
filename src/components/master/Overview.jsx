@@ -5,7 +5,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import DataTable from '@/components/shared/DataTable';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import RefreshButton from '@/components/shared/RefreshButton';
-import { formatCurrency, formatPnl } from '@/lib/utils';
+import { formatCurrency, formatPnl, safeMul, safeDiv, roundTo } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren, useMasterTradePnl } from '@/hooks/useMaster';
 import { useAuth } from '@/context/AuthContext';
@@ -163,7 +163,7 @@ const Overview = () => {
                       {formatPnl(row.pnl)}
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${row.status === 'ACTIVE' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${row.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-amber-500'}`}>
                         {row.status === 'ACTIVE' ? 'Active' : 'Paused'}
                       </span>
                     </td>
@@ -213,8 +213,8 @@ const Overview = () => {
                   const entry = Number(pos.avgPrice || 0);
                   const current = Number(pos.ltp || 0);
                   const pnl = Number(pos.unrealizedPnl ?? pos.pnl ?? 0);
-                  const base = Math.abs(entry * qty);
-                  const pnlPct = base > 0 ? (pnl / base) * 100 : 0;
+                  const base = Math.abs(safeMul(entry, qty));
+                  const pnlPct = base > 0 ? roundTo(safeMul(safeDiv(pnl, base), 100), 2) : 0;
                   return (
                     <tr key={pos.id || `${symbol}-${idx}`} className="border-b border-border/30 last:border-b-0">
                       <td className="px-3 py-2 text-sm font-medium">{symbol || '-'}</td>
@@ -229,10 +229,10 @@ const Overview = () => {
                         {formatPnl(pnl)}
                       </td>
                       <td className={`px-3 py-2 text-sm font-semibold ${pnlPct >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                        {pnlPct >= 0 ? '+' : ''}{roundTo(pnlPct, 2)}%
                       </td>
                       <td className="px-3 py-2">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">Open</span>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white bg-emerald-500">Open</span>
                       </td>
                     </tr>
                   );

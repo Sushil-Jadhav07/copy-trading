@@ -132,7 +132,7 @@ const getProxyStatusMeta = (account = {}) => {
   if (account.proxyConfigured && proxyHost && proxyPort > 0) {
     return {
       label: `Proxy ${proxyHost}:${proxyPort}`,
-      badgeClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      badgeClass: 'bg-emerald-500 text-white',
       helper: 'Requests route through the configured proxy',
     };
   }
@@ -916,7 +916,8 @@ const UserManagement = ({
       {/* ── Accounts table ── */}
       <GlassCard noPadding>
         <div className="p-4 border-b border-border/50 flex items-center justify-between gap-3 flex-wrap">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts..."
+          <label htmlFor="usermgmt-search" className="sr-only">Search accounts</label>
+          <input id="usermgmt-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts..."
             className="w-full max-w-xs bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
           <span className="text-xs text-muted-foreground">{filtered.length} account{filtered.length !== 1 ? 's' : ''}</span>
         </div>

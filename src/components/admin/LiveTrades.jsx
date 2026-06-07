@@ -66,8 +66,8 @@ const LiveTrades = () => {
               <tr key={trade.id} className="transition-colors hover:bg-black/5 dark:hover:bg-white/5">
                 <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-foreground">{trade.symbol}</td>
                 <td className="whitespace-nowrap px-3 py-4 text-sm">
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    trade.action === 'BUY' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white ${
+                    trade.action === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'
                   }`}>
                     {trade.action}
                   </span>

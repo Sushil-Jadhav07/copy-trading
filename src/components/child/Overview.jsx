@@ -7,6 +7,7 @@ import LineChart from '@/components/charts/LineChart';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { useChildAnalytics, useChildSubscriptions, useChildCopiedTrades } from '@/hooks/useChild';
+import { safeAdd, safeMul, safeDiv } from '@/lib/utils';
 import { childService } from '@/lib/child';
 import { useToast } from '@/components/shared/Toast';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -59,14 +60,14 @@ const Overview = () => {
   const chartData = Array.isArray(analytics.pnlHistory)
     ? analytics.pnlHistory.map((point) => ({
         time: point.time,
-        value: Number(point.personal || 0) + Number(point.copied || 0),
+        value: safeAdd(point.personal, point.copied),
       }))
     : [];
 
   const masterTotal = Number(analytics.masterPnlComparison?.masterPnl || analytics.masterPnL || 0);
   const myTotal = Number(analytics.totalPnL || analytics.totalPnl || 0);
-  const ratio = myTotal !== 0 ? masterTotal / myTotal : 1;
-  const masterSeries = chartData.map((point) => ({ time: point.time, value: Number(point.value || 0) * ratio }));
+  const ratio = myTotal !== 0 ? safeDiv(masterTotal, myTotal) : 1;
+  const masterSeries = chartData.map((point) => ({ time: point.time, value: safeMul(point.value, ratio) }));
 
   const fmtTime = (raw) => {
     if (!raw) return '-';
@@ -267,11 +268,11 @@ const Overview = () => {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          isExecuted ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
-                          isFailed ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                          isSkipped ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                          'bg-black/10 dark:bg-white/10 border-border'
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white ${
+                          isExecuted ? 'bg-emerald-500' :
+                          isFailed ? 'bg-rose-500' :
+                          isSkipped ? 'bg-amber-500' :
+                          'bg-slate-500'
                         }`}>
                           {isExecuted ? 'SUCCESS' : isFailed ? 'FAILED' : isSkipped ? 'SKIPPED' : status || 'EXECUTED'}
                         </span>

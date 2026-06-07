@@ -159,6 +159,58 @@
   .btn-primary-gradient:hover { box-shadow: 0 6px 20px -2px rgba(16, 185, 129, 0.4); transform: translateY(-1.5px); }
   .btn-primary-gradient:active { transform: translateY(0.5px); }
 
+  /* ── Standardized button system ── */
+
+  /* Primary — brand green, used for main CTA actions */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient-h px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200;
+    box-shadow: theme('boxShadow.btn-primary');
+  }
+  .btn-primary:hover  { opacity: 0.92; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+  /* Danger — red, used for destructive actions (disconnect, delete, decline) */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-danger px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200;
+    box-shadow: theme('boxShadow.btn-danger');
+  }
+  .btn-danger:hover  { opacity: 0.90; transform: translateY(-1px); }
+  .btn-danger:active { transform: translateY(0); }
+  .btn-danger:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+  /* Ghost — transparent with border, used for secondary/cancel actions */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-black/5 px-5 py-2.5 text-sm font-semibold text-foreground transition-all duration-200 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10;
+  }
+  .btn-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* Warning — amber, used for re-auth, reconnect, attention actions */
+  .btn-warning {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-warning px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200;
+    box-shadow: theme('boxShadow.btn-warning');
+  }
+  .btn-warning:hover  { opacity: 0.90; transform: translateY(-1px); }
+  .btn-warning:active { transform: translateY(0); }
+  .btn-warning:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+  /* Success-ghost — emerald tinted, used for approve/resume actions */
+  .btn-success-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-success/30 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition-all duration-200 hover:bg-success/20;
+  }
+  .btn-success-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* Danger-ghost — red tinted, used for decline/pause actions */
+  .btn-danger-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-5 py-2.5 text-sm font-semibold text-danger transition-all duration-200 hover:bg-danger/20;
+  }
+  .btn-danger-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* Icon button — square, used for back/close/refresh icon-only buttons */
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground transition-colors hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10;
+  }
+
   .stat-card-glow { box-shadow: 0 1px 5px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,200,150,0.09); }
   .dark .stat-card-glow { box-shadow: 0 2px 8px rgba(0,0,0,0.24), 0 0 0 1px rgba(0,200,150,0.09); }
 

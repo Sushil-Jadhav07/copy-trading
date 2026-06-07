@@ -41,16 +41,16 @@ const SKIP_REASON_LABELS = {
 const getStatusMeta = (status) => {
   switch (normalizeStatus(status)) {
     case 'ACTIVE':
-      return { label: 'Active', pill: 'bg-success/20 text-success', subtitle: 'Trades are being copied to your account' };
+      return { label: 'Active', pill: 'bg-emerald-500 text-white', subtitle: 'Trades are being copied to your account' };
     case 'PENDING_APPROVAL':
-      return { label: 'Pending Approval', pill: 'bg-warning/20 text-warning', subtitle: "Master hasn't approved your request yet" };
+      return { label: 'Pending Approval', pill: 'bg-amber-500 text-white', subtitle: "Master hasn't approved your request yet" };
     case 'PAUSED':
-      return { label: 'Paused', pill: 'bg-warning/20 text-warning', subtitle: "You've paused copying — resume anytime" };
+      return { label: 'Paused', pill: 'bg-amber-500 text-white', subtitle: "You've paused copying — resume anytime" };
     case 'REJECTED':
-      return { label: 'Rejected', pill: 'bg-danger/20 text-danger', subtitle: 'Master declined your request' };
+      return { label: 'Rejected', pill: 'bg-rose-500 text-white', subtitle: 'Master declined your request' };
     case 'INACTIVE':
     default:
-      return { label: 'Inactive', pill: 'bg-white/10 text-muted-foreground', subtitle: 'Not currently copying' };
+      return { label: 'Inactive', pill: 'bg-slate-500 text-white', subtitle: 'Not currently copying' };
   }
 };
 

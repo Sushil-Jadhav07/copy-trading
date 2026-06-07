@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { WifiOff, Wifi, Activity } from 'lucide-react';
+import { WifiOff, Wifi, Activity, Search } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
+import DownloadButton from '@/components/shared/DownloadButton';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
 import { formatCurrency } from '@/lib/utils';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 
@@ -21,6 +23,8 @@ const ChildOpenPositions = () => {
   const [positionsMeta, setPositionsMeta] = useState({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -126,12 +130,48 @@ const ChildOpenPositions = () => {
 
   const getDisplayCount = (value) => (value === null || value === undefined ? '-' : String(value));
   const getDisplayText = (value) => (value === null || value === undefined || value === '' ? '-' : String(value));
+
+  const filteredPositions = positions.filter((p) => {
+    const matchType   = typeFilter === 'all' || String(p.type || '').toUpperCase() === typeFilter;
+    const matchSearch = !search || String(p.instrument || p.symbol || '').toUpperCase().includes(search.toUpperCase());
+    return matchType && matchSearch;
+  });
   const getTriggerValue = (pos) => {
     const raw = pos?.triggerPrice ?? pos?.trigger_price;
     const num = Number(raw);
     if (!Number.isFinite(num) || num <= 0) return '-';
     return num.toFixed(2);
   };
+
+  const handleDownload = useCallback(() => {
+    try {
+      const rows = filteredPositions.map((pos, idx) => ({
+        '#': idx + 1,
+        Instrument: pos.instrument || pos.symbol || '-',
+        Exchange: pos.exchange || pos.market || '-',
+        Product: pos.product || pos.productType || '-',
+        Type: pos.type || '-',
+        Qty: pos.qty ?? '-',
+        'Avg Price': Number(pos.avgPrice ?? 0),
+        LTP: Number(pos.ltp ?? 0),
+        'Unrealized P&L': Number(pos.unrealizedPnl ?? 0),
+        'Realized P&L': Number(pos.realizedPnl ?? pos.realized_pnl ?? 0),
+        'Change %': Number(pos.change ?? 0),
+        'Trigger Price': getTriggerValue(pos),
+        Master: pos.masterName || pos.master_name || pos.copiedFromMaster || '-',
+        Broker: positionsMeta.brokerId || selectedAccount?.broker || '',
+      }));
+
+      downloadExcelSheet({
+        rows,
+        sheetName: 'Open Positions',
+        fileName: buildExportFileName('Child Open Positions'),
+      });
+      addToast('Open positions Excel downloaded', 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to download Excel sheet', 'error');
+    }
+  }, [addToast, filteredPositions, getTriggerValue, positionsMeta.brokerId, selectedAccount?.broker]);
 
   return (
     <div className="space-y-6">
@@ -154,6 +194,7 @@ const ChildOpenPositions = () => {
               triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
             />
           )}
+          <DownloadButton onClick={handleDownload} disabled={filteredPositions.length === 0} label="Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>
@@ -220,6 +261,42 @@ const ChildOpenPositions = () => {
         );
       })()}
 
+      {/* Filters */}
+      <GlassCard>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { key: 'all',  label: 'All' },
+              { key: 'BUY',  label: 'Buy Only' },
+              { key: 'SELL', label: 'Sell Only' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setTypeFilter(f.key)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  typeFilter === f.key
+                    ? f.key === 'BUY'  ? 'bg-emerald-500 text-white'
+                    : f.key === 'SELL' ? 'bg-rose-500 text-white'
+                    : 'bg-brand-purple text-white'
+                    : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="relative ml-auto">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search instrument..."
+              className="pl-8 pr-3 py-1 text-xs rounded-lg border border-border bg-black/5 dark:bg-white/5 focus:outline-none focus:border-brand-purple w-44"
+            />
+          </div>
+        </div>
+      </GlassCard>
+
       <GlassCard noPadding>
         {(loading || sessionLoading) ? (
           <div className="p-4"><SkeletonLoader type="table" rows={5} columns={7} /></div>
@@ -239,7 +316,7 @@ const ChildOpenPositions = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20">
-                {positions.map((pos, idx) => (
+                {filteredPositions.map((pos, idx) => (
                   <motion.tr
                     key={pos.id}
                     initial={{ opacity: 0, y: 4 }}
@@ -277,14 +354,16 @@ const ChildOpenPositions = () => {
                     <td className="px-6 py-4 text-xs font-bold">{getDisplayText(pos.masterName || pos.master_name || pos.copiedFromMaster)}</td>
                   </motion.tr>
                 ))}
-                {positions.length === 0 && (
+                {filteredPositions.length === 0 && (
                   <tr>
                     <td colSpan={11} className="px-6 py-20 text-center">
                       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                         <Activity className="h-8 w-8 text-muted-foreground/20" />
                       </div>
                       <h3 className="text-sm font-black uppercase tracking-tight">No Open Positions</h3>
-                      <p className="text-xs text-muted-foreground mt-1">Your live trades will appear here once they are executed.</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {positions.length === 0 ? 'Your live trades will appear here once they are executed.' : 'No positions match the selected filters.'}
+                      </p>
                     </td>
                   </tr>
                 )}

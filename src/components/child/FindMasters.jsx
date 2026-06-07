@@ -19,14 +19,14 @@ const clampPriceTolerance = (value) => Math.min(10, Math.max(0, Number(value) ||
 
 /* ── Status pill ── */
 const SUB_STATUS = {
-  ACTIVE:           { label: 'Copying',           cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',  icon: CheckCircle2 },
-  PENDING_APPROVAL: { label: 'Awaiting Approval',  cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',        icon: Clock },
-  PAUSED:           { label: 'Paused',              cls: 'bg-slate-500/12 text-slate-500 dark:text-slate-400',        icon: PauseCircle },
-  REJECTED:         { label: 'Rejected',            cls: 'bg-red-500/12 text-red-600 dark:text-red-400',              icon: XCircle },
+  ACTIVE:           { label: 'Copying',           cls: 'bg-emerald-500 text-white', icon: CheckCircle2 },
+  PENDING_APPROVAL: { label: 'Awaiting Approval',  cls: 'bg-amber-500 text-white',   icon: Clock },
+  PAUSED:           { label: 'Paused',              cls: 'bg-slate-500 text-white',   icon: PauseCircle },
+  REJECTED:         { label: 'Rejected',            cls: 'bg-rose-500 text-white',    icon: XCircle },
 };
 
 const SubStatusPill = ({ status }) => {
-  const meta = SUB_STATUS[status] || { label: 'Subscribed', cls: 'bg-black/8 dark:bg-white/8 text-muted-foreground', icon: CheckCircle2 };
+  const meta = SUB_STATUS[status] || { label: 'Subscribed', cls: 'bg-slate-500 text-white', icon: CheckCircle2 };
   const Icon = meta.icon;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${meta.cls}`}>
@@ -303,7 +303,8 @@ const FindMasters = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input type="text" placeholder="Search masters..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            <label htmlFor="find-masters-search" className="sr-only">Search masters</label>
+            <input id="find-masters-search" type="text" placeholder="Search masters..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/50" />
           </div>
           <button onClick={openBulkSubscribe} disabled={!selectedMasters.length}
@@ -381,7 +382,7 @@ const FindMasters = () => {
                       <SubStatusPill status={status} />
                     </div>
                   ) : (
-                    <button onClick={(e) => openSubscribe(e, master)}
+                    <button onClick={(e) => openSubscribe(e, master)} aria-label="Subscribe to master"
                       className="w-full py-2.5 rounded-lg text-sm font-medium bg-brand-purple hover:bg-brand-purple/90 text-white transition-colors flex items-center justify-center gap-2">
                       <UserPlus className="w-4 h-4" /> Subscribe
                     </button>

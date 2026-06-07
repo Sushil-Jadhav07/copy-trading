@@ -5,7 +5,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
 import DataTable from '@/components/shared/DataTable';
 import RefreshButton from '@/components/shared/RefreshButton';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, safeMul } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -95,7 +95,7 @@ const Overview = () => {
       { header: 'Master', accessor: 'master' },
       { header: 'Instrument', accessor: 'symbol' },
       { header: 'Qty', accessor: 'qty' },
-      { header: 'Value', accessor: 'price', cell: (row) => formatCurrency((row.price || 0) * (row.qty || 0)) },
+      { header: 'Value', accessor: 'price', cell: (row) => formatCurrency(safeMul(row.price, row.qty)) },
       { header: 'Time', accessor: 'timestamp' },
     ],
     [],
@@ -163,12 +163,12 @@ const Overview = () => {
                       {service.metric || (service.latency ? `${service.latency}ms` : service.uptime)}
                     </span>
                     <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${
+                      className={`rounded-full px-2 py-1 text-xs font-medium text-white ${
                         String(service.status).toLowerCase().includes('online') || String(service.status).toLowerCase().includes('healthy')
-                          ? 'bg-emerald-500/15 text-emerald-400'
+                          ? 'bg-emerald-500'
                           : String(service.status).toLowerCase().includes('degraded')
-                          ? 'bg-amber-500/15 text-amber-400'
-                          : 'bg-red-500/15 text-red-400'
+                          ? 'bg-amber-500'
+                          : 'bg-rose-500'
                       }`}
                     >
                       {service.status}

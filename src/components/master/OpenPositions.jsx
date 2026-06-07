@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { WifiOff, Wifi } from 'lucide-react';
+import { WifiOff, Wifi, Search } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
+import DownloadButton from '@/components/shared/DownloadButton';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 
@@ -34,6 +36,8 @@ const OpenPositions = () => {
   const [childDetailModal, setChildDetailModal] = useState(false);
   const [selectedChildren, setSelectedChildren] = useState([]);
   const [selectedInstrument, setSelectedInstrument] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -187,6 +191,44 @@ const OpenPositions = () => {
   const followersCount = positions.reduce((s, p) => s + (Array.isArray(p.children) ? p.children.length : 0), 0);
   const selectedAccount = accounts.find((a) => (a.accountId || a.id) === selectedAccountId);
 
+  const filteredPositions = positions.filter((p) => {
+    const matchType   = typeFilter === 'all' || String(p.type || '').toUpperCase() === typeFilter;
+    const matchSearch = !search || String(p.instrument || p.symbol || '').toUpperCase().includes(search.toUpperCase());
+    return matchType && matchSearch;
+  });
+
+  const handleDownload = useCallback(() => {
+    try {
+      const rows = filteredPositions.map((pos, idx) => {
+        const childList = Array.isArray(pos.children) ? pos.children : [];
+        return {
+          '#': idx + 1,
+          Instrument: pos.instrument || pos.symbol || '-',
+          Type: pos.type || '-',
+          Qty: pos.qty ?? '-',
+          Price: Number(pos.ltp ?? pos.avgPrice ?? 0),
+          'Avg Price': Number(pos.avgPrice ?? 0),
+          LTP: Number(pos.ltp ?? pos.avgPrice ?? 0),
+          'Unrealized P&L': Number(pos.unrealizedPnl ?? 0),
+          'Change %': Number(pos.change ?? 0),
+          'Children Copying': childList.length,
+          'Children Details': childList.map((child) => `${child.name || child.childName || 'Child'} (${child.qty || 0})`).join(', '),
+          Broker: positionsMeta.brokerId || selectedAccount?.broker || '',
+          'Client ID': selectedAccount?.clientId || '',
+        };
+      });
+
+      downloadExcelSheet({
+        rows,
+        sheetName: 'Open Positions',
+        fileName: buildExportFileName('Master Open Positions'),
+      });
+      addToast('Open positions Excel downloaded', 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to download Excel sheet', 'error');
+    }
+  }, [addToast, filteredPositions, positionsMeta.brokerId, selectedAccount?.broker, selectedAccount?.clientId]);
+
   if (accounts.length === 0 && !loading && !sessionLoading && positionsMeta.errorCode === 'LEGACY_NO_ACCOUNTS') {
     return (
       <div className="space-y-6">
@@ -228,6 +270,7 @@ const OpenPositions = () => {
               triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
             />
           )}
+          <DownloadButton onClick={handleDownload} disabled={filteredPositions.length === 0} label="Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>
@@ -296,6 +339,42 @@ const OpenPositions = () => {
         );
       })()}
 
+      {/* Filters */}
+      <GlassCard>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { key: 'all',  label: 'All' },
+              { key: 'BUY',  label: 'Buy Only' },
+              { key: 'SELL', label: 'Sell Only' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setTypeFilter(f.key)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  typeFilter === f.key
+                    ? f.key === 'BUY'  ? 'bg-emerald-500 text-white'
+                    : f.key === 'SELL' ? 'bg-rose-500 text-white'
+                    : 'bg-brand-purple text-white'
+                    : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="relative ml-auto">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search instrument..."
+              className="pl-8 pr-3 py-1 text-xs rounded-lg border border-border bg-black/5 dark:bg-white/5 focus:outline-none focus:border-brand-purple w-44"
+            />
+          </div>
+        </div>
+      </GlassCard>
+
       <GlassCard noPadding>
         {(loading || sessionLoading) ? (
           <div className="p-4"><SkeletonLoader type="table" rows={5} columns={10} /></div>
@@ -315,7 +394,7 @@ const OpenPositions = () => {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((pos, idx) => {
+                {filteredPositions.map((pos, idx) => {
                   const childList = Array.isArray(pos.children) ? pos.children : [];
                   return (
                     <motion.tr
@@ -328,7 +407,7 @@ const OpenPositions = () => {
                       <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
                       <td className="px-4 py-3 font-semibold text-sm">{pos.instrument || pos.symbol}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${pos.type === 'BUY' ? 'bg-success/20 text-success border-success/30' : 'bg-danger/20 text-danger border-danger/30'}`}>
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold text-white ${pos.type === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                           {pos.type}
                         </span>
                       </td>
@@ -363,10 +442,10 @@ const OpenPositions = () => {
                     </motion.tr>
                   );
                 })}
-                {positions.length === 0 && !showSessionWarning && (
+                {filteredPositions.length === 0 && !showSessionWarning && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No open positions for this account
+                      {positions.length === 0 ? 'No open positions for this account' : 'No positions match the selected filters'}
                     </td>
                   </tr>
                 )}

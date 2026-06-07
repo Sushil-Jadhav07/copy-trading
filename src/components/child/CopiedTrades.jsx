@@ -10,6 +10,7 @@ import { normalizeCopiedTrade } from '@/lib/child';
 import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
+import { roundTo } from '@/lib/utils';
 
 const fmtDateShort = (raw) => {
   if (!raw) return '-';
@@ -244,8 +245,10 @@ const CopiedTrades = () => {
         </div>
 
         <div className="relative">
+          <label htmlFor="copied-trades-search" className="sr-only">Search copied trades</label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
+            id="copied-trades-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search symbol/master/ref..."
@@ -389,7 +392,7 @@ const CopiedTrades = () => {
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <span className={`px-3 py-1 rounded-md text-xs font-black ${side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'}`}>
+                            <span className={`px-3 py-1 rounded-md text-xs font-black text-white ${side === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                               {side}
                             </span>
                           </td>
@@ -420,18 +423,18 @@ const CopiedTrades = () => {
                           </td>
                           <td className="px-6 py-5 text-xs font-bold text-muted-foreground">{broker}</td>
                           <td className="px-6 py-5 text-sm font-black">{qty}</td>
-                          <td className="px-6 py-5 text-sm font-black tabular-nums">{entry ? entry.toFixed(2) : '-'}</td>
+                          <td className="px-6 py-5 text-sm font-black tabular-nums">{entry ? roundTo(entry, 2) : '-'}</td>
                           <td className="px-6 py-5 text-sm font-black tabular-nums text-muted-foreground">
                             {(['SL', 'SL-M', 'SL_M', 'STOPLOSS', 'STOPLOSS_LIMIT', 'STOPLOSS_MARKET'].includes(String(trade.orderType || trade.raw?.orderType || '').toUpperCase()))
                               ? (Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || trade.raw?.triggerprice || 0) > 0
-                                  ? Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || 0).toFixed(2)
+                                  ? roundTo(Number(trade.triggerPrice || trade.raw?.triggerPrice || trade.raw?.trigger_price || trade.raw?.stopPrice || 0), 2)
                                   : '-')
                               : '-'
                             }
                           </td>
-                          <td className="px-6 py-5 text-sm font-black tabular-nums">{ltp ? ltp.toFixed(2) : '-'}</td>
+                          <td className="px-6 py-5 text-sm font-black tabular-nums">{ltp ? roundTo(ltp, 2) : '-'}</td>
                           <td className={`px-6 py-5 text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                            {pnl >= 0 ? '+' : ''}{roundTo(pnl, 2)}
                           </td>
                           <td className="px-6 py-5">
                             {trade.latencyMs != null && trade.latencyMs > 0 ? (

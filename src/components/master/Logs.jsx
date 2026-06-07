@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw, Info } from 'lucide-react';
+import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
@@ -13,10 +13,10 @@ import { formatRelativeTime, sortByMostRecent } from '@/lib/utils';
 import { connectChannel } from '@/lib/websocket';
 
 const STATUS_CFG = {
-  EXECUTED: { icon: CheckCircle2, cls: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', rowCls: 'border-l-emerald-500 bg-emerald-500/3', label: 'Executed' },
-  FAILED:   { icon: AlertCircle,  cls: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',           rowCls: 'border-l-rose-500 bg-rose-500/3',     label: 'Failed' },
-  SKIPPED:  { icon: SkipForward,  cls: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',        rowCls: 'border-l-amber-500 bg-amber-500/4',   label: 'Skipped' },
-  PENDING:  { icon: Clock,        cls: 'bg-slate-500/10 text-slate-500 dark:text-slate-400',        rowCls: 'border-l-slate-400 bg-transparent',   label: 'Pending' },
+  EXECUTED: { icon: CheckCircle2, cls: 'bg-emerald-500 text-white', rowCls: 'border-l-emerald-500 bg-emerald-500/5', label: 'Executed' },
+  FAILED:   { icon: AlertCircle,  cls: 'bg-rose-500 text-white',    rowCls: 'border-l-rose-500 bg-rose-500/5',     label: 'Failed' },
+  SKIPPED:  { icon: SkipForward,  cls: 'bg-amber-500 text-white',   rowCls: 'border-l-amber-500 bg-amber-500/5',   label: 'Skipped' },
+  PENDING:  { icon: Clock,        cls: 'bg-slate-500 text-white',   rowCls: 'border-l-slate-400 bg-transparent',   label: 'Pending' },
 };
 const normalizeStatus = (value) => {
   const raw = String(value || '').toUpperCase();
@@ -66,10 +66,11 @@ const TABS = [
   { key: 'broker', label: 'Broker Errors' },
 ];
 const TIME_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'today', label: 'Today' },
-  { key: 'weekly', label: 'Weekly' },
-  { key: 'monthly', label: 'Monthly' },
+  { key: 'today',     label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week',      label: 'This Week' },
+  { key: 'month',     label: 'This Month' },
+  { key: 'all',       label: 'All' },
 ];
 
 const Logs = () => {
@@ -170,10 +171,15 @@ const Logs = () => {
     const dt = new Date(value || 0);
     if (Number.isNaN(dt.getTime())) return false;
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    if (timeFilter === 'today') return dt >= startOfToday;
-    if (timeFilter === 'weekly') return dt >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    if (timeFilter === 'monthly') return dt >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const soy = new Date(sod); soy.setDate(soy.getDate() - 1);
+    const eoy = new Date(sod);
+    const sow = new Date(sod); sow.setDate(sow.getDate() - ((sow.getDay() + 6) % 7));
+    const som = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (timeFilter === 'today')     return dt >= sod;
+    if (timeFilter === 'yesterday') return dt >= soy && dt < eoy;
+    if (timeFilter === 'week')      return dt >= sow;
+    if (timeFilter === 'month')     return dt >= som;
     return true;
   };
 
@@ -261,7 +267,7 @@ const Logs = () => {
                   <td className="px-4 py-3 text-sm font-bold">{log.symbol || 'N/A'}</td>
                   <td className="px-4 py-3">
                     {side ? (
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide ${side === 'BUY' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide text-white ${side === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                         {side}
                       </span>
                     ) : (
@@ -304,7 +310,7 @@ const Logs = () => {
                                 <Info className="h-3.5 w-3.5" />
                               </button>
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-[200px] text-[10px] font-bold uppercase tracking-wide leading-relaxed">
+                            <TooltipContent side="top" className="max-w-xs text-[10px] font-bold uppercase tracking-wide leading-relaxed break-words whitespace-normal">
                               {reason}
                             </TooltipContent>
                           </Tooltip>
@@ -481,23 +487,18 @@ const Logs = () => {
 
           <div className="h-6 w-px bg-border/40 hidden sm:block" />
 
-          <div className="flex items-center gap-1.5">
-            {[
-              { key: 'today', label: 'Today', icon: Zap },
-              { key: 'weekly', label: 'Week', icon: RotateCcw },
-              { key: 'all', label: 'All Time', icon: Clock },
-            ].map((item) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {TIME_FILTERS.map((f) => (
               <button
-                key={item.key}
-                onClick={() => setTimeFilter(item.key)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                  timeFilter === item.key
-                    ? 'border-brand-purple/30 bg-brand-purple/10 text-brand-purple'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                key={f.key}
+                onClick={() => setTimeFilter(f.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  timeFilter === f.key
+                    ? 'bg-brand-purple text-white'
+                    : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10'
                 }`}
               >
-                <item.icon className="w-3 h-3" />
-                {item.label}
+                {f.label}
               </button>
             ))}
           </div>
@@ -505,7 +506,9 @@ const Logs = () => {
 
         <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <label htmlFor="logs-search" className="sr-only">Search logs</label>
           <input
+            id="logs-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search symbol/master/ref..."

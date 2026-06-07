@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useAnimatedCounter, useAnimatedDecimal } from '@/hooks/useAnimatedCounter';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, roundTo } from '@/lib/utils';
 
 const StatCard = ({
   title,
@@ -28,7 +28,7 @@ const StatCard = ({
     if (!hasValue) return emptyLabel;
     const normalized = Number.isFinite(Number(val)) ? Number(val) : 0;
     if (isCurrency) return formatCurrency(normalized);
-    if (isPercentage) return normalized.toFixed(decimals);
+    if (isPercentage) return String(roundTo(normalized, decimals));
     return normalized;
   };
 

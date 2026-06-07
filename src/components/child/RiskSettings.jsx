@@ -17,6 +17,7 @@ import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
 import { riskService } from '@/lib/risk';
+import { roundTo } from '@/lib/utils';
 
 const DEFAULT_RULES = {
   maxTradesPerDay: 50,
@@ -279,7 +280,7 @@ const RiskSettings = () => {
     },
     {
       label: 'Exposure Used',
-      value: `${Number(exposure?.exposurePercent || 0).toFixed(1)}%`,
+      value: `${roundTo(exposure?.exposurePercent, 1)}%`,
       sub: `limit ${currentRules.maxCapitalExposure}%`,
     },
     {
@@ -410,6 +411,7 @@ const RiskSettings = () => {
                     </div>
                     <div className="flex items-center gap-2 self-start">
                       <input
+                        aria-label={`${field.label} value`}
                         type="number"
                         min={field.min}
                         max={field.max}
@@ -423,6 +425,7 @@ const RiskSettings = () => {
 
                   <div className="space-y-2">
                     <input
+                      aria-label={`${field.label} slider`}
                       type="range"
                       min={field.min}
                       max={field.max}
