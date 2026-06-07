@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, IndianRupee, Server, TrendingUp, Users } from 'lucide-react';
 import StatCard from '@/components/shared/StatCard';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
 import DataTable from '@/components/shared/DataTable';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
@@ -44,58 +45,49 @@ const Overview = () => {
   const [health, setHealth] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadOverview = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [analyticsResponse, healthResponse, logsResponse, usersResponse] = await Promise.all([
+        adminService.getAnalytics(),
+        adminService.getSystemHealth(),
+        adminService.getTradeLogs(),
+        adminService.getUsers({ page: 1, limit: 1 }),
+      ]);
+
+      const resolvedTotalUsers =
+        safeNumber(analyticsResponse.totalUsers, -1) >= 0
+          ? safeNumber(analyticsResponse.totalUsers)
+          : safeNumber(usersResponse?.meta?.total, usersResponse?.users?.length || 0);
+
+      setAnalytics({
+        ...analyticsResponse,
+        totalUsers: resolvedTotalUsers,
+        activeMasters: safeNumber(analyticsResponse.activeMasters),
+        volumeToday: safeNumber(analyticsResponse.volumeToday),
+        revenueMtd: safeNumber(analyticsResponse.revenueMtd),
+        userGrowth: normalizeChartData(analyticsResponse.userGrowth),
+      });
+      setHealth(healthResponse);
+      setLogs(logsResponse.slice(0, 5));
+    } catch (error) {
+      addToast(error.message || 'Unable to load admin overview', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadOverview = async () => {
-      setLoading(true);
-
-      try {
-        const [analyticsResponse, healthResponse, logsResponse, usersResponse] = await Promise.all([
-          adminService.getAnalytics(),
-          adminService.getSystemHealth(),
-          adminService.getTradeLogs(),
-          // Admin list endpoints here are 1-based: first page is page=1.
-          adminService.getUsers({ page: 1, limit: 1 }),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        const resolvedTotalUsers =
-          safeNumber(analyticsResponse.totalUsers, -1) >= 0
-            ? safeNumber(analyticsResponse.totalUsers)
-            : safeNumber(usersResponse?.meta?.total, usersResponse?.users?.length || 0);
-
-        setAnalytics({
-          ...analyticsResponse,
-          totalUsers: resolvedTotalUsers,
-          activeMasters: safeNumber(analyticsResponse.activeMasters),
-          volumeToday: safeNumber(analyticsResponse.volumeToday),
-          revenueMtd: safeNumber(analyticsResponse.revenueMtd),
-          userGrowth: normalizeChartData(analyticsResponse.userGrowth),
-        });
-        setHealth(healthResponse);
-        setLogs(logsResponse.slice(0, 5));
-      } catch (error) {
-        if (isMounted) {
-          addToast(error.message || 'Unable to load admin overview', 'error');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     loadOverview();
+  }, [loadOverview]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [addToast]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadOverview();
+  };
 
   const tradeColumns = useMemo(
     () => [
@@ -115,9 +107,12 @@ const Overview = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Admin Overview</h1>
-        <p className="text-sm text-muted-foreground">Platform analytics and operational monitoring</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Admin Overview</h1>
+          <p className="text-sm text-muted-foreground">Platform analytics and operational monitoring</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">

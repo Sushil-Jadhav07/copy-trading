@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link2, TrendingUp, UserCheck, Users } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -23,33 +24,29 @@ const MasterChildMap = () => {
   const [rows, setRows] = useState([]);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminService.getMasterChildMap();
+      setRows(response.masters || []);
+    } catch (error) {
+      addToast(error.message || 'Unable to load master-child map', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const load = async () => {
-      setLoading(true);
-      try {
-        const response = await adminService.getMasterChildMap();
-        if (isMounted) {
-          setRows(response.masters || []);
-        }
-      } catch (error) {
-        if (isMounted) {
-          addToast(error.message || 'Unable to load master-child map', 'error');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     load();
-    return () => {
-      isMounted = false;
-    };
-  }, [addToast]);
+  }, [load]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await load();
+  };
 
   const filteredRows = useMemo(() => {
     if (statusFilter === 'ALL') return rows;
@@ -93,13 +90,16 @@ const MasterChildMap = () => {
           <h1 className="text-xl font-bold sm:text-2xl">Master-Child Map</h1>
           <p className="text-sm text-muted-foreground">All current master-child relationships from the admin API.</p>
         </div>
-        <DivSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
-          includeEmptyOption={false}
-          options={STATUS_OPTIONS}
-          triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
-        />
+        <div className="flex items-center gap-3">
+          <DivSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            includeEmptyOption={false}
+            options={STATUS_OPTIONS}
+            triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
+          />
+          <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { RefreshCw, WifiOff, Wifi } from 'lucide-react';
+import { WifiOff, Wifi } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
@@ -227,14 +228,7 @@ const OpenPositions = () => {
               triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
             />
           )}
-          <button
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            className="p-2 bg-black/5 dark:bg-white/5 rounded-lg hover:bg-black/10 transition-colors disabled:opacity-50"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-          </button>
+          <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>
 

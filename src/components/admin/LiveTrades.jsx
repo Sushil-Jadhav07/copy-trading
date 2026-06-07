@@ -1,60 +1,53 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatCurrency, formatRelativeTime, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { adminService } from '@/lib/admin';
 
 const LiveTrades = () => {
   const { addToast } = useToast();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadTrades = async () => {
-      setLoading(true);
-      try {
-        // FIX: pass status filter so we only get executed/replicated trade logs,
-        // not the same unfiltered dump that OrderFeed shows.
-        // Spec 6.12: GET /admin/trade-logs?userId=uuid&status=EXECUTED
-        const response = await adminService.getTradeLogs({ status: 'EXECUTED' });
-
-        if (isMounted) {
-          // Further client-side filter to keep only copy-trade replication records
-          setLogs(response.filter((log) => {
-            const t = (log.type || '').toUpperCase();
-            return t === 'EXECUTED' || t === 'REPLICATED';
-          }));
-        }
-      } catch (error) {
-        if (isMounted) {
-          addToast(error.message || 'Unable to load live trades', 'error');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadTrades();
-
-    return () => {
-      isMounted = false;
-    };
+  const loadTrades = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminService.getTradeLogs({ status: 'EXECUTED' });
+      setLogs(response.filter((log) => {
+        const type = String(log.type || '').toUpperCase();
+        return type === 'EXECUTED' || type === 'REPLICATED';
+      }));
+    } catch (error) {
+      addToast(error.message || 'Unable to load live trades', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [addToast]);
 
+  useEffect(() => {
+    loadTrades();
+  }, [loadTrades]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadTrades();
+  };
+
   const tradesByTime = useMemo(
-    () =>
-      [...logs].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()),
+    () => [...logs].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()),
     [logs],
   );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Live Trade Feed</h1>
-        <p className="text-sm text-muted-foreground">Executed &amp; replicated copy trades — live from admin logs.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Live Trade Feed</h1>
+          <p className="text-sm text-muted-foreground">Executed and replicated copy trades live from admin logs.</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       <div className="glass-card overflow-x-auto p-0">

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Wifi, WifiOff, AlertTriangle, AlertCircle, Server } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertTriangle, AlertCircle, Server } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { formatCurrency, formatRelativeTime } from '@/lib/utils';
 
 // ── Signal bars component ────────────────────────────────────────────────────
@@ -486,9 +487,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             <span className={`text-sm ml-1 ${totalPnL >= 0 ? 'text-success' : 'text-danger'}`}>{totalPnL >= 0 ? '↑' : '↓'}</span>
             <span className="text-sm text-muted-foreground ml-1">PnL</span>
           </div>
-          <button onClick={handleRefresh} className="w-9 h-9 bg-brand-blue/80 hover:bg-brand-blue rounded-lg flex items-center justify-center transition-colors">
-            <RefreshCw className={`w-4 h-4 text-white ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+          <RefreshButton onClick={handleRefresh} loading={refreshing} />
         </div>
       </div>
 

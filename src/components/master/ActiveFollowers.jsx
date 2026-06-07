@@ -14,6 +14,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useMasterChildren, useMasterPendingChildren } from '@/hooks/useMaster';
@@ -60,6 +61,7 @@ const ActiveFollowers = () => {
   const [selectedFollower, setSelectedFollower] = useState(null);
   const [pendingMultiplier, setPendingMultiplier] = useState({});
   const [togglingFollowers, setTogglingFollowers] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const followerList = useMemo(
     () =>
@@ -180,6 +182,15 @@ const ActiveFollowers = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetch(), refetchPending()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const activeCount = followerList.filter((f) => f.rawStatus === 'ACTIVE' || f.tradingEnabled).length;
   const pausedCount = followerList.filter((f) => f.rawStatus === 'PAUSED').length;
   const inactiveCount = followerList.filter((f) => f.rawStatus === 'INACTIVE' || f.rawStatus === 'FAILED' || f.rawStatus === 'ERROR').length;
@@ -193,9 +204,12 @@ const ActiveFollowers = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">My Children</h1>
-        <p className="text-sm text-muted-foreground">Manage children subscribed to copy your trades</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">My Children</h1>
+          <p className="text-sm text-muted-foreground">Manage children subscribed to copy your trades</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading || pendingLoading} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">

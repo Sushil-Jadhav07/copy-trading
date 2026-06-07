@@ -10,7 +10,6 @@ import {
   SlidersHorizontal,
   Pause,
   Play,
-  Clock,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';

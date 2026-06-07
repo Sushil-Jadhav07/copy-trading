@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Filter, UserPlus, Star, Sliders, CheckSquare, Clock, CheckCircle2, PauseCircle, XCircle } from 'lucide-react';
+import { Search, UserPlus, Star, Sliders, CheckSquare, Clock, CheckCircle2, PauseCircle, XCircle } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SlideOver from '@/components/shared/SlideOver';
 import Modal from '@/components/shared/Modal';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import LineChart from '@/components/charts/LineChart';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildMasters, useChildSubscriptions } from '@/hooks/useChild';
@@ -62,6 +63,7 @@ const FindMasters = () => {
     { id: 'MIRROR', label: 'Mirror master', description: 'Copy all sides; optional naked short if allowShortSelling' },
   ]);
   const [subscribing, setSubscribing]               = useState(false);
+  const [refreshing, setRefreshing]                 = useState(false);
 
   useEffect(() => { if (error) addToast(error, 'error'); }, [error, addToast]);
 
@@ -223,6 +225,15 @@ const FindMasters = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetch(), refetchSubscriptions()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const MultiplierControl = () => (
     <div>
       <label className="block text-sm font-medium mb-2 flex items-center gap-2">
@@ -279,9 +290,12 @@ const FindMasters = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Find Masters</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Discover top-performing traders and subscribe to copy their trades.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Find Masters</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Discover top-performing traders and subscribe to copy their trades.</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       {/* Search + filters */}

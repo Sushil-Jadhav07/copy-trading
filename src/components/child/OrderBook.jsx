@@ -4,6 +4,7 @@ import { RefreshCw, Wifi, WifiOff, Info, BookOpen } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
@@ -128,14 +129,7 @@ const ChildOrderBook = () => {
               triggerClassName="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm"
             />
           )}
-          <button
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            className="p-2 bg-black/5 dark:bg-white/5 rounded-lg hover:bg-black/10 transition-colors disabled:opacity-50"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-          </button>
+          <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>
 
@@ -194,7 +188,7 @@ const ChildOrderBook = () => {
             <table className="w-full min-w-[980px]">
               <thead>
                 <tr className="border-b border-border/50 bg-black/3 dark:bg-white/3">
-                  {['#', 'Symbol', 'Exchange', 'Segment', 'Product', 'Order Type', 'Side', 'Qty', 'Price', 'Status', 'Latency'].map((header) => (
+                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Side', 'Qty', 'Price', 'Status'].map((header) => (
                     <th key={header} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       {header}
                     </th>
@@ -224,7 +218,6 @@ const ChildOrderBook = () => {
                           {order.segment || '-'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs font-bold">{order.product || '-'}</td>
                       <td className="px-4 py-3 text-xs font-bold">{order.orderType || '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex min-w-[3.75rem] items-center justify-center rounded px-2 py-1 text-[10px] font-black tracking-wide ${side === 'BUY' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
@@ -254,21 +247,12 @@ const ChildOrderBook = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        {order.latencyMs != null && order.latencyMs > 0 ? (
-                          <span className={`text-xs font-black tabular-nums ${order.latencyMs < 200 ? 'text-emerald-500' : order.latencyMs < 400 ? 'text-amber-500' : 'text-rose-500'}`}>
-                            {order.latencyMs} ms
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </td>
                     </motion.tr>
                   );
                 })}
                 {orders.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No orders found for today
                     </td>
                   </tr>

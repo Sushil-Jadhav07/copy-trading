@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CreditCard, TrendingUp, Users, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
@@ -18,39 +19,32 @@ const Subscriptions = () => {
   const [subscriptions, setSubscriptions] = useState([]);
   const [statusFilter, setStatusFilter] = useState('All');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadSubscriptions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminService.getSubscriptions();
+      const status = statusFilter !== 'All' ? statusFilter.toUpperCase() : '';
+      setSubscriptions(
+        status ? response.filter((item) => String(item.status || '').toUpperCase() === status) : response
+      );
+    } catch (error) {
+      addToast(error.message || 'Unable to load subscriptions', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [addToast, statusFilter]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadSubscriptions = async () => {
-      setLoading(true);
-
-      try {
-        const response = await adminService.getSubscriptions();
-        const status = statusFilter !== 'All' ? statusFilter.toUpperCase() : '';
-
-        if (isMounted) {
-          setSubscriptions(
-            status ? response.filter((item) => String(item.status || '').toUpperCase() === status) : response
-          );
-        }
-      } catch (error) {
-        if (isMounted) {
-          addToast(error.message || 'Unable to load subscriptions', 'error');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     loadSubscriptions();
+  }, [loadSubscriptions]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [addToast, statusFilter]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadSubscriptions();
+  };
 
   const stats = useMemo(() => {
     const active = subscriptions.filter((subscription) => subscription.status === 'Active');
@@ -71,18 +65,21 @@ const Subscriptions = () => {
           <h1 className="text-xl font-bold sm:text-2xl">Subscriptions</h1>
           <p className="text-sm text-muted-foreground">Live subscription data from the admin API</p>
         </div>
-        <DivSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
-          includeEmptyOption={false}
-          options={[
-            { value: 'All', label: 'All Status' },
-            { value: 'Active', label: 'Active' },
-            { value: 'Cancelled', label: 'Cancelled' },
-            { value: 'Expired', label: 'Expired' },
-          ]}
-          triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
-        />
+        <div className="flex items-center gap-3">
+          <DivSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            includeEmptyOption={false}
+            options={[
+              { value: 'All', label: 'All Status' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Cancelled', label: 'Cancelled' },
+              { value: 'Expired', label: 'Expired' },
+            ]}
+            triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
+          />
+          <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">

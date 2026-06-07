@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { RefreshCw, WifiOff, Wifi, Activity } from 'lucide-react';
+import { WifiOff, Wifi, Activity } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
 import { formatCurrency } from '@/lib/utils';
@@ -153,13 +154,7 @@ const ChildOpenPositions = () => {
               triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
             />
           )}
-          <button
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            className="p-2 bg-black/5 dark:bg-white/5 rounded-lg hover:bg-black/10 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-          </button>
+          <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>
 
@@ -185,7 +180,7 @@ const ChildOpenPositions = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         <GlassCard>
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Open Positions</p>
           <p className="text-2xl font-black mt-1">{positions.length}</p>
@@ -194,12 +189,6 @@ const ChildOpenPositions = () => {
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Unrealized P&L</p>
           <p className={`text-2xl font-black mt-1 ${totalUnrealized >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {totalUnrealized >= 0 ? '+' : ''}{formatCurrency(totalUnrealized)}
-          </p>
-        </GlassCard>
-        <GlassCard>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Realized P&L</p>
-          <p className={`text-2xl font-black mt-1 ${totalRealized >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-            {totalRealized >= 0 ? '+' : ''}{formatCurrency(totalRealized)}
           </p>
         </GlassCard>
         <GlassCard>
@@ -244,7 +233,7 @@ const ChildOpenPositions = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50 bg-black/3 dark:bg-white/3">
-                  {['#', 'Instrument', 'Exchange', 'Product', 'Qty', 'Filled Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Realized P&L', 'Change %', 'Trigger Price', 'Master'].map((h) => (
+                  {['#', 'Instrument', 'Exchange', 'Product', 'Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Change %', 'Trigger Price', 'Master'].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -272,27 +261,12 @@ const ChildOpenPositions = () => {
                       <span className="text-xs font-bold">{getDisplayText(pos.product || pos.productType)}</span>
                     </td>
                     <td className="px-6 py-4 text-sm font-black">{getDisplayCount(pos.qty)}</td>
-                    <td className="px-6 py-4 text-sm font-black">{getDisplayCount(pos.filledQty ?? pos.filled_qty ?? pos.tradedQty)}</td>
                     <td className="px-6 py-4 text-sm font-bold tabular-nums">{formatCurrency(pos.avgPrice || 0)}</td>
                     <td className="px-6 py-4 text-sm font-bold tabular-nums text-brand-purple">{formatCurrency(pos.ltp || 0)}</td>
                     <td className="px-6 py-4">
                       <span className={`text-sm font-black tabular-nums ${(pos.unrealizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {(pos.unrealizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(pos.unrealizedPnl || 0)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const realized = pos.realizedPnl ?? pos.realized_pnl;
-                        if (realized === null || realized === undefined || realized === '') {
-                          return <span className="text-xs text-muted-foreground">-</span>;
-                        }
-                        const num = Number(realized) || 0;
-                        return (
-                          <span className={`text-sm font-black tabular-nums ${num >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {num >= 0 ? '+' : ''}{formatCurrency(num)}
-                          </span>
-                        );
-                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`text-xs font-black tabular-nums ${(pos.change || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -305,7 +279,7 @@ const ChildOpenPositions = () => {
                 ))}
                 {positions.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="px-6 py-20 text-center">
+                    <td colSpan={11} className="px-6 py-20 text-center">
                       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                         <Activity className="h-8 w-8 text-muted-foreground/20" />
                       </div>

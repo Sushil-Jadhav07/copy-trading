@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ToastProvider } from '@/components/shared/Toast';
 
-// Pages
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -12,17 +11,13 @@ import ResetPassword from '@/pages/ResetPassword';
 import Dashboard from '@/pages/Dashboard';
 import DematConnected from '@/pages/DematConnected';
 
-// Master Components
 import MasterOverview from '@/components/master/Overview';
 import OpenPositions from '@/components/master/OpenPositions';
 import OrderBook from '@/components/master/OrderBook';
 import PnLSummary from '@/components/master/PnLSummary';
 import ActiveFollowers from '@/components/master/ActiveFollowers';
 import MasterProfile from '@/components/master/Profile';
-
-// ── NEW MASTER COMPONENTS ──────────────────────────────────
 import UserManagement from '@/components/master/UserManagement';
-
 import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
@@ -30,9 +25,7 @@ import FollowRequests from '@/components/master/FollowRequests';
 import PnLAnalytics from '@/components/master/PnLAnalytics';
 import MasterOptionsStatus from '@/components/master/OptionsStatus';
 import LatencyHistory from '@/components/master/LatencyHistory';
-// ──────────────────────────────────────────────────────────
 
-// Child Components
 import MyMasters from '@/components/child/MyMasters';
 import CopiedTrades from '@/components/child/CopiedTrades';
 import ChildOverview from '@/components/child/Overview';
@@ -45,9 +38,6 @@ import RiskSettings from '@/components/child/RiskSettings';
 import ChildTradeTimeline from '@/components/child/TradeTimeline';
 import ChildProfile from '@/components/child/Profile';
 
-
-
-// Admin Components
 import AdminOverview from '@/components/admin/Overview';
 import BrokerStatus from '@/components/admin/BrokerStatus';
 import Subscriptions from '@/components/admin/Subscriptions';
@@ -60,9 +50,6 @@ import OrderFeed from '@/components/admin/OrderFeed';
 import AdminPnL from '@/components/admin/AdminPnL';
 import AdminProfile from '@/components/admin/Profile';
 
-
-// ── DematDetail wrapper: reads accountId from URL params ──
-import { useParams } from 'react-router-dom';
 const DematDetailWrapper = () => {
   const { accountId } = useParams();
   const navigate = React.useCallback(() => window.history.back(), []);
@@ -74,9 +61,7 @@ const ChildDematDetailWrapper = () => {
   const navigate = React.useCallback(() => window.history.back(), []);
   return <DematDetail accountId={accountId} onBack={navigate} scope="child" />;
 };
-// ──────────────────────────────────────────────────────────
 
-// Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, getEffectiveRole, loading } = useAuth();
   const effectiveRole = getEffectiveRole();
@@ -100,7 +85,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   return children;
 };
 
-// Role-based redirect
 const RoleRedirect = () => {
   const { getEffectiveRole } = useAuth();
   const role = String(getEffectiveRole() || '').toUpperCase();
@@ -118,14 +102,12 @@ const AppRouter = () => {
         <AuthProvider>
           <ToastProvider>
             <Routes>
-              {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/platform/dematconnected" element={<DematConnected />} />
 
-              {/* Protected Dashboard Routes */}
               <Route
                 path="/"
                 element={
@@ -136,16 +118,12 @@ const AppRouter = () => {
               >
                 <Route index element={<RoleRedirect />} />
 
-                {/* Master Routes */}
                 <Route path="master/overview" element={<MasterOverview />} />
                 <Route path="master/positions" element={<OpenPositions />} />
                 <Route path="master/orders" element={<OrderBook />} />
                 <Route path="master/pnl" element={<PnLSummary />} />
                 <Route path="master/followers" element={<ActiveFollowers />} />
                 <Route path="master/profile" element={<MasterProfile />} />
-
-
-                {/* ── NEW MASTER ROUTES ── */}
                 <Route path="master/user-management" element={<UserManagement />} />
                 <Route path="master/demat/:accountId" element={<DematDetailWrapper />} />
                 <Route path="master/copy-trading" element={<CopyTrading />} />
@@ -154,9 +132,7 @@ const AppRouter = () => {
                 <Route path="master/logs" element={<Logs />} />
                 <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
                 <Route path="master/options-status" element={<MasterOptionsStatus />} />
-                {/* ───────────────────── */}
 
-                {/* Child Routes */}
                 <Route path="child/overview" element={<ChildOverview />} />
                 <Route
                   path="child/user-management"
@@ -174,7 +150,6 @@ const AppRouter = () => {
                 <Route path="child/profile" element={<ChildProfile />} />
                 <Route path="child/pnl-dashboard" element={<PnLDashboard />} />
 
-                {/* Admin Routes */}
                 <Route path="admin/overview" element={<AdminOverview />} />
                 <Route path="admin/users" element={<AllUsers scope="all" />} />
                 <Route path="admin/masters" element={<AllUsers scope="masters" />} />
@@ -188,10 +163,8 @@ const AppRouter = () => {
                 <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />
-                
               </Route>
 
-              {/* Catch All */}
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </ToastProvider>

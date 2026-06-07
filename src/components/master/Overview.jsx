@@ -4,6 +4,7 @@ import StatCard from '@/components/shared/StatCard';
 import GlassCard from '@/components/shared/GlassCard';
 import DataTable from '@/components/shared/DataTable';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { formatCurrency, formatPnl } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren, useMasterTradePnl } from '@/hooks/useMaster';
@@ -23,11 +24,12 @@ const Overview = () => {
   const [openPositions, setOpenPositions] = useState([]);
   const [positionsLoading, setPositionsLoading] = useState(false);
   const [positionsError, setPositionsError] = useState(null);
-  const { analytics, error: analyticsError } = useMasterAnalytics();
-  const { tradePnl } = useMasterTradePnl();
-  const { trades: recentTrades, loading: tradesLoading, error: tradesError } = useMasterTradeHistory();
-  const { children } = useMasterChildren();
+  const { analytics, error: analyticsError, refetch: refetchAnalytics } = useMasterAnalytics();
+  const { tradePnl, refetch: refetchTradePnl } = useMasterTradePnl();
+  const { trades: recentTrades, loading: tradesLoading, error: tradesError, refetch: refetchTradeHistory } = useMasterTradeHistory();
+  const { children, refetch: refetchChildren } = useMasterChildren();
   const pnlSummary = tradePnl?.summary || {};
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (analyticsError) addToast(analyticsError, 'error');
@@ -69,6 +71,21 @@ const Overview = () => {
     };
   }, [loadOpenPositions]);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchAnalytics(),
+        refetchTradePnl(),
+        refetchTradeHistory(),
+        refetchChildren(),
+        loadOpenPositions({ current: true }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadOpenPositions, refetchAnalytics, refetchChildren, refetchTradeHistory, refetchTradePnl]);
+
   const childrenPerformance = children.map((child, index) => ({
     id: child.id || child.childId || index,
     name: child.name || child.childName || 'Unknown',
@@ -103,9 +120,12 @@ const Overview = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
-        <p className="text-sm text-muted-foreground">Welcome back, {user?.name || 'there'}!</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
+          <p className="text-sm text-muted-foreground">Welcome back, {user?.name || 'there'}!</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || positionsLoading} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-5">

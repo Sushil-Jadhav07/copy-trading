@@ -1,15 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
 import BarChart from '@/components/charts/BarChart';
 import DataTable from '@/components/shared/DataTable';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useMasterAnalytics, useMasterTradePnl } from '@/hooks/useMaster';
 import { formatCompactINR, formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const PnLSummary = () => {
   const { addToast } = useToast();
-  const { analytics } = useMasterAnalytics();
-  const { tradePnl, error: tradePnlError } = useMasterTradePnl();
+  const { analytics, refetch: refetchAnalytics } = useMasterAnalytics();
+  const { tradePnl, error: tradePnlError, refetch: refetchTradePnl, loading } = useMasterTradePnl();
+  const [refreshing, setRefreshing] = useState(false);
   const monthlyPnL = analytics.pnl || analytics.pnlSummary || [];
   const summary = tradePnl?.summary || {};
   const totalPnLFromSummary = Number(summary.totalRealisedPnl || 0) + Number(summary.totalUnrealisedPnl || 0);
@@ -24,6 +26,15 @@ const PnLSummary = () => {
   useEffect(() => {
     if (tradePnlError) addToast(tradePnlError, 'error');
   }, [tradePnlError, addToast]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchAnalytics(), refetchTradePnl()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchAnalytics, refetchTradePnl]);
 
   const columns = [
     { header: 'Month', accessor: 'month' },
@@ -45,11 +56,14 @@ const PnLSummary = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">P&L Summary</h1>
-        <p className="text-sm text-muted-foreground">
-          Track your trading performance over time
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">P&L Summary</h1>
+          <p className="text-sm text-muted-foreground">
+            Track your trading performance over time
+          </p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">

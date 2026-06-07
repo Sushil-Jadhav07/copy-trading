@@ -15,6 +15,7 @@ import {
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
@@ -275,17 +276,13 @@ const OptionsStatus = () => {
               triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm"
             />
           )}
-          <button
+          <RefreshButton
             onClick={() => {
               setRefreshing(true);
               loadData(selectedAccountId, true);
             }}
-            disabled={loading || refreshing}
-            className="p-2 bg-black/5 dark:bg-white/5 rounded-lg hover:bg-black/10 transition-colors disabled:opacity-50"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-          </button>
+            loading={loading || refreshing}
+          />
         </div>
       </div>
 

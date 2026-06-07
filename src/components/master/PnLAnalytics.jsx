@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TrendingUp, CircleDollarSign, BarChart3, CalendarDays } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
 import BarChart from '@/components/charts/BarChart';
+import DonutChart from '@/components/charts/DonutChart';
+import Sparkline from '@/components/charts/Sparkline';
+import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
 import { pnlService } from '@/lib/pnl';
@@ -29,84 +32,89 @@ const PnLAnalytics = () => {
   const [childPerformance, setChildPerformance] = useState([]);
   const [dailyChart, setDailyChart] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadSummary = useCallback(async (showRefreshState = false) => {
+    if (showRefreshState) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    try {
+      try {
+        const data = await masterService.getPnlAnalytics();
+
+        const summaryPayload = data?.summary || {};
+        const daily = Array.isArray(data?.dailyChart) ? data.dailyChart : [];
+
+        setDailyChart(daily);
+        setChildPerformance(Array.isArray(data?.childPerformance) ? data.childPerformance : []);
+        setSummary(
+          daily.map((row, index) => normalizeSummaryRow({
+            id: row.id || row.date || index,
+            period: row.date || row.label || `Day ${index + 1}`,
+            realizedPnl: row.realizedPnl ?? row.realized ?? row.value ?? row.pnl ?? 0,
+            unrealizedPnl: row.unrealizedPnl ?? row.unrealized ?? 0,
+            totalTrades: row.totalTrades ?? row.trades ?? 0,
+            winRate: row.winRate ?? 0,
+          }, index))
+        );
+
+        setRealized({
+          realizedPnl: Number(summaryPayload.totalRealisedPnl ?? summaryPayload.totalRealizedPnl ?? summaryPayload.realisedPnl ?? summaryPayload.realizedPnl ?? 0),
+          trades: [],
+        });
+        setUnrealized({
+          unrealizedPnl: Number(summaryPayload.totalUnrealisedPnl ?? summaryPayload.totalUnrealizedPnl ?? summaryPayload.unrealisedPnl ?? summaryPayload.unrealizedPnl ?? 0),
+          children: Array.isArray(data?.childPerformance) ? data.childPerformance : [],
+        });
+        return;
+      } catch {
+        // Fallback to legacy P&L endpoints when master/pnl-analytics is unavailable.
+      }
+
+      const [summaryData, activeAccount] = await Promise.all([
+        pnlService.getSummary(period).catch(() => []),
+        masterService.getActiveAccount().catch(() => null),
+      ]);
+
+      const normalizedSummary = (Array.isArray(summaryData) ? summaryData : []).map(normalizeSummaryRow);
+      setSummary(normalizedSummary);
+      setDailyChart([]);
+      setChildPerformance([]);
+
+      const brokerAccountId = activeAccount?.brokerAccountId || activeAccount?.accountId;
+      if (brokerAccountId) {
+        const [unrealizedData, realizedData] = await Promise.all([
+          pnlService.getUnrealizedPnl(brokerAccountId).catch(() => null),
+          pnlService.getRealizedPnl({}).catch(() => null),
+        ]);
+        setUnrealized(unrealizedData);
+        setRealized(realizedData);
+      } else {
+        setUnrealized(null);
+        setRealized(null);
+      }
+    } catch {
+      addToast('Error loading P&L data', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [addToast, period]);
 
   useEffect(() => {
     let isMounted = true;
-
-    const loadSummary = async () => {
-      setLoading(true);
-      try {
-        try {
-          const data = await masterService.getPnlAnalytics();
-          if (!isMounted) return;
-
-          const summaryPayload = data?.summary || {};
-          const daily = Array.isArray(data?.dailyChart) ? data.dailyChart : [];
-
-          setDailyChart(daily);
-          setChildPerformance(Array.isArray(data?.childPerformance) ? data.childPerformance : []);
-          setSummary(
-            daily.map((row, index) => normalizeSummaryRow({
-              id: row.id || row.date || index,
-              period: row.date || row.label || `Day ${index + 1}`,
-              realizedPnl: row.realizedPnl ?? row.realized ?? row.value ?? row.pnl ?? 0,
-              unrealizedPnl: row.unrealizedPnl ?? row.unrealized ?? 0,
-              totalTrades: row.totalTrades ?? row.trades ?? 0,
-              winRate: row.winRate ?? 0,
-            }, index))
-          );
-
-          setRealized({
-            realizedPnl: Number(summaryPayload.totalRealisedPnl ?? summaryPayload.totalRealizedPnl ?? summaryPayload.realisedPnl ?? summaryPayload.realizedPnl ?? 0),
-            trades: [],
-          });
-          setUnrealized({
-            unrealizedPnl: Number(summaryPayload.totalUnrealisedPnl ?? summaryPayload.totalUnrealizedPnl ?? summaryPayload.unrealisedPnl ?? summaryPayload.unrealizedPnl ?? 0),
-            children: Array.isArray(data?.childPerformance) ? data.childPerformance : [],
-          });
-          return;
-        } catch {
-          // Fallback to legacy P&L endpoints when master/pnl-analytics is unavailable.
-        }
-
-        const [summaryData, activeAccount] = await Promise.all([
-          pnlService.getSummary(period).catch(() => []),
-          masterService.getActiveAccount().catch(() => null),
-        ]);
-
-        if (!isMounted) return;
-
-        const normalizedSummary = (Array.isArray(summaryData) ? summaryData : []).map(normalizeSummaryRow);
-        setSummary(normalizedSummary);
-        setDailyChart([]);
-        setChildPerformance([]);
-
-        const brokerAccountId = activeAccount?.brokerAccountId || activeAccount?.accountId;
-        if (brokerAccountId) {
-          const [unrealizedData, realizedData] = await Promise.all([
-            pnlService.getUnrealizedPnl(brokerAccountId).catch(() => null),
-            pnlService.getRealizedPnl({}).catch(() => null),
-          ]);
-          if (isMounted) {
-            setUnrealized(unrealizedData);
-            setRealized(realizedData);
-          }
-        } else if (isMounted) {
-          setUnrealized(null);
-          setRealized(null);
-        }
-      } catch (error) {
-        if (isMounted) addToast('Error loading P&L data', 'error');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+    const guardedLoad = async () => {
+      await loadSummary(false);
     };
-
-    loadSummary();
+    if (isMounted) {
+      guardedLoad();
+    }
     return () => {
       isMounted = false;
     };
-  }, [period, addToast]);
+  }, [loadSummary]);
 
   const realizedPnlVal = useMemo(() => {
     if (!realized) return 0;
@@ -185,10 +193,22 @@ const PnLAnalytics = () => {
           copiedTrades: Number(c.tradesCopied || c.tradeCount || 0),
           success: Number(c.winRate || c.successRate || 0),
           pnl: Number(c.pnlToday ?? c.pnl ?? c.totalPnL ?? 0),
+          pnlHistory: Array.isArray(c.pnlHistory) ? c.pnlHistory : [],
+          dailyPnl: Array.isArray(c.dailyPnl) ? c.dailyPnl : [],
         }))
         .slice(0, 8),
     [childPerformance, unrealized]
   );
+
+  const pnlBreakdownData = useMemo(() => {
+    const realized = Math.abs(realizedPnlVal);
+    const unrealized = Math.abs(unrealizedPnlVal);
+    if (realized === 0 && unrealized === 0) return [];
+    return [
+      { name: 'Realized P&L', value: realized },
+      { name: 'Unrealized P&L', value: unrealized },
+    ];
+  }, [realizedPnlVal, unrealizedPnlVal]);
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
@@ -212,9 +232,12 @@ const PnLAnalytics = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">P&L Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">{todayStr}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">P&L Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">{todayStr}</p>
+        </div>
+        <RefreshButton onClick={() => loadSummary(true)} loading={refreshing} />
       </div>
 
       <GlassCard>
@@ -276,6 +299,24 @@ const PnLAnalytics = () => {
         </GlassCard>
       </div>
 
+      {pnlBreakdownData.length > 0 && (
+        <GlassCard title="Realized vs Unrealized Breakdown">
+          <div className="flex flex-col items-center">
+            <DonutChart
+              data={pnlBreakdownData}
+              nameKey="name"
+              valueKey="value"
+              height={280}
+              innerRadius={70}
+              outerRadius={110}
+              colors={['#00C896', '#F59E0B']}
+              showLegend={true}
+              tooltipFormatter={(val) => `₹${val.toLocaleString('en-IN')}`}
+            />
+          </div>
+        </GlassCard>
+      )}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <GlassCard title="Top Instruments by P&L">
           <div className="space-y-3">
@@ -303,6 +344,7 @@ const PnLAnalytics = () => {
                   <th className="px-3 py-2 text-left">Copied Trades</th>
                   <th className="px-3 py-2 text-left">Success</th>
                   <th className="px-3 py-2 text-left">P&L Today</th>
+                  <th className="px-3 py-2 text-left">Trend</th>
                 </tr>
               </thead>
               <tbody>
@@ -315,11 +357,26 @@ const PnLAnalytics = () => {
                       <td className={`px-3 py-2 font-semibold ${row.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
                         {row.pnl >= 0 ? '+' : ''}{formatCurrency(row.pnl)}
                       </td>
+                      <td className="px-3 py-2">
+                        <Sparkline
+                          data={
+                            Array.isArray(row.pnlHistory)
+                              ? row.pnlHistory
+                              : Array.isArray(row.dailyPnl)
+                                ? row.dailyPnl
+                                : []
+                          }
+                          height={28}
+                          width={80}
+                          color={row.pnl >= 0 ? '#00C896' : '#EF4444'}
+                          strokeWidth={1.5}
+                        />
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
                       No child performance data available.
                     </td>
                   </tr>

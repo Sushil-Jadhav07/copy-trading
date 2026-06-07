@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
+import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { adminService } from '@/lib/admin';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -15,32 +16,40 @@ const AdminPnL = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await adminService.getAnalytics();
+      setAnalytics(data);
+      setLoadError('');
+    } catch (error) {
+      const message = error.message || 'Unable to load platform P&L';
+      setLoadError(message);
+      setAnalytics({
+        totalTrades: 0,
+        activeSubscriptions: 0,
+        activeMasters: 0,
+        totalChildren: 0,
+        revenueMtd: 0,
+        totalUsers: 0,
+        totalAdmins: 0,
+      });
+      addToast(message, 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await adminService.getAnalytics();
-        setAnalytics(data);
-        setLoadError('');
-      } catch (error) {
-        const message = error.message || 'Unable to load platform P&L';
-        setLoadError(message);
-        setAnalytics({
-          totalTrades: 0,
-          activeSubscriptions: 0,
-          activeMasters: 0,
-          totalChildren: 0,
-          revenueMtd: 0,
-          totalUsers: 0,
-          totalAdmins: 0,
-        });
-        addToast(message, 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
-  }, [addToast]);
+  }, [load]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await load();
+  };
 
   const stats = analytics
     ? [
@@ -77,11 +86,14 @@ const AdminPnL = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Platform P&L</h1>
-        <p className="text-sm text-muted-foreground">
-          Platform-wide analytics from admin overview. Detailed P&L breakdowns are available per-master in Master Analytics.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Platform P&L</h1>
+          <p className="text-sm text-muted-foreground">
+            Platform-wide analytics from admin overview. Detailed P&L breakdowns are available per-master in Master Analytics.
+          </p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       {loading ? (

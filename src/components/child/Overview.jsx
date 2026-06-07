@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Users, IndianRupee, Percent, Pause, Play, Settings } from 'lucide-react';
 import StatCard from '@/components/shared/StatCard';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useChildAnalytics, useChildSubscriptions, useChildCopiedTrades } from '@/hooks/useChild';
 import { childService } from '@/lib/child';
 import { useToast } from '@/components/shared/Toast';
@@ -14,14 +15,24 @@ const Overview = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { sessionExpiredBrokers, dismissSessionExpired } = useNotifications();
-  const { analytics, loading: analyticsLoading, error: analyticsError } = useChildAnalytics();
+  const { analytics, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useChildAnalytics();
   const { subscriptions, refetch } = useChildSubscriptions();
-  const { trades: copiedTrades, loading: tradesLoading, error: tradesError } = useChildCopiedTrades();
+  const { trades: copiedTrades, loading: tradesLoading, error: tradesError, refetch: refetchCopiedTrades } = useChildCopiedTrades();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (analyticsError) addToast(analyticsError, 'error');
     if (tradesError) addToast(tradesError, 'error');
   }, [analyticsError, tradesError, addToast]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchAnalytics(), refetch(), refetchCopiedTrades()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch, refetchAnalytics, refetchCopiedTrades]);
 
   const primarySubscription = subscriptions.find((sub) => String(sub.status || '').toUpperCase() === 'ACTIVE') || subscriptions[0] || null;
   const isPrimaryActive = String(primarySubscription?.status || '').toUpperCase() === 'ACTIVE';
@@ -100,9 +111,12 @@ const Overview = () => {
         </div>
       )}
 
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
-        <p className="text-sm text-muted-foreground">Welcome back!</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>
+          <p className="text-sm text-muted-foreground">Welcome back!</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || analyticsLoading || tradesLoading} />
       </div>
 
       <GlassCard noPadding>
@@ -282,4 +296,3 @@ const Overview = () => {
 };
 
 export default Overview;
-

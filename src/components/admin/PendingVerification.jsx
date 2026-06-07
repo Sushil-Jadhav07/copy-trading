@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, XCircle, FileText, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -12,35 +13,38 @@ const PendingVerification = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionType, setActionType] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { users } = await adminService.getUsers({ status: 'PENDING' });
+      setRequests(
+        users.map((user) => ({
+          id: user.id ?? user.userId,
+          name: user.name,
+          email: user.email,
+          submittedDate: user.joinedDate || 'N/A',
+          documents: user.raw?.documents || ['KYC'],
+        }))
+      );
+    } catch (error) {
+      addToast(error.message || 'Unable to load pending users', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    let isMounted = true;
+    loadRequests();
+  }, [loadRequests]);
 
-    adminService
-      .getUsers({ status: 'PENDING' })
-      .then(({ users }) => {
-        if (isMounted) {
-          setRequests(
-            users.map((user) => ({
-              id: user.id ?? user.userId,
-              name: user.name,
-              email: user.email,
-              submittedDate: user.joinedDate || 'N/A',
-              documents: user.raw?.documents || ['KYC'],
-            }))
-          );
-        }
-      })
-      .catch((error) => {
-        if (isMounted) {
-          addToast(error.message || 'Unable to load pending users', 'error');
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [addToast]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadRequests();
+  };
 
   const openActionModal = (request, type) => {
     setSelectedRequest(request);
@@ -88,9 +92,12 @@ const PendingVerification = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Pending Verification</h1>
-        <p className="text-sm text-muted-foreground">Review submitted KYC documents and approve or reject new accounts</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Pending Verification</h1>
+          <p className="text-sm text-muted-foreground">Review submitted KYC documents and approve or reject new accounts</p>
+        </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

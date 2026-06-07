@@ -31,8 +31,16 @@ const deriveOrderSegment = (order = {}) => {
   const explicitSegment = String(order.segment || order.market || '').trim().toUpperCase();
   if (explicitSegment) return explicitSegment;
 
+  const exchangeSegment = String(order.exchangeSegment || order.exchange_segment || '').trim().toUpperCase();
+  if (exchangeSegment.endsWith('_FNO') || exchangeSegment.endsWith('_FO')) return 'FNO';
+  if (exchangeSegment.endsWith('_EQ')) return 'EQ';
+  if (exchangeSegment.endsWith('_CD')) return 'CDS';
+  if (exchangeSegment.startsWith('MCX')) return 'COMMODITY';
+
   const exchange = String(order.exchange || '').trim().toUpperCase();
-  const symbol = String(order.tradingsymbol || order.symbol || '').trim().toUpperCase();
+  const symbol = String(
+    order.tradingSymbol || order.tradingsymbol || order.trading_symbol || order.symbol || ''
+  ).trim().toUpperCase();
 
   if (
     ['NFO', 'BFO', 'FO'].includes(exchange) ||
@@ -291,19 +299,22 @@ const normalizePositionsPayload = (raw = {}) => {
 
 const normalizeOpenBookOrder = (order = {}, index = 0) => ({
   id: order.order_id || order.orderId || order.id || `order-${index}`,
-  symbol: order.tradingsymbol || order.symbol || 'N/A',
-  exchange: order.exchange || 'NSE',
+  symbol: order.tradingSymbol || order.tradingsymbol || order.trading_symbol || order.symbol || 'N/A',
+  exchange: order.exchange || String(order.exchangeSegment || order.exchange_segment || '').split('_')[0] || 'NSE',
   segment: deriveOrderSegment(order),
   orderType: order.order_type || order.orderType || 'MARKET',
-  type: String(order.transaction_type || order.type || order.side || 'BUY').toUpperCase(),
-  qty: Number(order.quantity ?? order.qty ?? 0),
-  price: Number(order.average_price ?? order.price ?? 0),
-  status: String(order.order_status || order.status || 'UNKNOWN').toUpperCase(),
+  type: String(order.transactionType || order.transaction_type || order.type || order.side || 'BUY').toUpperCase(),
+  qty: Number(order.quantity ?? order.qty ?? order.filledQty ?? order.filled_quantity ?? 0),
+  price: Number(order.averageTradedPrice ?? order.average_price ?? order.price ?? 0),
+  status: String(order.orderStatus || order.order_status || order.status || 'UNKNOWN').toUpperCase(),
   latencyMs: order.latencyMs != null ? Number(order.latencyMs) : null,
-  statusMessage: order.statusMessage || order.status_message || '',
+  statusMessage: order.statusMessage || order.status_message || order.omsErrorDescription || '',
   reason: order.reason || order.rejectReason || order.rejection_reason || '',
   message: order.message || '',
   product: order.product || order.productType || '',
+  createTime: order.createTime || order.order_timestamp || null,
+  updateTime: order.updateTime || order.exchange_update_timestamp || null,
+  exchangeTime: order.exchangeTime || order.exchange_timestamp || null,
   raw: order,
 });
 

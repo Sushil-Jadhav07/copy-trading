@@ -445,19 +445,6 @@ const Login = () => {
                         <BtnSubmit>
                           Sign In <ArrowRight className="w-4 h-4 ml-1" />
                         </BtnSubmit>
-                        <div className="relative flex items-center my-2">
-                          <div className="flex-1 h-px bg-white/10" />
-                          <span className="px-3 text-xs text-slate-500">or</span>
-                          <div className="flex-1 h-px bg-white/10" />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {/* TODO: Google OAuth */}}
-                          className="w-full py-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center gap-3 text-sm font-semibold text-white"
-                        >
-                          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                          Continue with Google
-                        </button>
                       </motion.form>
                     )}
                   </AnimatePresence>

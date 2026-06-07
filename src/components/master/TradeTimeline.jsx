@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle2, AlertCircle, SkipForward, Activity, Zap } from 'lucide-react';
+import { CheckCircle2, AlertCircle, SkipForward, Activity, Zap } from 'lucide-react';
 
 /**
  * TradeTimeline

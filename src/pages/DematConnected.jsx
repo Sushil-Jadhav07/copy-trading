@@ -15,7 +15,7 @@ const formatSyncTime = (raw) => {
   } catch { return null; }
 };
 
-// TODO: Remove IP_WHITELIST_BROKERS once API exposes requiresIpWhitelist on broker accounts.
+// Hardcoded until the broker accounts API exposes a requiresIpWhitelist field.
 const IP_WHITELIST_BROKERS = ['FYERS', 'DHAN', 'ANGELONE'];
 
 const DematConnected = () => {

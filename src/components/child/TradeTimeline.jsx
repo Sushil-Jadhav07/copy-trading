@@ -12,7 +12,6 @@ import {
   Search,
   SkipForward,
   SlidersHorizontal,
-  TrendingUp,
   Zap,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';

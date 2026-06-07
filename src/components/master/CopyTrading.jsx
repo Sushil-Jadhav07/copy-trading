@@ -5,15 +5,12 @@ import {
   RefreshCw,
   Eye,
   Link,
-  Link2Off,
   Trash2,
-  CheckSquare,
   Zap,
   RotateCcw,
   Clock,
   Activity,
   Wifi,
-  WifiOff,
   CheckCircle2,
   AlertCircle,
   SkipForward,
@@ -167,7 +164,6 @@ const CopyTrading = () => {
 
   const [masterAccountId, setMasterAccountId] = useState('');
   const [masterConnected, setMasterConnected] = useState(false);
-  const [masterInfo, setMasterInfo] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(true);
   const [settingActive, setSettingActive] = useState(false);
   const [selectedChild, setSelectedChild] = useState('');
@@ -199,7 +195,6 @@ const CopyTrading = () => {
   const [togglingPolling, setTogglingPolling] = useState(false);
   const [togglingChildren, setTogglingChildren] = useState({});
   const [resettingCache, setResettingCache] = useState(false);
-  const [liveTrades, setLiveTrades] = useState([]);
   const [copyResultModal, setCopyResultModal] = useState(false);
   const [copyResult, setCopyResult] = useState(null);
   const [copyResultHistory, setCopyResultHistory] = useState([]);
@@ -219,7 +214,6 @@ const CopyTrading = () => {
         const acc = accounts.find((item) => item.accountId === activeId);
         setMasterAccountId(activeId);
         setMasterConnected(true);
-        if (acc) setMasterInfo(acc);
       }
 
       if (data?.pollingIntervalMs) {
@@ -404,7 +398,6 @@ const CopyTrading = () => {
         const acc = accounts.find((item) => item.accountId === activeId);
         if (acc) {
           setMasterAccountId(activeId);
-          setMasterInfo(acc);
           setMasterConnected(true);
           window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, activeId);
         }
@@ -416,7 +409,6 @@ const CopyTrading = () => {
           if (acc) setMasterAccountId(localId);
         }
         setMasterConnected(false);
-        setMasterInfo(null);
       }
     }).catch(() => {
       if (isMounted) {
@@ -477,21 +469,6 @@ const CopyTrading = () => {
           refetch();
         }
 
-        if (event === 'TRADE_DETECTED' || event === 'trade_detected') {
-          const trade = {
-            id: `${Date.now()}-${Math.random()}`,
-            symbol: data?.symbol || data?.instrument || 'Unknown',
-            side: String(data?.side || data?.action || 'BUY').toUpperCase(),
-            qty: data?.qty || data?.quantity || '',
-            product: data?.product || '',
-            time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            raw: data,
-          };
-          setLiveTrades((prev) => [trade, ...prev].slice(0, 20));
-          
-          // Auto-refresh stats when a new trade is detected from master
-          refetch();
-        }
       },
       null,
       (error) => console.error('WS master trades error', error),
@@ -700,14 +677,12 @@ const CopyTrading = () => {
         await masterService.clearActiveAccount();
         window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY);
         setMasterConnected(false);
-        setMasterInfo(null);
         setMasterAccountId('');
         addToast('Master disconnected', 'warning');
       } catch (error) {
         // Even if API fails, clear local state for better UX
         window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY);
         setMasterConnected(false);
-        setMasterInfo(null);
         setMasterAccountId('');
         addToast('Master disconnected locally', 'warning');
       }
@@ -722,7 +697,6 @@ const CopyTrading = () => {
 
     try {
       await masterService.setActiveAccount(masterAccountId);
-      setMasterInfo(acc);
       setMasterConnected(true);
       window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, masterAccountId);
       addToast('Master connected successfully', 'success');
@@ -738,7 +712,6 @@ const CopyTrading = () => {
       await masterService.setActiveAccount(accountId);
       const acc = accounts.find((item) => item.accountId === accountId);
       setMasterAccountId(accountId);
-      setMasterInfo(acc);
       window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, accountId);
       addToast('Active trading account updated', 'success');
     } catch (error) {

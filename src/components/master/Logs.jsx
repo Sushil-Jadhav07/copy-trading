@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw, Activity, Info } from 'lucide-react';
+import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Zap, RotateCcw, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { masterService } from '@/lib/master';
 import { brokerService } from '@/lib/broker';
@@ -83,6 +84,7 @@ const Logs = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('today');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [skipReasonLabels, setSkipReasonLabels] = useState({});
 
   const load = useCallback(async () => {
@@ -126,6 +128,15 @@ const Logs = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     engineService.getMetadata()
@@ -442,6 +453,7 @@ const Logs = () => {
           <h1 className="text-xl font-bold sm:text-2xl">Logs</h1>
           <p className="text-sm text-muted-foreground">Copy logs, trade logs, and broker errors in one place.</p>
         </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">

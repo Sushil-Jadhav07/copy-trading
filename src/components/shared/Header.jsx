@@ -43,14 +43,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
     try { await logout(); } finally { setShowUserMenu(false); navigate('/login', { replace: true }); }
   };
 
-  const dropdownStyle = isDark ? {
-    background: 'rgba(5,18,12,0.97)', backdropFilter: 'blur(24px)',
-    border: '1px solid rgba(0,200,150,0.15)', boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-  } : {
-    background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(24px)',
-    border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 20px 60px rgba(0,0,0,0.12)',
-  };
-
   return (
     <>
       <div className={`fixed top-0 right-0 z-50 ${sideOffset}`}>
@@ -142,13 +134,12 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-                    className="absolute top-full right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 rounded-2xl overflow-hidden z-50"
-                    style={dropdownStyle}
+                    className="absolute top-full right-0 z-50 mt-2 w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border/60 bg-background/95 shadow-2xl supports-[backdrop-filter]:bg-background/88 backdrop-blur-2xl sm:w-96"
                   >
                     {/* Header */}
-                    <div className="px-4 py-3 border-b border-slate-100 dark:border-white/6 flex items-center justify-between">
+                    <div className="flex items-center justify-between border-b border-border/60 bg-foreground/[0.02] px-4 py-3 dark:bg-white/[0.02]">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-800 dark:text-foreground">Notifications</h3>
+                        <h3 className="font-bold text-foreground">Notifications</h3>
                         {unreadCount > 0 && (
                           <span className="px-2 py-0.5 bg-rose-500/12 text-rose-500 text-[10px] font-black rounded-full">{unreadCount} new</span>
                         )}
@@ -156,7 +147,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                       {unreadCount > 0 && (
                         <button
                           onClick={async () => { await markAllAsRead(); refetch(); }}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-brand-purple/10 text-brand-purple rounded-lg text-[10px] font-bold hover:bg-brand-purple/20 transition-colors"
+                          className="flex items-center gap-1 rounded-lg bg-emerald-500/12 px-2.5 py-1 text-[10px] font-bold text-emerald-600 transition-colors hover:bg-emerald-500/18 dark:text-emerald-400"
                         >
                           <CheckCheck className="w-3 h-3" /> Mark all read
                         </button>
@@ -164,7 +155,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                     </div>
 
                     {/* Items */}
-                    <div className="max-h-[400px] overflow-y-auto scrollbar-hide divide-y divide-slate-50 dark:divide-white/4">
+                    <div className="max-h-[400px] divide-y divide-border/40 overflow-y-auto scrollbar-hide">
                       {notifications.length > 0 ? notifications.map((n) => {
                         const meta = getMeta(n.type);
                         const Icon = meta.icon;
@@ -172,17 +163,21 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                           <motion.div
                             key={n.id}
                             whileHover={{ x: 2 }}
-                            className={`relative border-l-[3px] ${meta.borderCls} p-4 cursor-pointer transition-transform transition-colors hover:scale-[1.01] hover:bg-slate-50 dark:hover:bg-white/4`}
+                            className={`relative cursor-pointer border-l-[3px] p-4 transition-transform transition-colors hover:scale-[1.01] ${meta.borderCls} ${
+                              n.read
+                                ? 'bg-transparent hover:bg-foreground/[0.03] dark:hover:bg-white/[0.04]'
+                                : 'bg-emerald-500/[0.06] hover:bg-emerald-500/[0.09] dark:bg-emerald-500/[0.08] dark:hover:bg-emerald-500/[0.12]'
+                            }`}
                             onClick={() => markAsRead(n.id)}
                           >
                             {!n.read && <span className={`absolute top-4 right-4 h-1.5 w-1.5 rounded-full ${meta.iconCls.replace('text-', 'bg-')}`} />}
                             <div className="flex gap-3">
-                              <div className={`w-9 h-9 rounded-xl ${meta.bgCls} flex items-center justify-center flex-shrink-0`}>
+                              <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-border/40 ${meta.bgCls}`}>
                                 <Icon className={`w-4 h-4 ${meta.iconCls}`} />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-slate-800 dark:text-foreground leading-tight">{n.title}</p>
-                                <p className="text-xs text-slate-500 dark:text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                                <p className="text-sm font-semibold leading-tight text-foreground">{n.title}</p>
+                                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.message}</p>
                                 {String(n.type || '').toUpperCase() === 'SESSION_EXPIRED' && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setShowNotifications(false); navigate(`/${effectiveRole.toLowerCase()}/user-management`); }}
@@ -191,7 +186,7 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                                     <Wifi className="w-3 h-3" /> Re-connect Broker
                                   </button>
                                 )}
-                                <p className="text-[10px] text-slate-400 dark:text-muted-foreground/70 mt-1.5">
+                                <p className="mt-1.5 text-[10px] text-muted-foreground/75">
                                   {n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : ''}
                                 </p>
                               </div>
@@ -200,11 +195,11 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                         );
                       }) : (
                         <div className="py-14 text-center">
-                          <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-white/6 flex items-center justify-center mx-auto mb-3">
-                            <Bell className="w-7 h-7 text-slate-300 dark:text-white/15" />
+                          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/50 bg-foreground/[0.03] dark:bg-white/[0.04]">
+                            <Bell className="h-7 w-7 text-muted-foreground/45" />
                           </div>
-                          <p className="text-sm font-semibold text-slate-600 dark:text-foreground/70">You're all caught up</p>
-                          <p className="text-xs text-slate-400 dark:text-muted-foreground/60 mt-0.5">No new notifications</p>
+                          <p className="text-sm font-semibold text-foreground/80">You're all caught up</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground/70">No new notifications</p>
                         </div>
                       )}
                     </div>
@@ -240,25 +235,24 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-                    className="absolute top-full right-0 mt-2 w-56 rounded-2xl overflow-hidden z-50 p-1.5"
-                    style={dropdownStyle}
+                    className="absolute top-full right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-border/60 bg-background/95 p-1.5 shadow-2xl supports-[backdrop-filter]:bg-background/88 backdrop-blur-2xl"
                   >
-                    <div className="px-3 py-3 mb-1 border-b border-slate-50 dark:border-white/5 md:hidden">
-                      <p className="text-sm font-bold text-slate-800 dark:text-foreground">{user?.name}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-muted-foreground mt-0.5 uppercase tracking-wider">{effectiveRole}</p>
+                    <div className="mb-1 border-b border-border/50 px-3 py-3 md:hidden">
+                      <p className="text-sm font-bold text-foreground">{user?.name}</p>
+                      <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">{effectiveRole}</p>
                     </div>
                     <button onClick={() => { setShowUserMenu(false); navigate(`/${effectiveRole.toLowerCase()}/profile`); }}
-                      className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors text-left group">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center group-hover:bg-brand-purple/10 transition-colors">
-                        <User className="w-4 h-4 text-slate-500 group-hover:text-brand-purple transition-colors" />
+                      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.04] dark:hover:bg-white/[0.05]">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground/[0.04] transition-colors group-hover:bg-brand-purple/10 dark:bg-white/[0.05]">
+                        <User className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-brand-purple" />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 dark:text-foreground">My Profile</span>
+                      <span className="text-sm font-semibold text-foreground">My Profile</span>
                     </button>
-                    <div className="h-px bg-slate-50 dark:bg-white/5 my-1.5 mx-2" />
+                    <div className="mx-2 my-1.5 h-px bg-border/50" />
                     <button onClick={handleLogout}
-                      className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors text-left group">
-                      <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center group-hover:bg-rose-100 transition-colors">
-                        <LogOut className="w-4 h-4 text-rose-500" />
+                      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-rose-500/10">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10 transition-colors group-hover:bg-rose-500/16">
+                        <LogOut className="h-4 w-4 text-rose-500" />
                       </div>
                       <span className="text-sm font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400">Sign Out</span>
                     </button>

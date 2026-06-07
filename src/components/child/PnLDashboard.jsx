@@ -2,6 +2,8 @@ import React, { useEffect, useMemo } from 'react';
 import { Calendar, Crosshair, TrendingDown, TrendingUp } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
+import DonutChart from '@/components/charts/DonutChart';
+import Sparkline from '@/components/charts/Sparkline';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildAnalytics, useChildCopiedTrades, useChildSubscriptions } from '@/hooks/useChild';
 import { formatCurrency } from '@/lib/utils';
@@ -111,6 +113,27 @@ const PnLDashboard = () => {
     })).sort((a, b) => b.totalPnl - a.totalPnl);
   }, [scoredTrades]);
 
+  const tradeOutcomeData = useMemo(() => {
+    const wins = scoredTrades.filter((t) => t.pnl > 0).length;
+    const losses = scoredTrades.filter((t) => t.pnl < 0).length;
+    const flat = scoredTrades.filter((t) => t.pnl === 0).length;
+    if (wins === 0 && losses === 0 && flat === 0) return [];
+    const result = [];
+    if (wins > 0) result.push({ name: 'Wins', value: wins });
+    if (losses > 0) result.push({ name: 'Losses', value: losses });
+    if (flat > 0) result.push({ name: 'Flat', value: flat });
+    return result;
+  }, [scoredTrades]);
+
+  const instrumentSparklines = useMemo(() => {
+    const map = new Map();
+    scoredTrades.forEach((t) => {
+      if (!map.has(t.instrument)) map.set(t.instrument, []);
+      map.get(t.instrument).push(t.pnl);
+    });
+    return map;
+  }, [scoredTrades]);
+
   const metricCards = [
     metricCard(TrendingUp, realizedPnl, 'Realized P&L'),
     metricCard(TrendingDown, unrealizedPnl, 'Unrealized P&L'),
@@ -163,6 +186,27 @@ const PnLDashboard = () => {
           )}
         </GlassCard>
       </div>
+
+      {tradeOutcomeData.length > 0 && (
+        <GlassCard title="Trade Outcomes">
+          <div className="flex flex-col items-center">
+            <DonutChart
+              data={tradeOutcomeData}
+              nameKey="name"
+              valueKey="value"
+              height={260}
+              innerRadius={65}
+              outerRadius={100}
+              colors={['#00C896', '#EF4444', '#F59E0B']}
+              showLegend={true}
+              tooltipFormatter={(val) => `${val} trade${val !== 1 ? 's' : ''}`}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Based on {scoredTrades.length} executed trade{scoredTrades.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </GlassCard>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <GlassCard title="Best Trades">
@@ -233,7 +277,7 @@ const PnLDashboard = () => {
           <table className="w-full min-w-[760px]">
             <thead>
               <tr className="border-b border-border/40">
-                {['Instrument', 'Total Trades', 'Win Rate', 'Total P&L', 'Avg P&L/Trade'].map((h) => (
+                {['Instrument', 'Total Trades', 'Win Rate', 'Total P&L', 'Avg P&L/Trade', 'Trend'].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">{h}</th>
                 ))}
               </tr>
@@ -250,10 +294,19 @@ const PnLDashboard = () => {
                   <td className={`px-4 py-3 ${pnlClass(r.avgPnl, 'Avg P&L/Trade')}`}>
                     {r.avgPnl >= 0 ? '+' : ''}{formatCurrency(r.avgPnl)}
                   </td>
+                  <td className="px-4 py-3">
+                    <Sparkline
+                      data={instrumentSparklines.get(r.instrument) || []}
+                      height={28}
+                      width={80}
+                      color={r.totalPnl >= 0 ? '#00C896' : '#EF4444'}
+                      strokeWidth={1.5}
+                    />
+                  </td>
                 </tr>
               ))}
               {instrumentRows.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No instrument-wise data yet</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">No instrument-wise data yet</td></tr>
               )}
             </tbody>
           </table>

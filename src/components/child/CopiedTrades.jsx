@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, Clock, Search, Activity, Zap, History } from 'lucide-react';
+import { Clock, Search, Activity, Zap, History } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
+import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useChildCopiedTrades } from '@/hooks/useChild';
 import { normalizeCopiedTrade } from '@/lib/child';
@@ -34,6 +35,7 @@ const CopiedTrades = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [trades, setTrades] = useState([]);
   const [skipReasonLabels, setSkipReasonLabels] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (error) addToast(error, 'error');
@@ -81,6 +83,15 @@ const CopiedTrades = () => {
       if (sub && typeof sub.close === 'function') sub.close();
     };
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const matchesTimeFilter = (trade) => {
     if (timeFilter === 'all') return true;
@@ -191,6 +202,7 @@ const CopiedTrades = () => {
           <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">Copied Trades</h1>
           <p className="mt-1 text-sm text-muted-foreground">Child copy-trade execution log from child API.</p>
         </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">

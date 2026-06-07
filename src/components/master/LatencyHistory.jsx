@@ -392,7 +392,7 @@ const LatencyHistory = () => {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Avg Latency" value={displayStats.avgLatency != null ? `${displayStats.avgLatency}ms` : '-'} sub={`${displayStats.eventCount} filtered events`} icon={Clock} accent="cyan" />
           <StatCard label="Success Rate" value={displayStats.successRate != null ? `${displayStats.successRate.toFixed(1)}%` : '-'} sub="Per-child outcomes" icon={CheckCircle2} accent="emerald" />
-          <StatCard label="p95 Latency" value={displayStats.p95 != null ? `${displayStats.p95}ms` : '-'} sub={`Stats window: ${rangeKey}`} icon={TrendingUp} accent="amber" />
+          <StatCard label="Latency" value={displayStats.p95 != null ? `${displayStats.p95}ms` : '-'} sub={`Stats window: ${rangeKey}`} icon={TrendingUp} accent="amber" />
           <StatCard label="Failed Children" value={displayStats.failed} sub="Across filtered events" icon={AlertCircle} accent="rose" />
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users, RefreshCw, TrendingUp, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
 import { useAuth } from '@/context/AuthContext';
