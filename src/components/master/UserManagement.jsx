@@ -18,7 +18,7 @@ const normalizeLoginMethod = (value) => String(value || '').trim().toLowerCase()
 const isTotpBroker = (loginMethod, brokerKey) =>
   normalizeBrokerKey(loginMethod) === 'totp' ||
   ['angelone', 'angel one'].includes(normalizeBrokerKey(brokerKey));
-const IP_WHITELIST_BROKERS = ['dhan', 'groww', 'angelone', 'angel one'];
+const IP_WHITELIST_BROKERS = ['dhan', 'groww', 'angelone', 'angel one', 'upstox'];
 
 const getLoginMethodLabel = (method) => {
   switch (normalizeLoginMethod(method)) {

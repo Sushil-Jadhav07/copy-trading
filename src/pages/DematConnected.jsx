@@ -19,7 +19,7 @@ const formatSyncTime = (raw) => {
   }
 };
 
-const IP_WHITELIST_BROKERS = ['FYERS', 'DHAN', 'ANGELONE'];
+const IP_WHITELIST_BROKERS = ['FYERS', 'DHAN', 'ANGELONE', 'UPSTOX'];
 
 const DematConnected = () => {
   const [searchParams] = useSearchParams();
