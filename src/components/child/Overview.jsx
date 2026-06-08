@@ -10,12 +10,10 @@ import { useChildAnalytics, useChildSubscriptions, useChildCopiedTrades } from '
 import { safeAdd, safeMul, safeDiv } from '@/lib/utils';
 import { childService } from '@/lib/child';
 import { useToast } from '@/components/shared/Toast';
-import { useNotifications } from '@/hooks/useNotifications';
 
 const Overview = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { sessionExpiredBrokers, dismissSessionExpired } = useNotifications();
   const { analytics, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useChildAnalytics();
   const { subscriptions, refetch } = useChildSubscriptions();
   const { trades: copiedTrades, loading: tradesLoading, error: tradesError, refetch: refetchCopiedTrades } = useChildCopiedTrades();
@@ -80,38 +78,6 @@ const Overview = () => {
 
   return (
     <div className="space-y-6">
-      {sessionExpiredBrokers.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {sessionExpiredBrokers.map((item) => (
-            <div
-              key={item.accountId}
-              className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-rose-500/30 bg-rose-500/8 text-sm"
-            >
-              <div className="flex items-center gap-2 text-rose-500">
-                <span className="font-bold text-[11px] uppercase tracking-wide">Session Expired</span>
-                <span className="text-foreground">
-                  Your <strong>{item.broker}</strong> session has expired. Trades are not being copied.
-                </span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => navigate('/child/user-management')}
-                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition-colors"
-                >
-                  Re-login
-                </button>
-                <button
-                  onClick={() => dismissSessionExpired(item.accountId)}
-                  className="text-muted-foreground hover:text-foreground transition-colors text-xs"
-                >
-                  x
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>

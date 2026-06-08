@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu, Bell, Sun, Moon, LogOut, ChevronDown, User,
-  AlertTriangle, X, Clock, Users, Wifi, CheckCheck,
+  Clock, Users, CheckCheck,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useNotifications } from '@/hooks/useNotifications';
 
 const NOTIF_META = {
-  SESSION_EXPIRED:     { icon: AlertTriangle, iconCls: 'text-rose-500',    bgCls: 'bg-rose-500/12',    borderCls: 'border-l-rose-500' },
   SESSION_REMINDER:    { icon: Clock,         iconCls: 'text-amber-500',   bgCls: 'bg-amber-500/12',   borderCls: 'border-l-amber-500' },
   SUBSCRIPTION_REQUEST:{ icon: Users,         iconCls: 'text-emerald-500', bgCls: 'bg-emerald-500/12', borderCls: 'border-l-emerald-500' },
   DEFAULT:             { icon: Bell,          iconCls: 'text-brand-purple',bgCls: 'bg-brand-purple/12',borderCls: 'border-l-brand-purple' },
@@ -21,15 +20,13 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
   const navigate = useNavigate();
   const { user, logout, getEffectiveRole } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, refetch, sessionExpiredBrokers, dismissSessionExpired } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, refetch } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const notificationRef = useRef(null);
   const userMenuRef = useRef(null);
   const effectiveRole = getEffectiveRole();
   const sideOffset = isMobile ? 'left-0' : sidebarCollapsed ? 'md:left-[72px]' : 'md:left-[260px]';
-  const bannerHeight = sessionExpiredBrokers.length * 48;
-
   useEffect(() => {
     const h = (e) => {
       if (notificationRef.current && !notificationRef.current.contains(e.target)) setShowNotifications(false);
@@ -45,51 +42,9 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
 
   return (
     <>
-      <div className={`fixed top-0 right-0 z-50 ${sideOffset}`}>
-        <AnimatePresence>
-          {sessionExpiredBrokers.map((item, i) => (
-            <motion.div
-              key={item.accountId}
-              initial={{ opacity: 0, y: -48 }}
-              animate={{ opacity: 1, y: i * 48 }}
-              exit={{ opacity: 0, y: -48 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="relative overflow-hidden flex items-center justify-between gap-3 px-4 py-2.5 h-12 bg-danger-gradient shadow-ticker-danger"
-            >
-              {/* shimmer overlay */}
-              <motion.div
-                className="absolute inset-0 opacity-25"
-                animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)', backgroundSize: '200% 100%' }}
-              />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-6 h-6 rounded-md bg-white/25 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-3.5 h-3.5 text-white" />
-                </div>
-                <span className="text-white text-xs font-semibold">
-                  <strong>{item.broker}</strong> session expired - trades paused
-                </span>
-              </div>
-              <div className="flex items-center gap-2 relative z-10 flex-shrink-0">
-                <button
-                  onClick={() => navigate(`/${effectiveRole.toLowerCase()}/user-management`)}
-                  className="px-3 py-1 bg-white text-rose-600 rounded-lg text-[11px] font-black hover:bg-rose-50 transition-colors"
-                >
-                  Re-connect {'->'}
-                </button>
-                <button onClick={() => dismissSessionExpired(item.accountId)} className="p-1 rounded hover:bg-white/20 transition-colors">
-                  <X className="w-3.5 h-3.5 text-white" />
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
       <header
         className={`fixed right-0 h-16 glass-header z-30 transition-all duration-300 ${sideOffset}`}
-        style={{ top: bannerHeight }}
+        style={{ top: 0 }}
       >
         <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -177,14 +132,6 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold leading-tight text-foreground">{n.title}</p>
                                 <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.message}</p>
-                                {String(n.type || '').toUpperCase() === 'SESSION_EXPIRED' && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setShowNotifications(false); navigate(`/${effectiveRole.toLowerCase()}/user-management`); }}
-                                    className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 bg-rose-500/12 text-rose-500 rounded-lg text-[10px] font-bold hover:bg-rose-500/20 transition-colors"
-                                  >
-                                    <Wifi className="w-3 h-3" /> Re-connect Broker
-                                  </button>
-                                )}
                                 <p className="mt-1.5 text-[10px] text-muted-foreground/75">
                                   {n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : ''}
                                 </p>

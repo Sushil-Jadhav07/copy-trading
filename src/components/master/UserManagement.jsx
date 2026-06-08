@@ -179,29 +179,74 @@ const UserManagement = ({
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (error) addToast(error, 'error'); }, [addToast, error]);
 
+  const loadLiveAccountSnapshot = async (acc) => {
+    const id = acc.accountId || acc.id;
+    const [accountSnapshot, signal, margin, positions] = await Promise.all([
+      brokerService.getAccount(id).catch(() => null),
+      brokerService.getSignal(id).catch(() => null),
+      brokerService.getMargin(id).catch(() => null),
+      brokerService.getPositions(id).catch(() => []),
+    ]);
+
+    const signalQuality = String(signal?.quality || '').toLowerCase();
+    const explicitSignalSession =
+      typeof signal?.sessionActive === 'boolean'
+        ? signal.sessionActive
+        : null;
+    const inferredSignalSession =
+      signalQuality && signalQuality !== 'unknown'
+        ? !['disconnected', 'offline', 'failed', 'error'].includes(signalQuality)
+        : null;
+
+    return {
+      margin: Number(
+        margin?.availableMargin ??
+        margin?.marginAvailable ??
+        margin?.available ??
+        margin?.net ??
+        accountSnapshot?.margin ??
+        acc.margin ??
+        0
+      ),
+      pnl: Number(
+        margin?.pnl ??
+        accountSnapshot?.pnl ??
+        acc.pnl ??
+        0
+      ),
+      positions: Array.isArray(positions)
+        ? positions.length
+        : Number(accountSnapshot?.positions ?? acc.positions ?? 0),
+      quality: String(signal?.quality || 'unknown'),
+      latencyMs: signal?.latencyMs ?? null,
+      sessionActive: Boolean(
+        explicitSignalSession ??
+        inferredSignalSession ??
+        accountSnapshot?.sessionActive ??
+        acc.sessionActive
+      ),
+    };
+  };
+
   // Enrich accounts with live balance data if session is active
   useEffect(() => {
     if (accounts.length > 0) {
       accounts.forEach((acc) => {
         const id = acc.accountId || acc.id;
         if (acc.sessionActive && !liveBalances[id]) {
-          brokerService.getDashboard(id)
-            .then((data) => {
-              const margin = data.margin?.availableMargin ?? data.account?.margin ?? acc.margin ?? 0;
-              const pnl = data.account?.pnl ?? acc.pnl ?? 0;
-              const positions = Array.isArray(data.positions) ? data.positions.length : Number(acc.positions || 0);
-              const signal = data.signal || null;
+          loadLiveAccountSnapshot(acc)
+            .then((snapshot) => {
               setLiveBalances((prev) => ({
                 ...prev,
-                [id]: { margin, pnl },
+                [id]: { margin: snapshot.margin, pnl: snapshot.pnl },
               }));
               setLiveMetrics((prev) => ({
                 ...prev,
                 [id]: {
-                  positions,
-                  quality: signal?.quality || 'unknown',
-                  latencyMs: signal?.latencyMs ?? null,
-                  sessionActive: Boolean(data.account?.sessionActive ?? acc.sessionActive),
+                  positions: snapshot.positions,
+                  quality: snapshot.quality,
+                  latencyMs: snapshot.latencyMs,
+                  sessionActive: snapshot.sessionActive,
                 },
               }));
             })
@@ -590,24 +635,19 @@ const UserManagement = ({
     const id = acc.accountId || acc.id;
     setRefreshing((p) => ({ ...p, [id]: true }));
     try {
-      // Fetch dashboard for live data
-      const data = await brokerService.getDashboard(id);
-      const margin = data.margin?.availableMargin ?? data.account?.margin ?? acc.margin ?? 0;
-      const pnl = data.account?.pnl ?? acc.pnl ?? 0;
-      const positions = Array.isArray(data.positions) ? data.positions.length : Number(acc.positions || 0);
-      const signal = data.signal || null;
+      const snapshot = await loadLiveAccountSnapshot(acc);
 
       setLiveBalances((prev) => ({
         ...prev,
-        [id]: { margin, pnl },
+        [id]: { margin: snapshot.margin, pnl: snapshot.pnl },
       }));
       setLiveMetrics((prev) => ({
         ...prev,
         [id]: {
-          positions,
-          quality: signal?.quality || 'unknown',
-          latencyMs: signal?.latencyMs ?? null,
-          sessionActive: Boolean(data.account?.sessionActive ?? acc.sessionActive),
+          positions: snapshot.positions,
+          quality: snapshot.quality,
+          latencyMs: snapshot.latencyMs,
+          sessionActive: snapshot.sessionActive,
         },
       }));
 

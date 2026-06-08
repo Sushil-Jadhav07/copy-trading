@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
@@ -7,7 +7,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useNotifications } from '@/hooks/useNotifications';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 
@@ -30,23 +29,19 @@ const Dashboard = () => {
   const normalizedRole = String(getEffectiveRole() || '').toUpperCase();
   const { isDark } = useTheme();
   const { addToast } = useToast();
-  const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
-  const { sessionExpiredBrokers, dismissSessionExpired } = useNotifications();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { position, isVisible } = useCursorGlow(isDark);
   const isOverviewRoute = /\/overview$/.test(location.pathname);
 
-  // ── Global WebSocket listener for order notifications ─────────────────────
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const sub = connectChannel(
       'trades',
       (event, data) => {
-        // Master view: Notify when a trade is detected from their broker
         if (normalizedRole === 'MASTER') {
           if (event === 'TRADE_DETECTED' || event === 'trade_detected') {
             addToast(`New order detected on Master: ${data?.symbol} ${data?.side} x${data?.qty}`, 'info', 5000);
@@ -59,7 +54,6 @@ const Dashboard = () => {
           }
         }
 
-        // Child view: Notify when a trade is copied to their account
         if (normalizedRole === 'CHILD') {
           if (event === 'TRADE_COPIED' || event === 'copy_trade') {
             addToast(`New order placed in your account: ${data?.symbol} ${data?.side} x${data?.qty}`, 'success', 6000);
@@ -70,7 +64,7 @@ const Dashboard = () => {
         }
       },
       null,
-      null
+      null,
     );
 
     return () => sub.close();
@@ -90,10 +84,8 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Cursor Glow Effect (Dark Mode Only) */}
       <CursorGlow position={position} isVisible={isVisible && isDark} />
 
-      {/* Sidebar */}
       <Sidebar
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
@@ -102,52 +94,18 @@ const Dashboard = () => {
         onClose={() => setMobileSidebarOpen(false)}
       />
 
-      {/* Main Content */}
       <div
         className={`transition-all duration-300 ${
           isMobile ? 'ml-0' : sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'
         }`}
       >
-        {/* Header */}
         <Header
           sidebarCollapsed={sidebarCollapsed}
           isMobile={isMobile}
           onMenuClick={() => setMobileSidebarOpen(true)}
         />
 
-        {/* Page Content */}
         <main className="p-4 pt-20 sm:p-6 sm:pt-20">
-          {sessionExpiredBrokers.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {sessionExpiredBrokers.map((item) => (
-                <div
-                  key={item.accountId}
-                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-rose-500/30 bg-rose-500/8 text-sm"
-                >
-                  <div className="flex items-center gap-2 text-rose-500">
-                    <span className="font-bold text-[11px] uppercase tracking-wide">Session Expired</span>
-                    <span className="text-foreground">
-                      Your <strong>{item.broker}</strong> session has expired. Trades are not being copied.
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => navigate('/demat')}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition-colors"
-                    >
-                      Re-login
-                    </button>
-                    <button
-                      onClick={() => dismissSessionExpired(item.accountId)}
-                      className="text-muted-foreground hover:text-foreground transition-colors text-xs"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -160,7 +118,7 @@ const Dashboard = () => {
                     {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
                   </h1>
                   <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
-                    Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here's your performance summary.
+                    Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here&apos;s your performance summary.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

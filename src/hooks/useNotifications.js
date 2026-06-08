@@ -2,12 +2,21 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { notificationService } from '@/lib/notifications';
 import { connectChannel } from '@/lib/websocket';
 
+const HIDDEN_NOTIFICATION_TYPES = new Set([
+  'SESSION_EXPIRED',
+  'BROKER_DISCONNECTED',
+  'BROKER_RECONNECT_REQUIRED',
+]);
+
+const isVisibleNotification = (notification) => {
+  const normalizedType = String(notification?.type || '').toUpperCase();
+  return !HIDDEN_NOTIFICATION_TYPES.has(normalizedType);
+};
+
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // NEW — track SESSION_EXPIRED alerts separately for re-connect banner
-  const [sessionExpiredBrokers, setSessionExpiredBrokers] = useState([]);
   const wsRef = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
@@ -15,7 +24,7 @@ export const useNotifications = () => {
     setError(null);
     try {
       const data = await notificationService.getNotifications();
-      setNotifications(data);
+      setNotifications(Array.isArray(data) ? data.filter(isVisibleNotification) : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -27,42 +36,15 @@ export const useNotifications = () => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Subscribe to /ws/notifications for real-time broker/session alerts.
   useEffect(() => {
     const sub = connectChannel(
       'notifications',
       (event, data) => {
         const normalizedType = String(data?.type || event || '').toUpperCase();
-        if (normalizedType === 'SESSION_EXPIRED' || normalizedType === 'BROKER_DISCONNECTED' || normalizedType === 'BROKER_RECONNECT_REQUIRED') {
-          const broker = data?.brokerName || data?.broker || data?.brokerId || 'Unknown';
-          const accountId = data?.accountId || data?.account?.id || '';
-          // Add to local session expired list for banner display
-          if (accountId) {
-            setSessionExpiredBrokers((prev) => {
-              const alreadyExists = prev.some((b) => b.accountId === accountId);
-              if (alreadyExists) return prev;
-              return [...prev, { broker, accountId, childId: data?.childId }];
-            });
-          }
-          // Also inject into notifications list so bell shows it immediately
-          setNotifications((prev) => {
-            const syntheticNotif = {
-              id: `ws-${normalizedType.toLowerCase()}-${accountId || 'na'}-${Date.now()}`,
-              type: normalizedType,
-              title: normalizedType === 'SESSION_EXPIRED' ? 'Broker session expired' : 'Broker reconnect required',
-              message: data?.message || `Your ${broker} session needs re-login.`,
-              read: false,
-              createdAt: new Date().toISOString(),
-              accountId,
-              brokerName: broker,
-              action: data?.action || 'RECONNECT',
-              loginOptionsUrl: data?.loginOptionsUrl,
-            };
-            return [syntheticNotif, ...prev];
-          });
+        if (HIDDEN_NOTIFICATION_TYPES.has(normalizedType)) {
+          return;
         }
 
-        // Any notification push — refetch from server
         if (event === 'NOTIFICATION' || event === 'NEW_NOTIFICATION') {
           fetchNotifications();
         }
@@ -75,13 +57,10 @@ export const useNotifications = () => {
     return () => sub.close();
   }, [fetchNotifications]);
 
-  const unreadCount = useMemo(() => {
-    return notifications.filter((n) => !n.read).length;
-  }, [notifications]);
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
   const markAsRead = async (id) => {
     try {
-      // Only call API for real notifications (not synthetic WS ones)
       if (!String(id).startsWith('ws-')) {
         await notificationService.markAsRead(id);
       }
@@ -111,11 +90,6 @@ export const useNotifications = () => {
     }
   };
 
-  // NEW — dismiss a session expired alert from the banner
-  const dismissSessionExpired = useCallback((accountId) => {
-    setSessionExpiredBrokers((prev) => prev.filter((b) => b.accountId !== accountId));
-  }, []);
-
   return {
     notifications,
     unreadCount,
@@ -125,8 +99,5 @@ export const useNotifications = () => {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-    // NEW exports
-    sessionExpiredBrokers,
-    dismissSessionExpired,
   };
 };
