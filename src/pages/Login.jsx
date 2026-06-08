@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Lock, Mail, ArrowRight, ShieldCheck, Phone, ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import GoogleSignInCard from '@/components/shared/GoogleSignInCard';
 import PhoneInput from '@/components/shared/PhoneInput';
 import loginImg from '/asset/login4.png';
 import logomain from '/asset/whitelogo.png';
@@ -19,7 +20,7 @@ const inputCls = () => ({
 const Login = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { login, verifyLoginOtp, sendLoginOtp, sendOtp, verifyOtp, pending2FA } = useAuth();
+  const { login, googleLogin, verifyLoginOtp, sendLoginOtp, sendOtp, verifyOtp, pending2FA } = useAuth();
   const isDark = true; // Force dark mode for login page
 
   // 'phone' | 'email'
@@ -37,6 +38,7 @@ const Login = () => {
   const [cooldown, setCooldown]     = useState(0);
   const [otpExpiresIn, setOtpExpiresIn] = useState(0);
   const [twoFactorChannel, setTwoFactorChannel] = useState('EMAIL');
+  const [googleRole, setGoogleRole] = useState('CHILD');
 
   /* ---------- redirect helper ---------- */
   const redirectAfterLogin = (user) => {
@@ -180,6 +182,26 @@ const Login = () => {
     setLoading(false);
   };
 
+  const handleGoogleSignIn = async (credentialResponse) => {
+    const credential = credentialResponse?.credential;
+    if (!credential) {
+      setError('Google sign-in did not return a credential.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const result = await googleLogin(credential, googleRole);
+    if (result.success) {
+      redirectAfterLogin(result.user);
+    } else {
+      setError(result.error || 'Google sign-in failed');
+    }
+
+    setLoading(false);
+  };
+
   /* ---------- tab style helper ---------- */
   const tabStyle = (active) => ({
     ...(active ? {
@@ -251,7 +273,7 @@ const Login = () => {
           }}
         >
           {/* Logo & Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-2">
             <div className="h-16 mb-6 flex justify-center">
               <img src={logomain} alt="Logo" className="h-full w-auto object-contain drop-shadow-md" />
             </div>
@@ -388,6 +410,17 @@ const Login = () => {
                         <p className="text-center text-xs text-slate-500">
                           A one-time code will be sent to your phone.
                         </p>
+
+                        <div className="pt-2">
+                          <Divider label="Or continue with Google" />
+                        </div>
+                        <GoogleSignInCard
+                          role={googleRole}
+                          onRoleChange={setGoogleRole}
+                          onSuccess={handleGoogleSignIn}
+                          onError={() => setError('Google sign-in was cancelled or blocked.')}
+                          disabled={loading}
+                        />
                       </motion.form>
                     )}
 
@@ -444,6 +477,15 @@ const Login = () => {
                         <BtnSubmit>
                           Sign In <ArrowRight className="w-4 h-4 ml-1" />
                         </BtnSubmit>
+
+                        <Divider label="Or continue with Google" />
+                        <GoogleSignInCard
+                          role={googleRole}
+                          onRoleChange={setGoogleRole}
+                          onSuccess={handleGoogleSignIn}
+                          onError={() => setError('Google sign-in was cancelled or blocked.')}
+                          disabled={loading}
+                        />
                       </motion.form>
                     )}
                   </AnimatePresence>
@@ -488,7 +530,7 @@ const OtpInput = ({ value, onChange, isDark }) => (
       type="text" inputMode="numeric" maxLength={6}
       value={value}
       onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
-      placeholder="• • • • • •"
+      placeholder="â€¢ â€¢ â€¢ â€¢ â€¢ â€¢"
       className="w-full px-4 py-3 rounded-xl text-lg text-center text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 outline-none transition-all tracking-[0.5em]"
       style={{
         background: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,1)',
@@ -498,6 +540,14 @@ const OtpInput = ({ value, onChange, isDark }) => (
       autoFocus
       required
     />
+  </div>
+);
+
+const Divider = ({ label }) => (
+  <div className="flex items-center gap-3">
+    <div className="h-px flex-1 bg-white/10" />
+    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{label}</span>
+    <div className="h-px flex-1 bg-white/10" />
   </div>
 );
 

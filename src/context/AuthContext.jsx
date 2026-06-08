@@ -11,6 +11,7 @@ const FALLBACK_AUTH_CONTEXT = {
   isAuthenticated: false,
   loading: false,
   login: async () => ({ success: false, error: 'Auth provider unavailable' }),
+  googleLogin: async () => ({ success: false, error: 'Auth provider unavailable' }),
   register: async () => ({ success: false, error: 'Auth provider unavailable' }),
   logout: async () => {},
   switchRole: () => {},
@@ -91,6 +92,25 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: result.user };
     } catch (error) {
       return { success: false, error: error.message || 'Login failed' };
+    }
+  }, []);
+
+  const googleLogin = useCallback(async (credential, role = 'CHILD') => {
+    try {
+      const result = await authService.googleLogin({ credential, role });
+
+      setUser(result.user);
+      setIsAuthenticated(true);
+      setPending2FA(null);
+      brokerService.getAccounts()
+        .then((accounts) => {
+          setUser((prev) => (prev ? { ...prev, brokerAccounts: accounts } : prev));
+        })
+        .catch(() => {});
+
+      return { success: true, user: result.user, provider: result.provider };
+    } catch (error) {
+      return { success: false, error: error.message || 'Google sign-in failed' };
     }
   }, []);
 
@@ -243,6 +263,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     loading,
     login,
+    googleLogin,
     register,
     logout,
     switchRole,
@@ -261,6 +282,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     loading,
     login,
+    googleLogin,
     register,
     logout,
     switchRole,

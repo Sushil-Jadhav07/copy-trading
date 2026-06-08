@@ -9,6 +9,9 @@ import api, {
 
 const ROLE_STORAGE_KEY = 'Ascentra Capital_impersonated_role';
 const PENDING_2FA_KEY = 'Ascentra Capital_pending_2fa_token';
+export const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '448062236998-eoidebrs8cchf33dflcb2uqeba641s7d.apps.googleusercontent.com';
 
 const setPending2FAToken = (token) => {
   if (typeof window === 'undefined') return;
@@ -66,6 +69,9 @@ const normalizeUser = (payload = {}) => {
     role: pickRole(source.role || source.userType),
     status: source.status || '',
     createdAt: source.createdAt || source.created_at || null,
+    avatarUrl: source.avatarUrl || source.avatar || source.picture || source.profilePicture || '',
+    isNewUser: Boolean(source.isNewUser),
+    provider: source.provider || payload?.provider || payload?.data?.provider || '',
     brokerAccounts: Array.isArray(source.brokerAccounts) ? source.brokerAccounts : [],
     twoFactorEnabled,
     raw: source,
@@ -242,6 +248,49 @@ export const authService = {
       }
 
       throw new Error(getErrorMessage(error, 'Login failed'));
+    }
+  },
+
+  async googleLogin({ credential, role }) {
+    try {
+      clearAccessToken();
+      clearRefreshToken();
+      clearPending2FAToken();
+      authStorage.clearImpersonatedRole();
+
+      const response = await api.post(
+        '/api/v1/auth/google',
+        {
+          credential,
+          role: pickRole(role),
+        },
+        {
+          skipAuthRefresh: true,
+        },
+      );
+
+      const token = extractAccessToken(response.data);
+      const refreshToken = extractRefreshToken(response.data);
+
+      if (token) {
+        setAccessToken(token);
+      }
+      if (refreshToken) {
+        setRefreshToken(refreshToken);
+      }
+
+      clearPending2FAToken();
+
+      const user = response.data?.user
+        ? normalizeUser(response.data)
+        : await this.getMe();
+
+      return {
+        user,
+        provider: response.data?.provider || 'GOOGLE',
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Google sign-in failed'));
     }
   },
 

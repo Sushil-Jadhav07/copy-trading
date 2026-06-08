@@ -96,6 +96,7 @@ const redirectToLogin = () => {
 
 const isAuthBootstrapRequest = (url = '') =>
   url.includes('/api/v1/auth/login') ||
+  url.includes('/api/v1/auth/google') ||
   url.includes('/api/v1/auth/register') ||
   url.includes('/api/v1/auth/validate-password') ||
   url.includes('/api/v1/auth/forgot-password') ||

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import GoogleSignInCard from '@/components/shared/GoogleSignInCard';
 import { authService } from '@/lib/auth';
 import PhoneInput from '@/components/shared/PhoneInput';
 import loginImg from '/asset/login4.png';
@@ -50,7 +51,7 @@ const getStrengthColor = (strength) => {
 
 const Register = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, googleLogin } = useAuth();
   const isDark = true; // Force dark mode for register page
 
   const [formData, setFormData] = useState({
@@ -204,6 +205,36 @@ const Register = () => {
     setLoading(false);
   };
 
+  const handleGoogleSignIn = async (credentialResponse) => {
+    if (!termsAccepted) {
+      setError('Please accept the Terms of Service and Privacy Policy.');
+      return;
+    }
+
+    const credential = credentialResponse?.credential;
+    if (!credential) {
+      setError('Google sign-in did not return a credential.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const result = await googleLogin(credential, formData.role);
+    if (result.success) {
+      const normalizedRole = String(result.user?.role || formData.role || '').toUpperCase();
+      const path =
+        normalizedRole === 'MASTER' ? '/master/overview' :
+        normalizedRole === 'ADMIN' ? '/admin/overview' :
+        '/child/overview';
+      navigate(path, { replace: true });
+    } else {
+      setError(result.error || 'Google sign-in failed');
+    }
+
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-slate-950 py-12">
       {/* Full-screen background image with blur */}
@@ -242,7 +273,7 @@ const Register = () => {
           }}
         >
           {/* Logo & Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-2">
             <div className="h-16 mb-6 flex justify-center">
               <img src={logomain} alt="Logo" className="h-full w-auto object-contain drop-shadow-md" />
             </div>
@@ -281,7 +312,7 @@ const Register = () => {
                   s < step ? 'bg-emerald-500 text-white' :
                   s === step ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400' :
                   'bg-white/5 border border-white/10 text-slate-500'
-                }`}>{s < step ? '✓' : s}</div>
+                }`}>{s < step ? 'âœ“' : s}</div>
               ))}
             </div>
           </div>
@@ -418,9 +449,9 @@ const Register = () => {
                           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                             <span className="text-xs font-medium" style={{ color }}>{label}</span>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
-                              <span className={formData.password.length >= 8 ? 'text-emerald-400' : ''}>✓ 8+ chars</span>
-                              <span className={/[0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>✓ number</span>
-                              <span className={/[^a-zA-Z0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>✓ special</span>
+                              <span className={formData.password.length >= 8 ? 'text-emerald-400' : ''}>âœ“ 8+ chars</span>
+                              <span className={/[0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>âœ“ number</span>
+                              <span className={/[^a-zA-Z0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>âœ“ special</span>
                             </div>
                           </div>
                         </div>
@@ -467,14 +498,14 @@ const Register = () => {
                         {
                           val: 'CHILD',
                           label: 'Copy Trades',
-                          icon: '📈',
+                          icon: 'ðŸ“ˆ',
                           description: 'Follow expert traders and automatically mirror their trades in your account.',
                           badge: 'Most Popular',
                         },
                         {
                           val: 'MASTER',
                           label: 'Be a Master',
-                          icon: '🏆',
+                          icon: 'ðŸ†',
                           description: 'Share your trading strategy, build a following, and earn from your performance.',
                           badge: 'For Experts',
                         },
@@ -501,7 +532,7 @@ const Register = () => {
                           <div className="text-xs text-slate-400 leading-relaxed flex-1">{opt.description}</div>
                           {formData.role === opt.val && (
                             <div className="mt-3 flex items-center gap-1 text-emerald-400 text-xs font-semibold">
-                              <span>✓</span> Selected
+                              <span>âœ“</span> Selected
                             </div>
                           )}
                         </button>
@@ -525,6 +556,17 @@ const Register = () => {
                       <a href="/privacy" target="_blank" className="text-emerald-400 hover:underline">Privacy Policy</a>.
                     </label>
                   </div>
+
+                  <Divider label="Or sign up with Google" />
+                  <GoogleSignInCard
+                    role={formData.role}
+                    onRoleChange={(role) => updateField('role', role)}
+                    onSuccess={handleGoogleSignIn}
+                    onError={() => setError('Google sign-in was cancelled or blocked.')}
+                    disabled={loading}
+                    title="Create your account with Google"
+                    subtitle="For new users, the selected role becomes the default account type."
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -536,7 +578,7 @@ const Register = () => {
                   onClick={handleBack}
                   className="w-full py-3.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-all"
                 >
-                  ← Back
+                  â† Back
                 </button>
               )}
               {step < 3 ? (
@@ -547,7 +589,7 @@ const Register = () => {
                   onClick={handleNext}
                   className="btn-primary w-full py-3.5 text-sm font-bold"
                 >
-                  Next →
+                  Next â†’
                 </motion.button>
               ) : (
                 <motion.button
@@ -575,5 +617,13 @@ const Register = () => {
     </div>
   );
 };
+
+const Divider = ({ label }) => (
+  <div className="flex items-center gap-3">
+    <div className="h-px flex-1 bg-white/10" />
+    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{label}</span>
+    <div className="h-px flex-1 bg-white/10" />
+  </div>
+);
 
 export default Register;
