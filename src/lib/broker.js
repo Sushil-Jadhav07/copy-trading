@@ -155,7 +155,7 @@ const normalizeLoginOptions = (payload = {}) => {
       ? payload.loginOptionMethods
       : options.map((option) => option.method),
     oauthUrl: payload?.oauthUrl || payload?.loginUrl || payload?.url || '',
-    loginField: payload?.loginField || 'authCode',
+    loginField: payload?.loginField || '',
     needsCredentials: Boolean(payload?.needsCredentials),
     requiresUserCredentials: Boolean(payload?.requiresUserCredentials),
     hasStoredApiKey: Boolean(payload?.hasStoredApiKey),
