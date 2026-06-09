@@ -23,6 +23,12 @@ const safeNum = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const latestChartTotal = (history = []) => {
+  if (!Array.isArray(history) || history.length === 0) return 0;
+  const last = history[history.length - 1] || {};
+  return safeAdd(last.personal, last.copied, last.total, last.value);
+};
+
 const metricCard = (icon, value, label) => ({ icon, value, label });
 const pnlClass = (value, label) => {
   if (label === 'Win Rate' || label === 'Total Copied Trades') return 'text-foreground';
@@ -53,6 +59,14 @@ const PnLDashboard = () => {
   const totalPnl = safeNum(analytics.totalPnL ?? analytics.totalPnl);
   const copiedPnl = safeNum(analytics.copiedPnL ?? analytics.totalPnL);
   const personalPnl = safeNum(analytics.personalPnL);
+  const todayPnl = safeNum(
+    analytics.todayPnl ??
+    analytics.todayPnL ??
+    analytics.raw?.todayPnl ??
+    analytics.raw?.todayPnL ??
+    analytics.raw?.pnlToday ??
+    latestChartTotal(analytics.pnlHistory)
+  );
   const realizedPnl = copiedPnl;
   const unrealizedPnl = safeSub(totalPnl, realizedPnl);
   const winRate = safeNum(analytics.winRate);
@@ -135,6 +149,7 @@ const PnLDashboard = () => {
   }, [scoredTrades]);
 
   const metricCards = [
+    metricCard(Calendar, todayPnl, "Today's P&L"),
     metricCard(TrendingUp, realizedPnl, 'Realized P&L'),
     metricCard(TrendingDown, unrealizedPnl, 'Unrealized P&L'),
     metricCard(Crosshair, winRate, 'Win Rate'),
@@ -156,13 +171,17 @@ const PnLDashboard = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {metricCards.map((m) => (
           <GlassCard key={m.label}>
             <div className="text-center py-2">
               <m.icon className="w-5 h-5 mx-auto text-success mb-2" />
               <p className={`text-3xl font-black ${pnlClass(m.value, m.label)}`}>
-                {m.label === 'Win Rate' ? `${Math.round(m.value)}%` : m.label === 'Total Copied Trades' ? Math.round(m.value) : `${m.value >= 0 ? '+' : ''}${formatCurrency(m.value)}`}
+                {m.label === 'Win Rate'
+                  ? `${Math.round(m.value)}%`
+                  : m.label === 'Total Copied Trades'
+                    ? Math.round(m.value)
+                    : `${m.value >= 0 ? '+' : ''}${formatCurrency(m.value)}`}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{m.label}</p>
             </div>

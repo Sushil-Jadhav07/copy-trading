@@ -1092,10 +1092,13 @@ const UserManagement = ({
               {showWhitelistHint && (
                 <span className="text-amber-600 dark:text-amber-400">
                   {selectedBrokerMeta?.name || 'This broker'} requires IP whitelisting in your broker developer portal.
-                  {' '}Server IP to whitelist:{' '}
-                  <span className="font-mono font-bold select-all">
-                    {selectedBrokerMeta?.platformServerIp || platformServerIp || '13.53.246.13'}
-                  </span>
+                  {(selectedBrokerMeta?.platformServerIp || platformServerIp) && (
+                    <>{' '}Server IP to whitelist:{' '}
+                      <span className="font-mono font-bold select-all">
+                        {selectedBrokerMeta?.platformServerIp || platformServerIp}
+                      </span>
+                    </>
+                  )}
                 </span>
               )}
             </div>

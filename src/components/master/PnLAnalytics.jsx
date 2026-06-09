@@ -149,6 +149,17 @@ const PnLAnalytics = () => {
   }, [summary]);
 
   const monthlyTotal = safeAdd(realizedPnlVal, unrealizedPnlVal);
+  const todayPnl = useMemo(() => {
+    if (dailyChart.length > 0) {
+      const last = dailyChart[dailyChart.length - 1] || {};
+      return Number(last.pnl ?? last.realizedPnl ?? last.value ?? 0);
+    }
+    if (summary.length > 0) {
+      const last = summary[summary.length - 1] || {};
+      return safeAdd(last.realizedPnl, last.unrealizedPnl);
+    }
+    return 0;
+  }, [dailyChart, summary]);
 
   const dailyPnlChart = useMemo(() => {
     if (dailyChart.length > 0) {
@@ -249,8 +260,9 @@ const PnLAnalytics = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
+          { label: "Today's P&L", value: todayPnl, icon: CalendarDays, isCurrency: true },
           { label: 'Realized P&L', value: realizedPnlVal, icon: TrendingUp, isCurrency: true },
           { label: 'Unrealized P&L', value: unrealizedPnlVal, icon: CircleDollarSign, isCurrency: true },
           { label: 'Win Rate', value: `${avgWinRate}%`, icon: BarChart3 },

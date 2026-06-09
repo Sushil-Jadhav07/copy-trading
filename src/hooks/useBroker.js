@@ -37,7 +37,7 @@ export const useBrokerAccounts = () => {
 export const useBrokerList = () => {
   const [brokers, setBrokers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [platformServerIp, setPlatformServerIp] = useState('13.53.246.13');
+  const [platformServerIp, setPlatformServerIp] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,7 +47,7 @@ export const useBrokerList = () => {
       setBrokers(
         brokerItems.map((broker) => ({
           ...broker,
-          platformServerIp: broker?.platformServerIp || data?.platformServerIp || '13.53.246.13',
+          platformServerIp: broker?.platformServerIp || data?.platformServerIp || '',
         }))
       );
       if (data?.platformServerIp) {

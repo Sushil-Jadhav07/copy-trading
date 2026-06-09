@@ -204,7 +204,11 @@ const DematConnected = () => {
                   <p className="text-muted-foreground text-xs leading-relaxed">
                     {selectedBroker?.name || 'This broker'} requires you to whitelist our server IP in your broker developer portal before API calls will work.
                   </p>
-                  <p className="font-mono text-xs font-bold mt-1 text-foreground select-all">Server IP: 13.53.246.13</p>
+                  {(accountDetails?.platformServerIp || accountDetails?.account?.platformServerIp) && (
+                    <p className="font-mono text-xs font-bold mt-1 text-foreground select-all">
+                      Server IP: {accountDetails?.platformServerIp || accountDetails?.account?.platformServerIp}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
