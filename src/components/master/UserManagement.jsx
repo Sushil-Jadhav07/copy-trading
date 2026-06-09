@@ -121,27 +121,7 @@ const buildProxyPayload = (values = {}) => {
 };
 
 const validateProxyConfig = (values = {}) => {
-  const proxyHost = String(values.proxyHost || '').trim();
-  const proxyUser = String(values.proxyUser || '').trim();
-  const proxyPass = String(values.proxyPass || '').trim();
-  const rawProxyPort = values.proxyPort;
-  const proxyPort = parseProxyPort(rawProxyPort);
-  const hasCoreProxyFields = Boolean(proxyHost || rawProxyPort);
-  const hasCredentials = Boolean(proxyUser || proxyPass);
-
-  if (!hasCoreProxyFields && !hasCredentials) {
-    return {};
-  }
-
-  const errors = {};
-  if (!proxyHost) errors.proxyHost = 'Required when proxy routing is enabled';
-  if (!rawProxyPort && rawProxyPort !== 0) {
-    errors.proxyPort = 'Required when proxy routing is enabled';
-  } else if (!Number.isInteger(proxyPort) || proxyPort <= 0) {
-    errors.proxyPort = 'Enter a valid port number';
-  }
-
-  return errors;
+  return {};
 };
 
 const getProxyStatusMeta = (account = {}) => {
@@ -197,6 +177,20 @@ const UserManagement = ({
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (error) addToast(error, 'error'); }, [addToast, error]);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'BROKER_LOGIN_SUCCESS') {
+        closeLoginModal();
+        addToast('Broker connected & verified successfully', 'success');
+        refetch();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadLiveAccountSnapshot = async (acc) => {
     const id = acc.accountId || acc.id;
@@ -495,7 +489,7 @@ const UserManagement = ({
     if (!value) return '';
     const aliases = {
       requestToken: ['request_token', 'requestToken'],
-      authCode: ['auth_code', 'authCode', 'code', 'tokenId', 'token_id'],
+      authCode: ['auth_code', 'authCode', 'code', 'tokenId', 'token_id', 'request_token', 'requestToken'],
       code: ['code', 'authCode', 'auth_code'],
     };
     const candidates = [loginField, ...(aliases[loginField] || [])].filter(Boolean);
@@ -522,8 +516,11 @@ const UserManagement = ({
 
   const openOauthWindow = (oauthUrl) => {
     if (!oauthUrl) { addToast('OAuth URL not available. Re-add the account.', 'error'); return false; }
-    const popup = window.open(oauthUrl, 'broker-login', 'width=600,height=700,noopener,noreferrer');
-    if (!popup) window.open(oauthUrl, '_blank', 'noopener,noreferrer');
+    if (loginTarget && typeof window !== 'undefined') {
+      window.sessionStorage.setItem('oauth-pending-account-id', String(loginTarget));
+    }
+    const popup = window.open(oauthUrl, 'broker-login', 'width=600,height=700');
+    if (!popup) window.open(oauthUrl, '_blank');
     setOauthOpened(true);
     return true;
   };
@@ -572,7 +569,7 @@ const UserManagement = ({
           platformServerIp: loginOptionsPayload?.platformServerIp || '',
           requiresIpWhitelist: Boolean(loginOptionsPayload?.requiresIpWhitelist),
           hasStoredApiKey: Boolean(loginOptionsPayload?.hasStoredApiKey),
-          loginField: loginOptionsPayload?.loginField || 'authCode',
+          loginField: loginOptionsPayload?.loginField || (brokerKey === 'zerodha' ? 'requestToken' : 'authCode'),
           oauthUrl: loginOptionsPayload?.oauthUrl || loginOptionsPayload?.loginUrl || loginOptionsPayload?.url || '',
           message: loginOptionsPayload?.message || '',
           needsCredentials: Boolean(loginOptionsPayload?.needsCredentials),
@@ -603,7 +600,7 @@ const UserManagement = ({
         setLoginConfig({
           broker: loginOptionsPayload?.broker || localBrokerMeta?.name || brokerKey,
           loginMethod: 'oauth',
-          loginField: loginOptionsPayload?.loginField || 'authCode',
+          loginField: loginOptionsPayload?.loginField || (brokerKey === 'zerodha' ? 'requestToken' : 'authCode'),
           oauthUrl: loginOptionsPayload?.oauthUrl,
           message: loginOptionsPayload?.message || '',
           needsCredentials: Boolean(loginOptionsPayload?.needsCredentials),
@@ -991,7 +988,7 @@ const UserManagement = ({
                             </a>
                             {' '}{"->"} create an app {"->"} set Redirect URL to:{' '}
                             <span className="font-mono text-xs select-all text-foreground">
-                              https://api.ascentracapital.com/api/v1/brokers/callback
+                              {`${window.location.origin}/platform/dematconnected`}
                             </span>
                             , then enter your API key and secret above.
                           </>

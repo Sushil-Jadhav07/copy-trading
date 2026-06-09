@@ -36,7 +36,10 @@ const DematConnected = () => {
   // Even if StrictMode is re-added later, this ensures the login API is only called once.
   const loginAttempted = useRef(false);
 
-  const accountId = searchParams.get('accountId') || searchParams.get('account_id');
+  const storedAccountId = typeof window !== 'undefined'
+    ? window.sessionStorage.getItem('oauth-pending-account-id')
+    : null;
+  const accountId = searchParams.get('accountId') || searchParams.get('account_id') || storedAccountId;
   const requestToken = searchParams.get('request_token');   // Zerodha
   const authCode    = searchParams.get('auth_code');        // Fyers
   const code        = searchParams.get('code');             // Upstox — sends ?code= not ?auth_code=
@@ -86,7 +89,8 @@ const DematConnected = () => {
           window.sessionStorage.setItem(exchangeStorageKey, 'used');
         }
 
-        const oauthData = await brokerService.getOAuthUrl(accountId);
+        let oauthData = {};
+        try { oauthData = await brokerService.getOAuthUrl(accountId); } catch { /* derive loginField from URL params */ }
         const loginField = deriveLoginField(oauthData);
         const loginPayload = { [loginField]: brokerCode };
 
@@ -96,8 +100,12 @@ const DematConnected = () => {
         await brokerService.loginAccount(accountId, loginPayload);
 
         if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem('oauth-pending-account-id');
           const nextUrl = `${window.location.pathname}?accountId=${encodeURIComponent(accountId)}`;
           window.history.replaceState({}, '', nextUrl);
+          if (window.opener && !window.opener.closed) {
+            try { window.opener.postMessage({ type: 'BROKER_LOGIN_SUCCESS', accountId }, window.location.origin); } catch { /* ignore */ }
+          }
         }
       } else {
         await brokerService.getAccountStatus(accountId);
