@@ -600,7 +600,7 @@ const TradeTimeline = () => {
                                   <button
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      navigate('/platform/dematconnected');
+    navigate('/child/user-management');
                                     }}
                                     className="text-xs font-bold text-amber-500 underline hover:no-underline ml-2"
                                   >

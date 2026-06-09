@@ -88,25 +88,25 @@ const SystemLogs = () => {
         {tradeLogs.map((log, index) => (
           <tr key={log.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatRelativeTime(log.timestamp || log.createdAt)}</td>
-            <td className="px-4 py-3 text-sm">{log.type || 'â€”'}</td>
-            <td className="px-4 py-3 text-sm font-semibold">{log.symbol || log.instrument || 'â€”'}</td>
+            <td className="px-4 py-3 text-sm">{log.type || '-'}</td>
+            <td className="px-4 py-3 text-sm font-semibold">{log.symbol || log.instrument || '-'}</td>
             <td className="px-4 py-3 text-sm">
               <span className={log.action === 'BUY' ? 'text-emerald-400 font-semibold' : log.action === 'SELL' ? 'text-red-400 font-semibold' : ''}>
-                {log.action || log.side || 'â€”'}
+                {log.action || log.side || '-'}
               </span>
             </td>
             <td className="px-4 py-3 text-sm">{log.qty || log.quantity || 0}</td>
-            <td className="px-4 py-3 text-sm">{log.broker || 'â€”'}</td>
+            <td className="px-4 py-3 text-sm">{log.broker || '-'}</td>
             <td className="px-4 py-3 text-sm">
               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
                 log.status === 'error' ? 'bg-rose-500' :
                 log.status === 'warning' ? 'bg-amber-500' :
                 'bg-emerald-500'
               }`}>
-                {log.status || 'â€”'}
+                {log.status || '-'}
               </span>
             </td>
-            <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">{log.message || log.error || 'â€”'}</td>
+            <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">{log.message || log.error || '-'}</td>
           </tr>
         ))}
       </tbody>
@@ -130,7 +130,7 @@ const SystemLogs = () => {
           const statusUp = String(entry.status || '').toUpperCase() === 'UP';
           return (
             <tr key={entry.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-              <td className="px-4 py-3 text-sm font-semibold">{entry.name || 'â€”'}</td>
+              <td className="px-4 py-3 text-sm font-semibold">{entry.name || '-'}</td>
               <td className="px-4 py-3 text-sm">
                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
                   statusUp ? 'bg-emerald-500' : 'bg-rose-500'
@@ -138,10 +138,10 @@ const SystemLogs = () => {
                   {entry.status || 'UNKNOWN'}
                 </span>
               </td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.uptime || 'â€”'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.latency ?? 'â€”'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.activeUsers ?? 'â€”'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.ordersToday ?? 'â€”'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.uptime || '-'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.latency ?? '-'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.activeUsers ?? '-'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.ordersToday ?? '-'}</td>
             </tr>
           );
         })}
@@ -177,7 +177,7 @@ const SystemLogs = () => {
               String(broker.apiStatus || broker.status || '').toUpperCase() === 'OK';
             return (
               <tr key={broker.brokerId || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3 text-sm font-semibold">{broker.name || broker.brokerId || 'â€”'}</td>
+                <td className="px-4 py-3 text-sm font-semibold">{broker.name || broker.brokerId || '-'}</td>
                 <td className="px-4 py-3 text-sm">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
                     apiOk ? 'bg-emerald-500' : 'bg-rose-500'
@@ -185,7 +185,7 @@ const SystemLogs = () => {
                     {broker.apiStatus || broker.status || 'UNKNOWN'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground">{broker.latencyMs ?? 'â€”'}</td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{broker.latencyMs ?? '-'}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(broker.lastChecked)}</td>
               </tr>
             );

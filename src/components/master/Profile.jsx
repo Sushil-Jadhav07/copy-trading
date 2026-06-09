@@ -427,7 +427,7 @@ const Profile = () => {
                     )}
                     {(isExpired || isExpiringSoon || !sessionActive) && (
                       <a
-                        href="/platform/dematconnected"
+    href="/master/user-management"
                         className="rounded-xl bg-brand-purple px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white hover:opacity-90 transition-opacity"
                       >
                         Re-Login

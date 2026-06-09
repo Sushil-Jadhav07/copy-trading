@@ -2,14 +2,24 @@ import api from '@/lib/api';
 
 const ACCOUNT_COLLECTION_PATHS = ['/api/v1/broker/accounts', '/api/v1/brokers/accounts'];
 
-const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message ||
-  error?.response?.data?.error ||
-  error?.response?.data?.details ||
-  error?.message ||
-  fallback;
+const getErrorMessage = (error, fallback = 'Request failed') => {
+  const backendMsg =
+    error?.response?.data?.error ||
+    error?.response?.data?.message ||
+    error?.response?.data?.detail ||
+    error?.response?.data?.details ||
+    null;
+  if (backendMsg) return backendMsg;
+  if (error?.message && error.message !== 'Network Error') return error.message;
+  return fallback;
+};
 
 const shouldRetryWithLegacyAccountPath = (error) => {
+  const status = Number(error?.response?.status);
+  return status === 404 || status === 405;
+};
+
+const isMissingEndpointError = (error) => {
   const status = Number(error?.response?.status);
   return status === 404 || status === 405;
 };
@@ -146,6 +156,14 @@ const normalizeLoginOptions = (payload = {}) => {
       : options.map((option) => option.method),
     oauthUrl: payload?.oauthUrl || payload?.loginUrl || payload?.url || '',
     loginField: payload?.loginField || 'authCode',
+    needsCredentials: Boolean(payload?.needsCredentials),
+    requiresUserCredentials: Boolean(payload?.requiresUserCredentials),
+    hasStoredApiKey: Boolean(payload?.hasStoredApiKey),
+    credentialFields: Array.isArray(payload?.credentialFields)
+      ? payload.credentialFields
+      : Array.isArray(payload?.requiredFields)
+        ? payload.requiredFields
+        : [],
   };
 };
 
@@ -297,7 +315,11 @@ export const brokerService = {
   async getBrokers() {
     try {
       const res = await api.get('/api/v1/brokers');
-      return extractList(res.data);
+      const payload = res.data?.data || res.data || {};
+      return {
+        brokers: extractList(payload),
+        platformServerIp: payload?.platformServerIp || res.data?.platformServerIp || '',
+      };
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load brokers'));
     }
@@ -369,8 +391,17 @@ export const brokerService = {
 
   async getLoginOptions(accountId) {
     try {
-      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/login-options`));
-      return normalizeLoginOptions(res.data?.data || res.data || {});
+      const payload = await withAccountPathFallback(async (basePath) => {
+        try {
+          const res = await api.get(`${basePath}/${accountId}/login-options`);
+          return res.data?.data || res.data || {};
+        } catch (error) {
+          if (!isMissingEndpointError(error)) throw error;
+          const fallbackRes = await api.get(`${basePath}/${accountId}/status`);
+          return fallbackRes.data?.data || fallbackRes.data || {};
+        }
+      });
+      return normalizeLoginOptions(payload);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker login options'));
     }
@@ -378,8 +409,17 @@ export const brokerService = {
 
   async getOAuthUrl(accountId) {
     try {
-      const res = await withAccountPathFallback((basePath) => api.get(`${basePath}/${accountId}/oauth-url`));
-      return normalizeLoginOptions(res.data?.data || res.data || {});
+      const payload = await withAccountPathFallback(async (basePath) => {
+        try {
+          const res = await api.get(`${basePath}/${accountId}/oauth-url`);
+          return res.data?.data || res.data || {};
+        } catch (error) {
+          if (!isMissingEndpointError(error)) throw error;
+          const fallbackRes = await api.get(`${basePath}/${accountId}/status`);
+          return fallbackRes.data?.data || fallbackRes.data || {};
+        }
+      });
+      return normalizeLoginOptions(payload);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load broker login url'));
     }
@@ -405,7 +445,7 @@ export const brokerService = {
 
   async loginAccount(accountId, payload = {}) {
     try {
-      const res = await withAccountPathFallback((basePath) => api.post(`${basePath}/${accountId}/login`, payload || {}));
+      const res = await api.post(`/api/v1/brokers/accounts/${accountId}/login`, payload || {});
       return res.data?.data || res.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Broker login failed'));

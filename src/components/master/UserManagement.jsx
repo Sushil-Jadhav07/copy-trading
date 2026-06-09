@@ -19,6 +19,24 @@ const isTotpBroker = (loginMethod, brokerKey) =>
   normalizeBrokerKey(loginMethod) === 'totp' ||
   ['angelone', 'angel one'].includes(normalizeBrokerKey(brokerKey));
 const IP_WHITELIST_BROKERS = ['dhan', 'groww', 'angelone', 'angel one', 'upstox'];
+const USER_CREDENTIAL_BROKERS = ['zerodha'];
+
+const getCredentialFields = (brokerMeta = {}, fallbackBrokerKey = '') => {
+  const brokerKey = normalizeBrokerKey(
+    brokerMeta?.brokerId || brokerMeta?.id || brokerMeta?.name || brokerMeta?.brokerName || fallbackBrokerKey
+  );
+  const fields = Array.isArray(brokerMeta?.credentialFields) ? brokerMeta.credentialFields : [];
+  if (fields.length > 0) return fields;
+  if (brokerMeta?.requiresUserCredentials || USER_CREDENTIAL_BROKERS.includes(brokerKey)) {
+    return ['apiKey', 'apiSecret'];
+  }
+  return [];
+};
+
+const requiresApiCredentials = (brokerMeta = {}, fallbackBrokerKey = '') =>
+  getCredentialFields(brokerMeta, fallbackBrokerKey).some((field) =>
+    ['apikey', 'apisecret'].includes(String(field || '').trim().toLowerCase())
+  );
 
 const getLoginMethodLabel = (method) => {
   switch (normalizeLoginMethod(method)) {
@@ -152,7 +170,7 @@ const UserManagement = ({
   const { addToast } = useToast();
   const navigate = useNavigate();
   const { accounts, loading, error, refetch } = useBrokerAccounts();
-  const { brokers, load } = useBrokerList();
+  const { brokers, load, platformServerIp } = useBrokerList();
   const [deleteModal, setDeleteModal]   = useState(false);
   const [selectedAcc, setSelectedAcc]   = useState(null);
   const [refreshing, setRefreshing]     = useState({});
@@ -173,6 +191,7 @@ const UserManagement = ({
   const [testResult, setTestResult]     = useState(null); // { ok, message }
   const [liveBalances, setLiveBalances] = useState({});
   const [liveMetrics, setLiveMetrics] = useState({});
+  const [loginFormErrors, setLoginFormErrors] = useState({});
   const isChildScope = String(detailBasePath || '').startsWith('/child');
   const isMasterScope = String(detailBasePath || '').startsWith('/master');
 
@@ -303,6 +322,7 @@ const UserManagement = ({
       const normalizedBrokerId = normalizeBrokerKey(brokerMeta?.brokerId || brokerMeta?.name || form.broker);
       const isDhan = normalizedBrokerId === 'dhan';
       const isTotp = isTotpBroker(loginMethod, normalizedBrokerId);
+      const needsUserCredentials = requiresApiCredentials(brokerMeta, normalizedBrokerId);
       if (isDhan) {
         if (!form.dhanClientId?.trim()) {
           setTestResult({ ok: false, message: 'Enter Dhan Client ID before testing.' });
@@ -320,7 +340,13 @@ const UserManagement = ({
           setTestResult({ ok: true, message: 'Angel One credentials are ready. Click Add, then enter TOTP.' });
         }
       } else if (loginMethod === 'oauth') {
-        setTestResult({ ok: true, message: 'OAuth broker — connection will be verified after login.' });
+        if (!needsUserCredentials) {
+          setTestResult({ ok: true, message: 'OAuth broker connection will be verified after login.' });
+        } else if (!form.apiKey.trim() || !form.apiSecret.trim()) {
+          setTestResult({ ok: false, message: 'Enter your API key and API secret before testing.' });
+        } else {
+          setTestResult({ ok: true, message: 'Credentials look valid. Click Add, then complete OAuth login.' });
+        }
       } else if (form.accessToken) {
         // Optimistic: validate token format
         setTestResult({ ok: true, message: 'Credentials look valid. Click Add to connect.' });
@@ -365,9 +391,14 @@ const UserManagement = ({
     const normalizedBrokerId = normalizeBrokerKey(brokerMeta?.brokerId || form.broker);
     const isDhan = normalizedBrokerId === 'dhan';
     const isTotp = isTotpBroker(loginMethod, normalizedBrokerId);
+    const needsUserCredentials = requiresApiCredentials(brokerMeta, normalizedBrokerId);
     if (!isDhan && loginMethod === 'token') {
       if (form.growwOption === 'accessToken' && !form.accessToken.trim()) errors.accessToken = 'Required';
       if (form.growwOption === 'apiKeyWithTotp' && !form.apiKey.trim()) errors.apiKey = 'Required';
+    }
+    if (needsUserCredentials) {
+      if (!form.apiKey.trim()) errors.apiKey = 'Required';
+      if (!form.apiSecret.trim()) errors.apiSecret = 'Required';
     }
     if (isTotp) {
       if (!form.clientId?.trim()) errors.clientId = 'Required';
@@ -438,7 +469,17 @@ const UserManagement = ({
         await openLoginModal(newAcc.accountId || newAcc.id, 'groww');
         return;
       }
-      const newAcc = await brokerService.addAccount({ brokerId: normalizedBrokerId, accountNickname: form.nickname, ...proxyPayload });
+      const addPayload = {
+        brokerId: brokerMeta?.brokerId || normalizedBrokerId,
+        nickname: form.nickname.trim(),
+        accountNickname: form.nickname.trim(),
+        ...proxyPayload,
+      };
+      if (needsUserCredentials) {
+        addPayload.apiKey = form.apiKey.trim();
+        addPayload.apiSecret = form.apiSecret.trim();
+      }
+      const newAcc = await brokerService.addAccount(addPayload);
       setForm(EMPTY_FORM); setFormErrors({}); setTestResult(null); refetch();
       await openLoginModal(newAcc.accountId || newAcc.id, normalizedBrokerId);
     } catch (e) {
@@ -476,6 +517,7 @@ const UserManagement = ({
     setReconnectAccessToken('');
     setOauthRedirectUrl('');
     setOauthOpened(false);
+    setLoginFormErrors({});
   };
 
   const openOauthWindow = (oauthUrl) => {
@@ -492,6 +534,7 @@ const UserManagement = ({
     setReconnectAccessToken('');
     setOauthRedirectUrl('');
     setOauthOpened(false);
+    setLoginFormErrors({});
     setLoginLoading(true);
     try {
       const accountMeta = accounts.find((item) => (item.accountId || item.id) === accountId);
@@ -531,6 +574,9 @@ const UserManagement = ({
           hasStoredApiKey: Boolean(loginOptionsPayload?.hasStoredApiKey),
           loginField: loginOptionsPayload?.loginField || 'authCode',
           oauthUrl: loginOptionsPayload?.oauthUrl || loginOptionsPayload?.loginUrl || loginOptionsPayload?.url || '',
+          message: loginOptionsPayload?.message || '',
+          needsCredentials: Boolean(loginOptionsPayload?.needsCredentials),
+          credentialFields: Array.isArray(loginOptionsPayload?.credentialFields) ? loginOptionsPayload.credentialFields : [],
         });
         setActiveLoginMethod(initialMethod);
         setLoginModalOpen(true);
@@ -560,6 +606,8 @@ const UserManagement = ({
           loginField: loginOptionsPayload?.loginField || 'authCode',
           oauthUrl: loginOptionsPayload?.oauthUrl,
           message: loginOptionsPayload?.message || '',
+          needsCredentials: Boolean(loginOptionsPayload?.needsCredentials),
+          credentialFields: Array.isArray(loginOptionsPayload?.credentialFields) ? loginOptionsPayload.credentialFields : [],
         });
         setActiveLoginMethod('oauth');
         setLoginModalOpen(true);
@@ -581,6 +629,38 @@ const UserManagement = ({
     setLoginLoading(true);
     try {
       const selectedMethod = normalizeLoginMethod(activeLoginMethod || loginConfig.recommendedLoginMethod || loginConfig.loginMethod);
+      const needsApiKey = Boolean(loginConfig.needsCredentials);
+      const needsApiSecret = Boolean(loginConfig.needsCredentials);
+      const nextErrors = {};
+      if (needsApiKey && !form.apiKey.trim()) nextErrors.apiKey = 'Required';
+      if (needsApiSecret && !form.apiSecret.trim()) nextErrors.apiSecret = 'Required';
+      if (Object.keys(nextErrors).length > 0) {
+        setLoginFormErrors(nextErrors);
+        addToast('Enter the required broker credentials first', 'error');
+        return;
+      }
+      setLoginFormErrors({});
+      if (needsApiKey || needsApiSecret) {
+        await brokerService.updateAccount(loginTarget, {
+          ...(needsApiKey ? { apiKey: form.apiKey.trim() } : {}),
+          ...(needsApiSecret ? { apiSecret: form.apiSecret.trim() } : {}),
+        });
+        const brokerKey = normalizeBrokerKey(
+          loginConfig?.brokerId || loginConfig?.broker || ''
+        );
+        if (['zerodha', 'fyers', 'upstox'].includes(brokerKey)) {
+          try {
+            const freshConfig = await brokerService.getOAuthUrl(loginTarget);
+            setLoginConfig((prev) => ({
+              ...prev,
+              oauthUrl: freshConfig?.oauthUrl || freshConfig?.loginUrl || prev?.oauthUrl || '',
+              message: freshConfig?.message || prev?.message || '',
+            }));
+          } catch {
+            // Non-fatal: keep the existing URL if refresh fails
+          }
+        }
+      }
       if (selectedMethod === 'accesstoken' || loginConfig.loginMethod === 'token') {
         const token = String(reconnectAccessToken || '').trim();
         if (!token) {
@@ -609,7 +689,46 @@ const UserManagement = ({
       addToast('Broker connected & verified successfully', 'success');
       refetch();
     } catch (e) {
-      addToast(e.message, 'error');
+      const brokerKey = normalizeBrokerKey(
+        loginConfig?.brokerId || loginConfig?.broker || ''
+      );
+      const msg = e.message || '';
+      const isOAuthBroker = ['upstox', 'zerodha', 'fyers'].includes(brokerKey);
+      const isExpiredOrUsedCode =
+        msg.includes('already used') ||
+        msg.includes('Invalid Auth') ||
+        msg.includes('Invalid request_token') ||
+        msg.includes('auth code') ||
+        msg.includes('single-use');
+
+      if (isOAuthBroker && isExpiredOrUsedCode) {
+        addToast(
+          'Auth code expired or already used - opening fresh broker login...',
+          'error'
+        );
+        setOauthRedirectUrl('');
+        setOauthOpened(false);
+        try {
+          const freshOauth = await brokerService.getOAuthUrl(loginTarget);
+          const freshUrl =
+            freshOauth?.oauthUrl || freshOauth?.loginUrl || freshOauth?.url || '';
+          if (freshUrl) {
+            setLoginConfig((prev) => ({
+              ...prev,
+              oauthUrl: freshUrl,
+              message: freshOauth?.message || prev?.message || '',
+            }));
+            openOauthWindow(freshUrl);
+          } else {
+            addToast('Could not get fresh login URL - please close and re-open the login modal.', 'error');
+          }
+        } catch {
+          addToast('Could not get fresh login URL. Please try again.', 'error');
+        }
+        return;
+      }
+
+      addToast(msg || 'Broker login failed', 'error');
     } finally {
       setLoginLoading(false);
     }
@@ -745,6 +864,9 @@ const UserManagement = ({
   const selectedBrokerMeta = brokerMetaMap[normalizeBrokerKey(form.broker)];
   const selectedBrokerKey = normalizeBrokerKey(selectedBrokerMeta?.brokerId || selectedBrokerMeta?.name || form.broker);
   const showWhitelistHint = IP_WHITELIST_BROKERS.includes(selectedBrokerKey);
+  const selectedBrokerNeedsCredentials = requiresApiCredentials(selectedBrokerMeta, selectedBrokerKey);
+  const loginNeedsApiKey = Boolean(loginConfig?.needsCredentials);
+  const loginNeedsApiSecret = Boolean(loginConfig?.needsCredentials);
 
   return (
     <div className="space-y-6">
@@ -827,6 +949,56 @@ const UserManagement = ({
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 flex items-end">
                   <p className="text-xs text-muted-foreground">After adding, enter the 6-digit TOTP to activate the Angel One session.</p>
+                </div>
+              </>
+            );
+            if (loginMethod === 'oauth' && selectedBrokerNeedsCredentials) return (
+              <>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">API Key</label>
+                  <input
+                    value={form.apiKey}
+                    onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                    placeholder="Enter your broker API key"
+                    className={inputCls}
+                  />
+                  {formErrors.apiKey && <p className="text-danger text-xs mt-1">{formErrors.apiKey}</p>}
+                </div>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">API Secret</label>
+                  <input
+                    type="password"
+                    value={form.apiSecret}
+                    onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))}
+                    placeholder="Enter your broker API secret"
+                    className={inputCls}
+                  />
+                  {formErrors.apiSecret && <p className="text-danger text-xs mt-1">{formErrors.apiSecret}</p>}
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 flex items-end">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedBrokerMeta?.credentialNote ||
+                      (selectedBrokerKey === 'zerodha'
+                        ? <>
+                            Go to{' '}
+                            <a
+                              href="https://developers.kite.trade"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-purple underline"
+                            >
+                              developers.kite.trade
+                            </a>
+                            {' '}{"->"} create an app {"->"} set Redirect URL to:{' '}
+                            <span className="font-mono text-xs select-all text-foreground">
+                              https://api.ascentracapital.com/api/v1/brokers/callback
+                            </span>
+                            , then enter your API key and secret above.
+                          </>
+                        : 'This broker requires your own developer app credentials before OAuth login.'
+                      )
+                    }
+                  </p>
                 </div>
               </>
             );
@@ -922,7 +1094,11 @@ const UserManagement = ({
               <span>Leave all fields empty to use a direct broker connection.</span>
               {showWhitelistHint && (
                 <span className="text-amber-600 dark:text-amber-400">
-                  {selectedBrokerMeta?.name || 'This broker'} commonly requires IP whitelisting. Match the broker dashboard whitelist to your proxy exit IP.
+                  {selectedBrokerMeta?.name || 'This broker'} requires IP whitelisting in your broker developer portal.
+                  {' '}Server IP to whitelist:{' '}
+                  <span className="font-mono font-bold select-all">
+                    {selectedBrokerMeta?.platformServerIp || platformServerIp || '13.53.246.13'}
+                  </span>
                 </span>
               )}
             </div>
@@ -1089,6 +1265,41 @@ const UserManagement = ({
       <Modal isOpen={loginModalOpen} onClose={closeLoginModal} title={`${loginConfig?.broker || 'Broker'} Login`} size="md">
         <div className="space-y-4">
           {loginConfig?.message && <p className="text-xs text-muted-foreground">{loginConfig.message}</p>}
+          {(loginNeedsApiKey || loginNeedsApiSecret) && (
+            <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/60 bg-black/5 p-3 dark:bg-white/5">
+              {loginNeedsApiKey && (
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">API Key</label>
+                  <input
+                    value={form.apiKey}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, apiKey: e.target.value }));
+                      setLoginFormErrors((prev) => ({ ...prev, apiKey: undefined }));
+                    }}
+                    placeholder="Enter your broker API key"
+                    className={inputCls}
+                  />
+                  {loginFormErrors.apiKey && <p className="text-danger text-xs mt-1">{loginFormErrors.apiKey}</p>}
+                </div>
+              )}
+              {loginNeedsApiSecret && (
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">API Secret</label>
+                  <input
+                    type="password"
+                    value={form.apiSecret}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, apiSecret: e.target.value }));
+                      setLoginFormErrors((prev) => ({ ...prev, apiSecret: undefined }));
+                    }}
+                    placeholder="Enter your broker API secret"
+                    className={inputCls}
+                  />
+                  {loginFormErrors.apiSecret && <p className="text-danger text-xs mt-1">{loginFormErrors.apiSecret}</p>}
+                </div>
+              )}
+            </div>
+          )}
           {loginConfig?.requiresIpWhitelist && loginConfig?.platformServerIp && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
               Whitelist <span className="font-semibold">{loginConfig.platformServerIp}</span> in your broker dashboard before reconnecting.
@@ -1106,6 +1317,7 @@ const UserManagement = ({
                     onClick={() => {
                       setActiveLoginMethod(method);
                       setOauthRedirectUrl('');
+                      setLoginFormErrors({});
                       if (method !== 'oauth') {
                         setOauthOpened(false);
                       }
@@ -1160,7 +1372,7 @@ const UserManagement = ({
                   {loginConfig?.oauthUrl ? (
                     <button onClick={() => openOauthWindow(loginConfig?.oauthUrl)}
                       className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors">
-                      {oauthOpened ? `Open ${loginConfig?.broker || 'Broker'} Login Again` : `Login with ${loginConfig?.broker || 'Broker'}`}
+                      {oauthOpened ? 'Retry Login' : `Login with ${loginConfig?.broker || 'Broker'}`}
                     </button>
                   ) : (
                     <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg">
@@ -1183,7 +1395,7 @@ const UserManagement = ({
               {loginConfig?.oauthUrl ? (
                 <button onClick={() => openOauthWindow(loginConfig?.oauthUrl)}
                   className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors">
-                  {oauthOpened ? `Open ${loginConfig?.broker || 'Broker'} Login Again` : `Login with ${loginConfig?.broker || 'Broker'}`}
+                  {oauthOpened ? 'Retry Login' : `Login with ${loginConfig?.broker || 'Broker'}`}
                 </button>
               ) : (
                 <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg">

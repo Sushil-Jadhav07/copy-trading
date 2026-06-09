@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Copy,
+  Crown,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  User,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import GoogleSignInCard from '@/components/shared/GoogleSignInCard';
 import { authService } from '@/lib/auth';
@@ -14,17 +25,6 @@ const inputStyle = () => ({
   border: '1px solid rgba(255,255,255,0.1)',
   color: '#fff',
 });
-
-const Field = ({ label, children, required, hint }) => (
-  <div>
-    <label className="block text-sm font-medium text-slate-300 mb-1.5">
-      {label}
-      {required && <span className="text-red-400 ml-0.5">*</span>}
-    </label>
-    <div className="relative">{children}</div>
-    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{hint}</p>
-  </div>
-);
 
 const fallbackPasswordValidation = (pwd) => {
   const checks = {
@@ -49,10 +49,27 @@ const getStrengthColor = (strength) => {
   return '#ef4444';
 };
 
+const ACCOUNT_OPTIONS = [
+  {
+    val: 'CHILD',
+    label: 'Copy Trades',
+    icon: Copy,
+    description: 'Follow expert traders and automatically mirror their trades in your account.',
+    badge: 'Most Popular',
+  },
+  {
+    val: 'MASTER',
+    label: 'Be a Master',
+    icon: Crown,
+    description: 'Share your trading strategy, build a following, and earn from your performance.',
+    badge: 'For Experts',
+  },
+];
+
 const Register = () => {
   const navigate = useNavigate();
   const { register, googleLogin } = useAuth();
-  const isDark = true; // Force dark mode for register page
+  const isDark = true;
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -76,7 +93,7 @@ const Register = () => {
 
   const passwordState = useMemo(
     () => passwordValidation || fallbackPasswordValidation(formData.password),
-    [formData.password, passwordValidation],
+    [formData.password, passwordValidation]
   );
 
   useEffect(() => {
@@ -193,7 +210,7 @@ const Register = () => {
       formData.password,
       formData.confirmPassword,
       formData.role,
-      fullPhone,
+      fullPhone
     );
 
     if (result.success) {
@@ -237,33 +254,28 @@ const Register = () => {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-slate-950 py-12">
-      {/* Full-screen background image with blur */}
       <div className="absolute inset-0 z-0">
-        <img 
-          src={loginImg} 
-          alt="Trading Background" 
+        <img
+          src={loginImg}
+          alt="Trading Background"
           className="w-full h-full object-cover"
         />
-        {/* Dark overlay with blur */}
         <div className="absolute inset-0 bg-black/40 backdrop-blur-[6px]" />
-        
-        {/* Decorative elements */}
         <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-purple/20 rounded-full blur-[100px] animate-pulse" />
         <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-brand-teal/20 rounded-full blur-[100px] animate-pulse delay-700" />
       </div>
 
-      {/* Centered Form Container */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
         className="w-full max-w-[700px] px-4 relative z-10"
       >
-        <div 
+        <div
           className="rounded-[32px] p-6 sm:p-10 border border-white/10 shadow-2xl overflow-hidden"
           style={{
-            background: isDark 
-              ? 'linear-gradient(165deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)' 
+            background: isDark
+              ? 'linear-gradient(165deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)'
               : 'rgba(255,255,255,0.85)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
@@ -272,7 +284,6 @@ const Register = () => {
               : '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
           }}
         >
-          {/* Logo & Header */}
           <div className="text-center mb-2">
             <div className="h-16 mb-6 flex justify-center">
               <img src={logomain} alt="Logo" className="h-full w-auto object-contain drop-shadow-md" />
@@ -308,11 +319,16 @@ const Register = () => {
             </div>
             <div className="flex justify-between mt-2">
               {[1, 2, 3].map((s) => (
-                <div key={s} className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                  s < step ? 'bg-emerald-500 text-white' :
-                  s === step ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400' :
-                  'bg-white/5 border border-white/10 text-slate-500'
-                }`}>{s < step ? 'âœ“' : s}</div>
+                <div
+                  key={s}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                    s < step ? 'bg-emerald-500 text-white' :
+                    s === step ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400' :
+                    'bg-white/5 border border-white/10 text-slate-500'
+                  }`}
+                >
+                  {s < step ? <Check className="h-3.5 w-3.5" /> : s}
+                </div>
               ))}
             </div>
           </div>
@@ -441,17 +457,20 @@ const Register = () => {
                       return (
                         <div className="mt-2 space-y-2">
                           <div className="flex gap-1">
-                            {[1,2,3,4,5].map(i => (
-                              <div key={i} className="h-1 flex-1 rounded-full transition-all duration-300"
-                                style={{ background: i <= Number(score || 0) ? color : 'rgba(255,255,255,0.1)' }} />
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <div
+                                key={i}
+                                className="h-1 flex-1 rounded-full transition-all duration-300"
+                                style={{ background: i <= Number(score || 0) ? color : 'rgba(255,255,255,0.1)' }}
+                              />
                             ))}
                           </div>
                           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                             <span className="text-xs font-medium" style={{ color }}>{label}</span>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
-                              <span className={formData.password.length >= 8 ? 'text-emerald-400' : ''}>âœ“ 8+ chars</span>
-                              <span className={/[0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>âœ“ number</span>
-                              <span className={/[^a-zA-Z0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>âœ“ special</span>
+                              <span className={formData.password.length >= 8 ? 'text-emerald-400' : ''}>✓ 8+ chars</span>
+                              <span className={/[0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>✓ number</span>
+                              <span className={/[^a-zA-Z0-9]/.test(formData.password) ? 'text-emerald-400' : ''}>✓ special</span>
                             </div>
                           </div>
                         </div>
@@ -494,22 +513,7 @@ const Register = () => {
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-3">Account Type</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {[
-                        {
-                          val: 'CHILD',
-                          label: 'Copy Trades',
-                          icon: 'ðŸ“ˆ',
-                          description: 'Follow expert traders and automatically mirror their trades in your account.',
-                          badge: 'Most Popular',
-                        },
-                        {
-                          val: 'MASTER',
-                          label: 'Be a Master',
-                          icon: 'ðŸ†',
-                          description: 'Share your trading strategy, build a following, and earn from your performance.',
-                          badge: 'For Experts',
-                        },
-                      ].map((opt) => (
+                      {ACCOUNT_OPTIONS.map((opt) => (
                         <button
                           key={opt.val}
                           type="button"
@@ -521,10 +525,14 @@ const Register = () => {
                           }`}
                         >
                           <div className="flex items-start justify-between mb-3">
-                            <span className="text-3xl">{opt.icon}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              formData.role === opt.val ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-slate-400'
-                            }`}>{opt.badge}</span>
+                            <opt.icon className="h-8 w-8 text-white" />
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                formData.role === opt.val ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-slate-400'
+                              }`}
+                            >
+                              {opt.badge}
+                            </span>
                           </div>
                           <div className={`font-bold text-base mb-1 ${formData.role === opt.val ? 'text-emerald-400' : 'text-white'}`}>
                             {opt.label}
@@ -532,7 +540,7 @@ const Register = () => {
                           <div className="text-xs text-slate-400 leading-relaxed flex-1">{opt.description}</div>
                           {formData.role === opt.val && (
                             <div className="mt-3 flex items-center gap-1 text-emerald-400 text-xs font-semibold">
-                              <span>âœ“</span> Selected
+                              <Check className="h-3.5 w-3.5" /> Selected
                             </div>
                           )}
                         </button>
@@ -551,9 +559,9 @@ const Register = () => {
                     />
                     <label htmlFor="terms" className="text-xs text-slate-400 leading-relaxed cursor-pointer">
                       By creating an account, you agree to our{' '}
-                      <a href="/terms" target="_blank" className="text-emerald-400 hover:underline">Terms of Service</a>
+                      <a href="/terms" target="_blank" className="text-emerald-400 hover:underline" rel="noreferrer">Terms of Service</a>
                       {' '}and{' '}
-                      <a href="/privacy" target="_blank" className="text-emerald-400 hover:underline">Privacy Policy</a>.
+                      <a href="/privacy" target="_blank" className="text-emerald-400 hover:underline" rel="noreferrer">Privacy Policy</a>.
                     </label>
                   </div>
 
@@ -578,7 +586,10 @@ const Register = () => {
                   onClick={handleBack}
                   className="w-full py-3.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-all"
                 >
-                  â† Back
+                  <span className="inline-flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                  </span>
                 </button>
               )}
               {step < 3 ? (
@@ -589,7 +600,10 @@ const Register = () => {
                   onClick={handleNext}
                   className="btn-primary w-full py-3.5 text-sm font-bold"
                 >
-                  Next â†’
+                  <span className="inline-flex items-center gap-2">
+                    Next
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
                 </motion.button>
               ) : (
                 <motion.button

@@ -37,12 +37,22 @@ export const useBrokerAccounts = () => {
 export const useBrokerList = () => {
   const [brokers, setBrokers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [platformServerIp, setPlatformServerIp] = useState('13.53.246.13');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await brokerService.getBrokers();
-      setBrokers(data);
+      const brokerItems = Array.isArray(data?.brokers) ? data.brokers : (Array.isArray(data) ? data : []);
+      setBrokers(
+        brokerItems.map((broker) => ({
+          ...broker,
+          platformServerIp: broker?.platformServerIp || data?.platformServerIp || '13.53.246.13',
+        }))
+      );
+      if (data?.platformServerIp) {
+        setPlatformServerIp(data.platformServerIp);
+      }
     } catch (_) {
       // no-op
     } finally {
@@ -50,7 +60,7 @@ export const useBrokerList = () => {
     }
   }, []);
 
-  return { brokers, loading, load };
+  return { brokers, loading, load, platformServerIp };
 };
 
 export const useBrokerDashboard = (accountId) => {

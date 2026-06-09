@@ -413,7 +413,7 @@ const CopiedTrades = () => {
                               )}
                               {showReloginCta && (
                                 <button
-                                  onClick={() => navigate('/platform/dematconnected')}
+onClick={() => navigate('/child/user-management')}
                                   className="text-xs font-bold text-amber-500 underline hover:no-underline text-left"
                                 >
                                   Re-login broker →

@@ -530,7 +530,7 @@ const OtpInput = ({ value, onChange, isDark }) => (
       type="text" inputMode="numeric" maxLength={6}
       value={value}
       onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
-      placeholder="â€¢ â€¢ â€¢ â€¢ â€¢ â€¢"
+      placeholder="• • • • • •"
       className="w-full px-4 py-3 rounded-xl text-lg text-center text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 outline-none transition-all tracking-[0.5em]"
       style={{
         background: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,1)',
