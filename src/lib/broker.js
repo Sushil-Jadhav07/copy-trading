@@ -91,8 +91,8 @@ const normalizeBrokerAccount = (raw = {}) => {
     brokerId: raw.brokerId || '',
     brokerName: raw.brokerName || raw.brokerId || '',
     broker: raw.brokerName || raw.brokerId || '',
-    clientId: raw.clientId || '',
-    userId: raw.clientId || '',
+    clientId: raw.clientId || raw.client_id || raw.dhanClientId || raw.userId || '',
+    userId: raw.clientId || raw.client_id || raw.dhanClientId || raw.userId || '',
     nickname: raw.nickname || raw.accountNickname || '',
     status,
     sessionActive,
@@ -294,22 +294,6 @@ const normalizeBalanceAlert = (raw = {}) => ({
   },
 });
 
-const emptyDashboardSections = (message = null) => ({
-  profile: null,
-  margin: null,
-  positions: [],
-  holdings: [],
-  orders: [],
-  signal: null,
-  balanceAlert: null,
-  errors: {
-    profile: message,
-    margin: message,
-    positions: message,
-    holdings: message,
-    orders: message,
-  },
-});
 
 export const brokerService = {
   async getBrokers() {
@@ -378,11 +362,11 @@ export const brokerService = {
     }
   },
 
-  async saveAccessToken(accountId, accessToken) {
+  async saveAccessToken(accountId, accessToken, clientId) {
     try {
-      const res = await withAccountPathFallback((basePath) => api.put(`${basePath}/${accountId}/token`, {
-        accessToken,
-      }));
+      const body = { accessToken };
+      if (clientId) body.clientId = clientId;
+      const res = await withAccountPathFallback((basePath) => api.put(`${basePath}/${accountId}/token`, body));
       return normalizeLoginOptions(res.data?.data || res.data || {});
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to save broker access token'));

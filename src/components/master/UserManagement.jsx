@@ -162,6 +162,8 @@ const UserManagement = ({
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [totpCode, setTotpCode]         = useState('');
   const [reconnectAccessToken, setReconnectAccessToken] = useState('');
+  const [loginClientId, setLoginClientId] = useState('');
+  const [dhanOauthLoading, setDhanOauthLoading] = useState(false);
   const [loginConfig, setLoginConfig]   = useState(null);
   const [activeLoginMethod, setActiveLoginMethod] = useState('');
   const [oauthRedirectUrl, setOauthRedirectUrl] = useState('');
@@ -362,19 +364,20 @@ const UserManagement = ({
   };
 
   /* ── Fetch OAuth config ── */
-  const fetchOAuthConfig = async (accountId, brokerKey) => {
+  const fetchOAuthConfig = async (accountId, brokerKey, clientId) => {
     const isDhan = brokerKey === 'dhan';
     if (isDhan) {
       try {
-        const res = await brokerService.loginAccount(accountId, {});
+        const body = clientId ? { clientId } : {};
+        const res = await brokerService.loginAccount(accountId, body);
         const payload = res?.data || res || {};
         const url = payload?.loginUrl || payload?.oauthUrl || payload?.url || payload?.redirectUrl || '';
-        return { oauthUrl: url, loginField: 'authCode', broker: payload?.broker || 'Dhan', message: payload?.message || 'Complete Dhan login and paste the redirect URL below.' };
+        return { oauthUrl: url, loginField: 'tokenId', broker: payload?.broker || 'Dhan', message: payload?.message || 'Complete Dhan login and paste the redirect URL below.' };
       } catch {
         const res = await brokerService.getOAuthUrl(accountId);
         const payload = res?.data || res || {};
         const url = payload?.oauthUrl || payload?.loginUrl || payload?.url || '';
-        return { oauthUrl: url, loginField: 'authCode', broker: 'Dhan', message: 'Complete Dhan login and paste the redirect URL below.' };
+        return { oauthUrl: url, loginField: payload?.loginField || 'tokenId', broker: 'Dhan', message: 'Complete Dhan login and paste the redirect URL below.' };
       }
     }
     const payload = await brokerService.getOAuthUrl(accountId);
@@ -516,6 +519,8 @@ const UserManagement = ({
     setActiveLoginMethod('');
     setTotpCode('');
     setReconnectAccessToken('');
+    setLoginClientId('');
+    setDhanOauthLoading(false);
     setOauthRedirectUrl('');
     setOauthOpened(false);
     setLoginFormErrors({});
@@ -532,14 +537,39 @@ const UserManagement = ({
     return true;
   };
 
+  // For Dhan OAuth: first POST /login { clientId } to get the URL, then open popup
+  const handleDhanOauthLogin = async () => {
+    const clientId = String(loginClientId || '').trim();
+    if (!clientId) { addToast('Enter your Dhan Client ID first', 'error'); return; }
+    setDhanOauthLoading(true);
+    try {
+      const res = await brokerService.loginAccount(loginTarget, { clientId });
+      const payload = res?.data || res || {};
+      const url = payload?.loginUrl || payload?.oauthUrl || payload?.url || payload?.redirectUrl || '';
+      if (!url) { addToast('Could not get Dhan login URL. Please try again.', 'error'); return; }
+      setLoginConfig((prev) => ({ ...prev, oauthUrl: url, loginField: 'tokenId' }));
+      openOauthWindow(url);
+    } catch (e) {
+      addToast(e.message || 'Failed to get Dhan login URL', 'error');
+    } finally {
+      setDhanOauthLoading(false);
+    }
+  };
+
   const openLoginModal = async (accountId, brokerKeyOverride = null) => {
     setLoginTarget(accountId);
     setTotpCode('');
     setReconnectAccessToken('');
+    setLoginClientId('');
     setOauthRedirectUrl('');
     setOauthOpened(false);
     setLoginFormErrors({});
     setLoginLoading(true);
+    // Pre-fill clientId from stored account metadata
+    const accMeta = accounts.find((a) => String(a.accountId || a.id) === String(accountId));
+    if (accMeta?.clientId || accMeta?.userId) {
+      setLoginClientId(accMeta.clientId || accMeta.userId || '');
+    }
     try {
       const accountMeta = accounts.find((item) => (item.accountId || item.id) === accountId);
       const brokerKey = brokerKeyOverride || normalizeBrokerKey(accountMeta?.brokerId || accountMeta?.broker || accountMeta?.brokerName || '');
@@ -668,10 +698,19 @@ const UserManagement = ({
       if (selectedMethod === 'accesstoken' || loginConfig.loginMethod === 'token') {
         const token = String(reconnectAccessToken || '').trim();
         if (!token) {
-          addToast('Paste the Groww access token', 'error');
+          addToast('Paste the access token', 'error');
           return;
         }
-        await brokerService.saveAccessToken(loginTarget, token);
+        const brokerKey = normalizeBrokerKey(loginConfig?.brokerId || loginConfig?.broker || '');
+        const clientId = String(loginClientId || '').trim();
+        if (brokerKey === 'dhan' && !clientId) {
+          addToast('Client ID is required for Dhan', 'error');
+          return;
+        }
+        if (brokerKey === 'dhan' && clientId) {
+          await brokerService.updateAccount(loginTarget, { clientId });
+        }
+        await brokerService.saveAccessToken(loginTarget, token, clientId || undefined);
       } else if (selectedMethod === 'apikeywithtotp' || selectedMethod === 'totp') {
         const sanitized = String(totpCode || '').replace(/\D/g, '').slice(0, 6);
         if (sanitized.length !== 6) {
@@ -683,10 +722,14 @@ const UserManagement = ({
         const extracted = parseCodeFromRedirectUrl(oauthRedirectUrl, loginConfig.loginField);
         if (!extracted) { addToast('Could not find the token in the pasted URL. Copy the full redirect URL after login.', 'error'); return; }
         const loginPayload = { [loginConfig.loginField]: extracted };
-        const accountMeta = accounts.find((item) => String(item.accountId || item.id) === String(loginTarget));
-        const brokerKey = normalizeBrokerKey(accountMeta?.brokerId || accountMeta?.broker || accountMeta?.brokerName || loginConfig.broker);
-        const clientId = accountMeta?.clientId || accountMeta?.userId || accountMeta?.raw?.clientId;
-        if (brokerKey === 'dhan' && clientId) loginPayload.clientId = clientId;
+        const brokerKey = normalizeBrokerKey(loginConfig?.brokerId || loginConfig?.broker || '');
+        // Prefer loginClientId (entered in modal) over stale account metadata
+        const clientId = String(loginClientId || '').trim()
+          || (() => { const m = accounts.find((a) => String(a.accountId || a.id) === String(loginTarget)); return m?.clientId || m?.userId || ''; })();
+        if (brokerKey === 'dhan' && clientId) {
+          loginPayload.clientId = clientId;
+          await brokerService.updateAccount(loginTarget, { clientId });
+        }
         await brokerService.loginAccount(loginTarget, loginPayload);
       }
       closeLoginModal();
@@ -1140,7 +1183,7 @@ const UserManagement = ({
       <GlassCard noPadding>
         <div className="p-4 border-b border-border/50 flex items-center justify-between gap-3 flex-wrap">
           <label htmlFor="usermgmt-search" className="sr-only">Search accounts</label>
-          <input id="usermgmt-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts..."
+          <input id="usermgmt-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts..." autoComplete="off"
             className="w-full max-w-xs bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
           <span className="text-xs text-muted-foreground">{filtered.length} account{filtered.length !== 1 ? 's' : ''}</span>
         </div>
@@ -1347,15 +1390,30 @@ const UserManagement = ({
                 <p className="text-xs text-muted-foreground">{selectedLoginOption.description}</p>
               )}
               {selectedLoginMethod === 'accesstoken' ? (
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Access Token</label>
-                  <input
-                    value={reconnectAccessToken}
-                    onChange={(e) => setReconnectAccessToken(e.target.value)}
-                    placeholder="Paste Groww access token"
-                    className={inputCls}
-                    type="password"
-                  />
+                <div className="space-y-3">
+                  {normalizeBrokerKey(loginConfig?.brokerId || loginConfig?.broker) === 'dhan' && (
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Client ID</label>
+                      <input
+                        value={loginClientId}
+                        onChange={(e) => setLoginClientId(e.target.value)}
+                        placeholder="Enter your Dhan Client ID"
+                        className={inputCls}
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Access Token</label>
+                    <input
+                      value={reconnectAccessToken}
+                      onChange={(e) => setReconnectAccessToken(e.target.value)}
+                      placeholder={normalizeBrokerKey(loginConfig?.brokerId || loginConfig?.broker) === 'dhan' ? 'Paste access token from Dhan Web (Profile → DhanHQ Trading APIs)' : 'Paste access token'}
+                      className={inputCls}
+                      type="password"
+                      autoComplete="off"
+                    />
+                  </div>
                 </div>
               ) : selectedLoginMethod === 'apikeywithtotp' || selectedLoginMethod === 'totp' ? (
                 <div>
@@ -1376,7 +1434,28 @@ const UserManagement = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {loginConfig?.oauthUrl ? (
+                  {normalizeBrokerKey(loginConfig?.brokerId || loginConfig?.broker) === 'dhan' && (
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Client ID <span className="text-danger">*</span></label>
+                      <input
+                        value={loginClientId}
+                        onChange={(e) => setLoginClientId(e.target.value)}
+                        placeholder="Enter your Dhan Client ID"
+                        className={inputCls}
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
+                  {normalizeBrokerKey(loginConfig?.brokerId || loginConfig?.broker) === 'dhan' ? (
+                    <button
+                      type="button"
+                      onClick={handleDhanOauthLogin}
+                      disabled={dhanOauthLoading || !loginClientId.trim()}
+                      className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {dhanOauthLoading ? 'Getting login URL...' : oauthOpened ? 'Retry Login' : 'Login with Dhan'}
+                    </button>
+                  ) : loginConfig?.oauthUrl ? (
                     <button onClick={() => openOauthWindow(loginConfig?.oauthUrl)}
                       className="w-full py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors">
                       {oauthOpened ? 'Retry Login' : `Login with ${loginConfig?.broker || 'Broker'}`}
@@ -1392,7 +1471,7 @@ const UserManagement = ({
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Redirect URL (paste after login)</label>
                     <input value={oauthRedirectUrl} onChange={(e) => setOauthRedirectUrl(e.target.value)}
-                      placeholder="https://...?request_token=..." className={inputCls} />
+                      placeholder="https://...?tokenId=..." className={inputCls} />
                   </div>
                 </div>
               )}

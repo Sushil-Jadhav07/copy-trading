@@ -65,7 +65,7 @@ const DematConnected = () => {
     if (oauthData?.loginField) return oauthData.loginField;
     if (requestToken) return 'requestToken';
     if (authCode)    return 'authCode';
-    if (tokenId)     return 'authCode';
+    if (tokenId)     return 'tokenId';  // Dhan: URL param is ?tokenId= and backend loginField is tokenId
     if (code)        return 'authCode'; // Upstox: URL param is ?code= but backend field is authCode
     return 'authCode';
   };
