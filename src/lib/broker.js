@@ -215,11 +215,48 @@ const firstNumber = (...values) => {
 };
 
 export const normalizePosition = (raw = {}, index = 0) => {
-  const qty = firstNumber(raw.qty, raw.quantity, raw.netQuantity, raw.net_quantity, raw.positionQty, raw.position_qty) ?? 0;
-  const ltp = firstNumber(raw.ltp, raw.lastPrice, raw.last_price, raw.lastTradedPrice, raw.last_traded_price, raw.currentPrice, raw.current_price, raw.net_price) ?? 0;
-  const avgPrice = firstNumber(raw.avgPrice, raw.averagePrice, raw.average_price, raw.entryPrice, raw.entry_price, raw.net_price, raw.debit_price, raw.credit_price) ?? 0;
-  const rawPnl = firstNumber(raw.unrealizedPnl, raw.unrealized_pnl, raw.unrealised, raw.unrealised_pnl, raw.unrealized, raw.m2m, raw.mtM, raw.mtm, raw.pnl, raw.realised_pnl);
+  const qty = firstNumber(raw.qty, raw.quantity, raw.netQty, raw.netQuantity, raw.net_quantity, raw.positionQty, raw.position_qty) ?? 0;
+  const avgPrice = firstNumber(
+    raw.avgPrice,
+    raw.averagePrice,
+    raw.average_price,
+    raw.costPrice,
+    raw.cost_price,
+    raw.entryPrice,
+    raw.entry_price,
+    raw.net_price,
+    raw.debit_price,
+    raw.credit_price,
+    raw.buyAvg,
+    raw.sellAvg
+  ) ?? 0;
+  const rawPnl = firstNumber(
+    raw.unrealizedPnl,
+    raw.unrealized_pnl,
+    raw.unrealizedProfit,
+    raw.unrealized_profit,
+    raw.unrealised,
+    raw.unrealised_pnl,
+    raw.unrealized,
+    raw.m2m,
+    raw.mtM,
+    raw.mtm,
+    raw.pnl,
+    raw.realised_pnl
+  );
+  const rawType = String(
+    raw.positionType ||
+    raw.position_type ||
+    raw.type ||
+    raw.side ||
+    raw.transactionType ||
+    raw.transaction_type ||
+    raw.action ||
+    ''
+  ).toUpperCase();
   const type = String(
+    rawType === 'LONG' ? 'BUY' :
+    rawType === 'SHORT' ? 'SELL' :
     raw.type ||
     raw.side ||
     raw.transactionType ||
@@ -227,10 +264,30 @@ export const normalizePosition = (raw = {}, index = 0) => {
     raw.action ||
     ((Number(raw.debit_quantity ?? 0) > 0 || qty > 0) ? 'BUY' : 'SELL')
   ).toUpperCase();
+  const derivedLtpFromPnl =
+    rawPnl != null && avgPrice && qty
+      ? (type === 'SELL'
+          ? avgPrice - (Number(rawPnl) / Math.abs(qty))
+          : avgPrice + (Number(rawPnl) / Math.abs(qty)))
+      : null;
+  const ltp = firstNumber(
+    raw.ltp,
+    raw.lastPrice,
+    raw.last_price,
+    raw.lastTradedPrice,
+    raw.last_traded_price,
+    raw.currentPrice,
+    raw.current_price,
+    raw.net_price,
+    derivedLtpFromPnl
+  ) ?? 0;
   const calculatedPnl = ltp && avgPrice && qty
     ? (type === 'SELL' ? (avgPrice - ltp) : (ltp - avgPrice)) * Math.abs(qty)
     : 0;
   const pnl = rawPnl ?? calculatedPnl;
+  const derivedChange = avgPrice && qty
+    ? ((type === 'SELL' ? (avgPrice - ltp) : (ltp - avgPrice)) / avgPrice) * 100
+    : 0;
 
   return {
     id: raw.id || raw.positionId || raw.position_id || `${raw.symbol || raw.instrument || raw.tradingSymbol || raw.tradingsymbol || raw.trading_symbol || 'position'}-${index}`,
@@ -243,12 +300,12 @@ export const normalizePosition = (raw = {}, index = 0) => {
     unrealizedPnl: pnl,
     ltp,
     avgPrice,
-    entry: firstNumber(raw.entry, raw.entryPrice, raw.entry_price, raw.averagePrice, raw.average_price, raw.net_price, raw.debit_price, raw.credit_price) ?? avgPrice,
+    entry: firstNumber(raw.entry, raw.entryPrice, raw.entry_price, raw.averagePrice, raw.average_price, raw.costPrice, raw.cost_price, raw.net_price, raw.debit_price, raw.credit_price) ?? avgPrice,
     current: firstNumber(raw.current, raw.currentPrice, raw.current_price, raw.ltp, raw.lastPrice, raw.last_price, raw.net_price) ?? ltp,
-    change: firstNumber(raw.change, raw.changePct, raw.change_pct, raw.pnlPercent, raw.pnl_percent) ?? (avgPrice ? ((ltp - avgPrice) / avgPrice) * 100 : 0),
-    exchange: raw.exchange || raw.exch || raw.exchange_code || '',
-    product: raw.product || raw.market || raw.segment || 'MIS',
-    market: raw.market || raw.segment || '',
+    change: firstNumber(raw.change, raw.changePct, raw.change_pct, raw.pnlPercent, raw.pnl_percent) ?? derivedChange,
+    exchange: raw.exchange || raw.exch || raw.exchange_code || String(raw.exchangeSegment || raw.exchange_segment || '').split('_')[0] || '',
+    product: raw.product || raw.productType || raw.market || raw.segment || 'MIS',
+    market: raw.market || raw.segment || raw.exchangeSegment || raw.exchange_segment || '',
     children: raw.children || raw.copiedAccounts || [],
     triggerPrice: (
       raw.triggerPrice != null ? Number(raw.triggerPrice) :

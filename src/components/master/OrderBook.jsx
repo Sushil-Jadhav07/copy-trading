@@ -3,7 +3,6 @@ import { RefreshCw, WifiOff, Wifi, Info, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
-import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
 import DownloadButton from '@/components/shared/DownloadButton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -52,7 +51,17 @@ const STATUS_FILTERS = [
 ];
 
 const getOrderDate = (order) => {
-  const raw = order.orderTime || order.time || order.timestamp || order.placedAt || order.createdAt || order.orderTimestamp || order.tradedAt;
+  const raw =
+    order.orderTime ||
+    order.exchangeTime ||
+    order.updateTime ||
+    order.createTime ||
+    order.time ||
+    order.timestamp ||
+    order.placedAt ||
+    order.createdAt ||
+    order.orderTimestamp ||
+    order.tradedAt;
   if (!raw) return null;
   const d = new Date(raw);
   return isNaN(d.getTime()) ? null : d;
@@ -225,18 +234,6 @@ const OrderBook = () => {
           <p className="text-sm text-muted-foreground">Orders for this broker account</p>
         </div>
         <div className="flex items-center gap-2">
-          {accounts.length > 1 && (
-            <DivSelect
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              includeEmptyOption={false}
-              options={accounts.map((a) => ({
-                value: a.accountId || a.id,
-                label: `${a.broker} - ${a.clientId || a.userId}${a.nickname ? ` (${a.nickname})` : ''}`,
-              }))}
-              triggerClassName="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
-            />
-          )}
           <DownloadButton onClick={handleDownload} disabled={filteredOrders.length === 0} label="Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>

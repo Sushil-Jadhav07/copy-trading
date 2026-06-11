@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
-import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
@@ -271,18 +270,6 @@ const OptionsStatus = () => {
           <p className="mt-0.5 text-sm text-muted-foreground">Track master option positions and executed option trades.</p>
         </div>
         <div className="flex items-center gap-2">
-          {accounts.length > 1 && (
-            <DivSelect
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              includeEmptyOption={false}
-              options={accounts.map((a) => ({
-                value: a.accountId || a.id,
-                label: `${a.broker} - ${a.nickname || a.clientId || a.userId}`,
-              }))}
-              triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm"
-            />
-          )}
           <RefreshButton
             onClick={() => {
               setRefreshing(true);

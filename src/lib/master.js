@@ -32,23 +32,66 @@ const deriveOrderSegment = (order = {}) => {
   const explicitSegment = String(order.segment || order.market || '').trim().toUpperCase();
   if (explicitSegment) return explicitSegment;
 
-  const exchange = String(order.exchange || '').trim().toUpperCase();
+  const exchange = String(
+    order.exchange ||
+    order.exchangeSegment ||
+    order.exchange_segment ||
+    ''
+  ).trim().toUpperCase();
   const symbol = String(
-    order.tradingsymbol || order.trading_symbol || order.symbol || ''
+    order.tradingSymbol ||
+    order.tradingsymbol ||
+    order.trading_symbol ||
+    order.symbol ||
+    ''
   ).trim().toUpperCase();
 
   if (
-    ['NFO', 'BFO', 'FO'].includes(exchange) ||
+    ['NFO', 'BFO', 'FO', 'NSE_FNO', 'BSE_FNO'].includes(exchange) ||
     /(?:CE|PE)$/.test(symbol)
   ) {
     return 'FNO';
   }
 
-  if (['NSE', 'BSE'].includes(exchange)) return 'EQ';
-  if (['CDS', 'BCD'].includes(exchange)) return 'CDS';
+  if (exchange.includes('NSE') || exchange.includes('BSE')) return exchange.endsWith('_EQ') ? 'EQ' : 'EQ';
+  if (exchange.includes('CDS') || exchange.includes('BCD') || exchange.includes('CURR')) return 'CDS';
   if (exchange.startsWith('MCX')) return 'COMMODITY';
   return '';
 };
+
+const normalizeOpenBookOrder = (order = {}, index = 0) => ({
+  id: order.order_id || order.orderId || order.exchangeOrderId || order.id || `order-${index}`,
+  orderId: order.orderId || order.order_id || '',
+  exchangeOrderId: order.exchangeOrderId || order.exchange_order_id || '',
+  correlationId: order.correlationId || order.correlation_id || '',
+  symbol: order.tradingSymbol || order.tradingsymbol || order.trading_symbol || order.symbol || 'N/A',
+  exchange: order.exchange || String(order.exchangeSegment || order.exchange_segment || '').split('_')[0] || 'NSE',
+  exchangeSegment: order.exchangeSegment || order.exchange_segment || '',
+  segment: deriveOrderSegment(order),
+  orderType: order.orderType || order.order_type || 'MARKET',
+  type: String(order.transactionType || order.transaction_type || order.type || order.side || 'BUY').toUpperCase(),
+  qty: Number(order.quantity ?? order.qty ?? order.filledQty ?? order.filled_quantity ?? 0),
+  filledQty: Number(order.filledQty ?? order.filled_quantity ?? order.quantity ?? order.qty ?? 0),
+  remainingQty: Number(order.remainingQuantity ?? order.remaining_quantity ?? 0),
+  price: Number(order.averageTradedPrice ?? order.average_fill_price ?? order.average_price ?? order.averagePrice ?? order.price ?? 0),
+  limitPrice: Number(order.price ?? 0),
+  triggerPrice: Number(order.triggerPrice ?? order.trigger_price ?? 0),
+  status: String(order.orderStatus || order.order_status || order.status || 'UNKNOWN').toUpperCase(),
+  validity: order.validity || '',
+  product: order.product || order.productType || '',
+  latencyMs: order.latencyMs != null ? Number(order.latencyMs) : (order.totalExecutionMs != null ? Number(order.totalExecutionMs) : null),
+  statusMessage: order.statusMessage || order.status_message || order.omsErrorDescription || '',
+  reason: order.reason || order.rejectReason || order.rejection_reason || '',
+  message: order.message || order.omsErrorDescription || '',
+  createTime: order.createTime || order.order_timestamp || null,
+  updateTime: order.updateTime || order.exchange_update_timestamp || null,
+  exchangeTime: order.exchangeTime || order.exchange_timestamp || null,
+  orderTime: order.createTime || order.updateTime || order.exchangeTime || order.order_timestamp || null,
+  tradedAt: order.exchangeTime || order.updateTime || null,
+  brokerClientId: order.dhanClientId || order.clientId || '',
+  securityId: order.securityId || '',
+  raw: order,
+});
 
 const expandChildRecords = (rawList = []) =>
   rawList.flatMap((entry = {}) => {
@@ -618,23 +661,7 @@ export const masterService = {
       const res = await api.get('/api/v1/master/open-book');
       const payload = res.data?.data || res.data || {};
       const rawOrders = Array.isArray(payload.orders) ? payload.orders : [];
-      const orders = rawOrders.map((order, index) => ({
-        id: order.order_id || order.orderId || order.id || `order-${index}`,
-        symbol: order.tradingsymbol || order.trading_symbol || order.symbol || 'N/A',
-        exchange: order.exchange || 'NSE',
-        segment: deriveOrderSegment(order),
-        orderType: order.order_type || order.orderType || 'MARKET',
-        type: String(order.transaction_type || order.transactionType || order.type || order.side || 'BUY').toUpperCase(),
-        qty: Number(order.quantity ?? order.qty ?? order.filled_quantity ?? 0),
-        price: Number(order.average_fill_price ?? order.average_price ?? order.averagePrice ?? order.price ?? 0),
-        status: String(order.order_status || order.status || 'UNKNOWN').toUpperCase(),
-        product: order.product || 'MIS',
-        latencyMs: order.latencyMs != null ? Number(order.latencyMs) : (order.totalExecutionMs != null ? Number(order.totalExecutionMs) : null),
-        statusMessage: order.status_message || order.statusMessage || '',
-        reason: order.reason || '',
-        message: order.message || '',
-        raw: order,
-      }));
+      const orders = rawOrders.map(normalizeOpenBookOrder);
       return {
         orders,
         total: Number(payload.total ?? orders.length),

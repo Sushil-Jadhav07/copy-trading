@@ -28,7 +28,6 @@ import {
   Link2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { usePendingFollowCount } from '@/hooks/useMaster';
 import { useTheme } from '@/context/ThemeContext';
 import { adminService } from '@/lib/admin';
 const whitelogo = '/asset/whitelogo.png';
@@ -111,11 +110,8 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile = false, isOpen = false, on
   const { getEffectiveRole, logout } = useAuth();
   const { isDark } = useTheme();
   const role = getEffectiveRole();
-  const pendingFollowCount = usePendingFollowCount();
   const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
   const normalizedRole = String(role || '').toUpperCase();
-  const pendingFollowCountBadge =
-    normalizedRole === 'MASTER' && pendingFollowCount > 0 ? String(pendingFollowCount) : undefined;
   const pendingVerificationBadge =
     normalizedRole === 'ADMIN' && pendingVerificationCount > 0 ? String(pendingVerificationCount) : undefined;
 
@@ -184,7 +180,6 @@ const masterSidebarItems = [
       section: 'Child Accounts',
       items: [
         { to: '/master/followers', icon: Users, label: 'Followers' },
-        { to: '/master/follow-requests', icon: UserPlus, label: 'Follow Requests', badge: pendingFollowCountBadge },
       ],
     },
   ];

@@ -16,15 +16,15 @@ import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 
 const MULTIPLIER_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0];
+
 const clampMultiplier = (value) => {
   const n = Number(value);
   const safe = value === null || value === undefined || value === '' ? 1 : n;
   return Math.min(10, Math.max(0.01, Number.isFinite(safe) ? safe : 1));
 };
-const clampPriceTolerance = (value) => Math.min(10, Math.max(0, Number(value) || 0));
+
 const normalizeStatus = (status) => String(status || 'INACTIVE').toUpperCase();
 
-// Skip reason labels from spec
 const SKIP_REASON_LABELS = {
   ZERO_QUANTITY: 'Scaled quantity is zero',
   SUB_LOT_SIZE: 'Below one F&O lot after scaling',
@@ -45,7 +45,7 @@ const getStatusMeta = (status) => {
     case 'PENDING_APPROVAL':
       return { label: 'Pending Approval', pill: 'bg-amber-500 text-white', subtitle: "Master hasn't approved your request yet" };
     case 'PAUSED':
-      return { label: 'Paused', pill: 'bg-amber-500 text-white', subtitle: "You've paused copying — resume anytime" };
+      return { label: 'Paused', pill: 'bg-amber-500 text-white', subtitle: "You've paused copying - resume anytime" };
     case 'REJECTED':
       return { label: 'Rejected', pill: 'bg-rose-500 text-white', subtitle: 'Master declined your request' };
     case 'INACTIVE':
@@ -54,12 +54,20 @@ const getStatusMeta = (status) => {
   }
 };
 
-// Copy sides options (fallback if metadata not loaded)
 const DEFAULT_COPY_SIDES_OPTIONS = [
   { id: 'BUY_ONLY', label: 'Buy only (safe default)', description: 'Copy BUY; SELL only with copied BUY + live position' },
   { id: 'BUY_AND_SELL', label: 'Buy and sell', description: 'Copy BUY and SELL when child has live long qty' },
   { id: 'MIRROR', label: 'Mirror master', description: 'Copy all sides; optional naked short if allowShortSelling' },
 ];
+
+const getMasterInitials = (name = '') =>
+  String(name)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'M';
 
 const MyMasters = () => {
   const navigate = useNavigate();
@@ -72,17 +80,14 @@ const MyMasters = () => {
   const [togglingMasters, setTogglingMasters] = useState({});
   const [copySidesOptions, setCopySidesOptions] = useState(DEFAULT_COPY_SIDES_OPTIONS);
 
-  // Settings Modal State
   const [settingsModal, setSettingsModal] = useState(false);
   const [editingMaster, setEditingMaster] = useState(null);
   const [newBrokerAccountId, setNewBrokerAccountId] = useState('');
   const [newMultiplier, setNewMultiplier] = useState(1.0);
   const [newCopySides, setNewCopySides] = useState('BUY_ONLY');
   const [newAllowShortSelling, setNewAllowShortSelling] = useState(false);
-  const [newPriceTolerancePct, setNewPriceTolerancePct] = useState(2);
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Load engine metadata for copySidesOptions
   useEffect(() => {
     engineService.getMetadata().then((meta) => {
       if (Array.isArray(meta?.copySidesOptions) && meta.copySidesOptions.length > 0) {
@@ -108,8 +113,8 @@ const MyMasters = () => {
       );
       addToast('All subscriptions removed', 'success');
       refetch();
-    } catch (error) {
-      addToast(error.message, 'error');
+    } catch (err) {
+      addToast(err.message, 'error');
     }
   };
 
@@ -117,7 +122,6 @@ const MyMasters = () => {
     setMasters(
       subscriptions.map((s) => {
         const status = normalizeStatus(s.status);
-
         return {
           ...s,
           id: s.id || s.masterId,
@@ -129,10 +133,10 @@ const MyMasters = () => {
           allocation: s.allocationAmount ?? s.allocation ?? null,
           status,
           copyingStatus: status,
-          // New fields from May 2026 API
           copySides: s.copySides || s.raw?.copySides || 'BUY_ONLY',
           allowShortSelling: Boolean(s.allowShortSelling ?? s.raw?.allowShortSelling ?? false),
-          priceTolerancePct: clampPriceTolerance(s.priceTolerancePct ?? s.raw?.priceTolerancePct ?? 2),
+          lastSkipReason: s.skipReason || s.raw?.skipReason || '',
+          brokerName: s.broker || s.brokerName || s.raw?.brokerName || '',
         };
       })
     );
@@ -190,7 +194,6 @@ const MyMasters = () => {
     setNewMultiplier(master.multiplier || 1.0);
     setNewCopySides(master.copySides || 'BUY_ONLY');
     setNewAllowShortSelling(Boolean(master.allowShortSelling));
-    setNewPriceTolerancePct(clampPriceTolerance(master.priceTolerancePct ?? 2));
     setSettingsModal(true);
   };
 
@@ -207,10 +210,8 @@ const MyMasters = () => {
     const scalingChanged = newMultiplier !== editingMaster.multiplier;
     const copySidesChanged = newCopySides !== editingMaster.copySides;
     const allowShortChanged = newAllowShortSelling !== editingMaster.allowShortSelling;
-    const priceToleranceChanged =
-      clampPriceTolerance(newPriceTolerancePct) !== clampPriceTolerance(editingMaster.priceTolerancePct ?? 2);
 
-    if (!brokerChanged && !scalingChanged && !copySidesChanged && !allowShortChanged && !priceToleranceChanged) {
+    if (!brokerChanged && !scalingChanged && !copySidesChanged && !allowShortChanged) {
       addToast('No changes to save', 'info');
       setSavingSettings(false);
       setSettingsModal(false);
@@ -237,15 +238,13 @@ const MyMasters = () => {
       );
     }
 
-    // NEW: Update copySides / allowShortSelling via PATCH /child/subscriptions/copy-settings
-    if (copySidesChanged || allowShortChanged || priceToleranceChanged) {
+    if (copySidesChanged || allowShortChanged) {
       tasks.push(
         childService
           .updateCopySettings({
             masterId: editingMaster.id,
             copySides: newCopySides,
             allowShortSelling: newAllowShortSelling,
-            priceTolerancePct: clampPriceTolerance(newPriceTolerancePct),
           })
           .then(() => ({ type: 'copySides', success: true }))
           .catch((e) => ({ type: 'copySides', success: false, message: e.message }))
@@ -266,7 +265,7 @@ const MyMasters = () => {
         if (brokerMessage.includes('does not belong to you')) {
           addToast("This broker account doesn't belong to your account", 'error');
         } else if (brokerMessage.includes('Subscription not found')) {
-          addToast('Subscription not found — please refresh and try again', 'error');
+          addToast('Subscription not found - please refresh and try again', 'error');
         } else {
           addToast(brokerResult.message || 'Failed to switch broker account', 'error');
         }
@@ -306,11 +305,11 @@ const MyMasters = () => {
     const normalizedCurrent = clampMultiplier(current.multiplier);
     const idx = MULTIPLIER_STEPS.indexOf(normalizedCurrent);
     const newIdx = dir === 'up' ? Math.min(idx + 1, MULTIPLIER_STEPS.length - 1) : Math.max(idx - 1, 0);
-    const newMultiplier = clampMultiplier(MULTIPLIER_STEPS[newIdx] || 1);
+    const nextMultiplier = clampMultiplier(MULTIPLIER_STEPS[newIdx] || 1);
 
-    setMasters((prev) => prev.map((m) => (m.id === id ? { ...m, multiplier: newMultiplier } : m)));
+    setMasters((prev) => prev.map((m) => (m.id === id ? { ...m, multiplier: nextMultiplier } : m)));
     try {
-      await childService.updateScaling({ masterId: id, multiplier: newMultiplier, scalingFactor: newMultiplier });
+      await childService.updateScaling({ masterId: id, multiplier: nextMultiplier, scalingFactor: nextMultiplier });
     } catch (e) {
       addToast(e.message, 'error');
       refetch();
@@ -320,30 +319,44 @@ const MyMasters = () => {
   const totalPnL = masters.reduce((sum, m) => sum + m.totalPnL, 0);
   const active = masters.filter((m) => normalizeStatus(m.status) === 'ACTIVE').length;
 
-  // Helper: get display label for copySides value
   const getCopySidesLabel = (val) => {
     const opt = copySidesOptions.find((o) => o.id === val);
     return opt?.label || val || 'Buy only';
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold sm:text-2xl">My Masters</h1>
-          <p className="text-sm text-muted-foreground">Masters you are currently copying trades from</p>
+    <div className="space-y-5">
+      <div className="overflow-hidden rounded-[24px] border border-emerald-500/15 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_38%),linear-gradient(135deg,rgba(8,20,18,0.98),rgba(10,17,16,0.92))]">
+        <div className="flex flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl space-y-2.5">
+            <div className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
+              Child Copy Dashboard
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tight sm:text-2xl">My Masters</h1>
+              <p className="mt-1.5 max-w-xl text-[13px] leading-5 text-muted-foreground">
+                Manage every master connection from one place. Review performance, adjust scaling, and control copying with a cleaner, simpler layout.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3.5 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Connected Masters</p>
+              <p className="mt-1 text-xl font-black text-emerald-300">{masters.length}</p>
+            </div>
+            {masters.length > 0 && (
+              <button
+                onClick={handleBulkUnfollow}
+                className="w-full rounded-xl bg-danger px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-danger/90 sm:w-auto"
+              >
+                Unfollow All
+              </button>
+            )}
+          </div>
         </div>
-        {masters.length > 0 && (
-          <button
-            onClick={handleBulkUnfollow}
-            className="w-full sm:w-auto px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Unfollow All
-          </button>
-        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Masters Copied', value: masters.length, icon: Users, color: 'text-brand-purple' },
           { label: 'Active', value: active, icon: Copy, color: 'text-success' },
@@ -360,14 +373,14 @@ const MyMasters = () => {
             color: 'text-brand-blue',
           },
         ].map((stat) => (
-          <GlassCard key={stat.label}>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-black/5 dark:bg-white/5 flex items-center justify-center">
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+          <GlassCard key={stat.label} className="rounded-[20px] border border-white/6 bg-gradient-to-br from-white/[0.04] to-white/[0.02]">
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/10 dark:bg-white/5">
+                <stat.icon className={`h-4.5 w-4.5 ${stat.color}`} />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
-                <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{stat.label}</p>
+                <p className={`mt-1.5 text-xl font-black ${stat.color}`}>{stat.value}</p>
               </div>
             </div>
           </GlassCard>
@@ -427,13 +440,14 @@ const MyMasters = () => {
           </Empty>
         </GlassCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {masters.map((master, idx) => {
             const statusMeta = getStatusMeta(master.status);
             const canToggle = ['ACTIVE', 'PAUSED'].includes(normalizeStatus(master.status));
             const canScale = normalizeStatus(master.status) === 'ACTIVE';
             const isPending = normalizeStatus(master.status) === 'PENDING_APPROVAL';
             const isToggling = Boolean(togglingMasters[master.id]);
+            const lastSkipReason = SKIP_REASON_LABELS[master.lastSkipReason] || master.lastSkipReason || '';
 
             return (
               <motion.div
@@ -441,112 +455,131 @@ const MyMasters = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.08 }}
-                className={`glass-card p-5 ${master.tradingEnabled ? 'border border-brand-purple/30' : 'opacity-70'}`}
+                className={`rounded-[22px] border bg-[linear-gradient(135deg,rgba(18,32,28,0.96),rgba(13,24,22,0.92))] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.16)] ${
+                  master.tradingEnabled ? 'border-emerald-500/30' : 'border-white/8 opacity-85'
+                }`}
               >
                 {isPending && (
-                  <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-                    Waiting for master approval — you'll be notified when accepted
+                  <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                    Waiting for master approval - you'll be notified when accepted
                   </div>
                 )}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center">
-                      <span className="text-sm font-bold text-foreground">
-                        {master.name?.split(' ').map((n) => n[0]).join('')}
-                      </span>
+
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600">
+                      <span className="text-xs font-black text-slate-950">{getMasterInitials(master.name)}</span>
                     </div>
-                    <div>
-                      <p className="font-semibold">{master.name}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusMeta.pill}`}>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-black tracking-tight">{master.name}</p>
+                      <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${statusMeta.pill}`}>
                         {statusMeta.label}
                       </span>
-                      <p className="text-xs text-muted-foreground mt-1">{statusMeta.subtitle}</p>
+                      <p className="mt-1.5 max-w-sm text-xs leading-5 text-muted-foreground">{statusMeta.subtitle}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                          {getCopySidesLabel(master.copySides)}
+                        </span>
+                        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                          {master.multiplier}x Scaling
+                        </span>
+                        {master.allowShortSelling && (
+                          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">
+                            Short Selling On
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleOpenSettings(master)}
-                      className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors"
+                      className="rounded-lg border border-white/8 bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06]"
                       title="Subscription Settings"
                     >
-                      <Settings className="w-4 h-4 text-muted-foreground" />
+                      <Settings className="h-3.5 w-3.5 text-muted-foreground" />
                     </button>
                     <button
                       onClick={() => {
                         setSelectedMaster(master);
                         setUnfollowModal(true);
                       }}
-                      className="p-1.5 hover:bg-danger/20 rounded-lg transition-colors"
+                      className="rounded-lg border border-danger/20 bg-danger/10 p-2 transition-colors hover:bg-danger/20"
+                      title="Unfollow Master"
                     >
-                      <UserMinus className="w-4 h-4 text-danger" />
+                      <UserMinus className="h-3.5 w-3.5 text-danger" />
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-2 text-sm mb-4">
+                <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-4">
                   {[
-                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '-'],
-                    ['Trades Today', master.tradesCopiedToday],
+                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '-', 'text-foreground'],
+                    ['Trades Today', master.tradesCopiedToday, 'text-foreground'],
                     [
                       'Total P&L',
                       `${master.totalPnL >= 0 ? '+' : ''}${formatCurrency(master.totalPnL)}`,
                       master.totalPnL >= 0 ? 'text-success' : 'text-danger',
                     ],
-                  ].map(([k, v, cls]) => (
-                    <div key={k} className="flex justify-between">
-                      <span className="text-muted-foreground">{k}</span>
-                      <span className={`font-medium ${cls || ''}`}>{v}</span>
+                    [
+                      'Broker',
+                      master.brokerAccountId ? (master.brokerName || 'Connected') : 'Not Linked',
+                      master.brokerAccountId ? 'text-brand-blue' : 'text-danger',
+                    ],
+                  ].map(([label, value, cls]) => (
+                    <div key={label} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+                      <p className={`mt-1.5 text-base font-black ${cls}`}>{value}</p>
                     </div>
                   ))}
-
-                  {/* Copy Sides display */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Copy Mode</span>
-                    <span className="text-xs font-semibold text-brand-purple">
-                      {getCopySidesLabel(master.copySides)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Price Tolerance</span>
-                    <span className="text-xs font-semibold text-brand-blue">
-                      {clampPriceTolerance(master.priceTolerancePct ?? 2).toFixed(1)}%
-                    </span>
-                  </div>
-
-                  {isPending ? (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Multiplier</span>
-                      <span className="font-medium text-amber-400 text-sm">{master.multiplier}x</span>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Multiplier</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleMultiplier(master.id, 'down')}
-                          disabled={!canScale}
-                          className="w-6 h-6 bg-black/10 dark:bg-white/10 hover:bg-white/20 rounded text-sm font-bold transition-colors disabled:opacity-40"
-                        >
-                          -
-                        </button>
-                        <span className="w-10 text-center font-bold text-amber-400 text-sm">{master.multiplier}x</span>
-                        <button
-                          onClick={() => handleMultiplier(master.id, 'up')}
-                          disabled={!canScale}
-                          className="w-6 h-6 bg-black/10 dark:bg-white/10 hover:bg-white/20 rounded text-sm font-bold transition-colors disabled:opacity-40"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-border/40">
-                  <span className="text-sm text-muted-foreground">Copy Trading</span>
+                <div className="mb-4 rounded-[20px] border border-white/8 bg-black/10 px-3.5 py-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Scaling Control</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Adjust copied quantity directly from the card.</p>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        onClick={() => handleMultiplier(master.id, 'down')}
+                        disabled={!canScale}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/10 text-base font-black transition-colors hover:bg-white/10 disabled:opacity-40"
+                      >
+                        -
+                      </button>
+                      <span className="w-12 text-center text-base font-black text-amber-300">{master.multiplier}x</span>
+                      <button
+                        onClick={() => handleMultiplier(master.id, 'up')}
+                        disabled={!canScale}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/10 text-base font-black transition-colors hover:bg-white/10 disabled:opacity-40"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {lastSkipReason && (
+                  <div className="mb-4 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Recent Skip Reason</p>
+                    <p className="mt-1.5 text-xs text-amber-300">{lastSkipReason}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.03] px-3.5 py-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Copy Trading</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {master.brokerAccountId ? 'Pause or resume instantly.' : 'Link a broker account to enable copying.'}
+                    </p>
+                  </div>
                   <div className="flex items-center gap-2">
                     {!master.brokerAccountId && (
-                      <span className="text-[10px] text-danger font-bold uppercase animate-pulse">No Broker!</span>
+                      <span className="rounded-full border border-danger/20 bg-danger/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-danger">
+                        No Broker
+                      </span>
                     )}
                     <ToggleSwitch
                       checked={master.tradingEnabled}
@@ -566,13 +599,13 @@ const MyMasters = () => {
 
       <Modal isOpen={unfollowModal} onClose={() => setUnfollowModal(false)} title="Unfollow Master" size="sm">
         <div className="space-y-4">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Stop copying trades from <span className="font-semibold text-foreground">{selectedMaster?.name}</span>?
           </p>
           <div className="flex gap-3">
             <button
               onClick={() => setUnfollowModal(false)}
-              className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors"
+              className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
             >
               Cancel
             </button>
@@ -594,7 +627,7 @@ const MyMasters = () => {
                 }
                 setUnfollowModal(false);
               }}
-              className="flex-1 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex-1 rounded-lg bg-danger py-2 text-sm font-medium text-white transition-colors hover:bg-danger/90"
             >
               Unfollow
             </button>
@@ -602,7 +635,6 @@ const MyMasters = () => {
         </div>
       </Modal>
 
-      {/* Settings Modal — now includes Copy Sides + Allow Short Selling */}
       <Modal
         isOpen={settingsModal}
         onClose={() => setSettingsModal(false)}
@@ -617,9 +649,8 @@ const MyMasters = () => {
               </div>
             )}
 
-            {/* Broker Account */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Broker Account</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Broker Account</label>
               <DivSelect
                 value={newBrokerAccountId}
                 onChange={setNewBrokerAccountId}
@@ -631,15 +662,12 @@ const MyMasters = () => {
               />
               <p className="text-[10px] text-muted-foreground">Trades will be copied to this account</p>
               {newBrokerAccountId && newBrokerAccountId !== editingMaster?.brokerAccountId && (
-                <p className="text-xs text-amber-400 mt-1">
-                  ⚡ Broker account will be switched instantly
-                </p>
+                <p className="mt-1 text-xs text-amber-400">Broker account will be switched instantly</p>
               )}
             </div>
 
-            {/* Multiplier */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Multiplier (Scaling)</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Multiplier (Scaling)</label>
               <div className="flex items-center gap-4">
                 <input
                   type="range"
@@ -650,7 +678,7 @@ const MyMasters = () => {
                   onChange={(e) => setNewMultiplier(Number(e.target.value))}
                   className="flex-1 accent-brand-purple"
                 />
-                <span className="w-12 text-center font-bold text-brand-purple text-sm">{newMultiplier}x</span>
+                <span className="w-12 text-center text-sm font-bold text-brand-purple">{newMultiplier}x</span>
               </div>
               <div className="flex justify-between px-1">
                 <span className="text-[10px] text-muted-foreground">0.1x (Safe)</span>
@@ -659,35 +687,7 @@ const MyMasters = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Price Tolerance %</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  step="0.5"
-                  value={newPriceTolerancePct}
-                  onChange={(e) => setNewPriceTolerancePct(clampPriceTolerance(e.target.value))}
-                  className="w-20 rounded-lg border border-border bg-black/5 px-2 py-1 text-right text-sm font-bold outline-none focus:border-brand-purple dark:bg-white/5"
-                />
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="0.5"
-                value={newPriceTolerancePct}
-                onChange={(e) => setNewPriceTolerancePct(clampPriceTolerance(e.target.value))}
-                className="w-full accent-brand-purple"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Adjusts limit order price by +/-{clampPriceTolerance(newPriceTolerancePct).toFixed(1)}% to handle slippage. Default 2%. Set 0 for exact master price.
-              </p>
-            </div>
-
-            {/* NEW: Copy Sides picker */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Copy Mode</label>
               <div className="space-y-2">
                 {copySidesOptions.map((opt) => (
                   <button
@@ -697,10 +697,10 @@ const MyMasters = () => {
                       setNewCopySides(opt.id);
                       if (opt.id !== 'MIRROR') setNewAllowShortSelling(false);
                     }}
-                    className={`w-full text-left rounded-xl border p-3 transition-all text-sm ${
+                    className={`w-full rounded-xl border p-3 text-left text-sm transition-all ${
                       newCopySides === opt.id
                         ? 'border-brand-purple/50 bg-brand-purple/10 text-foreground'
-                        : 'border-border/50 bg-black/5 dark:bg-white/5 text-muted-foreground hover:border-brand-purple/30'
+                        : 'border-border/50 bg-black/5 text-muted-foreground hover:border-brand-purple/30 dark:bg-white/5'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -709,31 +709,30 @@ const MyMasters = () => {
                         newCopySides === opt.id ? 'border-brand-purple bg-brand-purple' : 'border-muted-foreground/40'
                       }`} />
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-1">{opt.description}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{opt.description}</p>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* NEW: Allow Short Selling (only for MIRROR mode) */}
             {newCopySides === 'MIRROR' && (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+              <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold">Allow Short Selling</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Enable naked short positions in MIRROR mode</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Enable naked short positions in MIRROR mode</p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                  <label className="relative inline-flex cursor-pointer items-center">
                     <input
                       type="checkbox"
                       checked={newAllowShortSelling}
                       onChange={(e) => setNewAllowShortSelling(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className={`w-11 h-6 rounded-full transition-colors peer-checked:bg-amber-500 ${
+                    <div className={`h-6 w-11 rounded-full transition-colors peer-checked:bg-amber-500 ${
                       newAllowShortSelling ? 'bg-amber-500' : 'bg-muted-foreground/30'
                     }`}>
-                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      <div className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
                         newAllowShortSelling ? 'translate-x-5' : 'translate-x-0'
                       }`} />
                     </div>
@@ -741,7 +740,7 @@ const MyMasters = () => {
                 </div>
                 {newAllowShortSelling && (
                   <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
-                    <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>Short positions can result in unlimited losses. Use only if you understand the risk.</span>
                   </div>
                 )}
@@ -751,14 +750,14 @@ const MyMasters = () => {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setSettingsModal(false)}
-                className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors"
+                className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveSettings}
                 disabled={savingSettings || !newBrokerAccountId}
-                className="flex-1 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+                className="flex-1 rounded-lg bg-brand-purple py-2 text-sm font-bold text-white transition-colors hover:bg-brand-purple/90 disabled:opacity-50"
               >
                 {savingSettings ? 'Saving...' : 'Save Settings'}
               </button>

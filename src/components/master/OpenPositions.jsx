@@ -4,7 +4,6 @@ import { WifiOff, Wifi, Search } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
-import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
 import DownloadButton from '@/components/shared/DownloadButton';
 import { brokerService } from '@/lib/broker';
@@ -60,6 +59,16 @@ const OpenPositions = () => {
   }, [addToast]);
 
   const loadPositions = useCallback(async (_accountId, silent = false) => {
+    if (!_accountId) {
+      setPositions([]);
+      setPositionsMeta({});
+      setSessionActive(null);
+      setLoading(false);
+      setSessionLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     if (!silent) setLoading(true);
     setSessionLoading(true);
 
@@ -117,6 +126,7 @@ const OpenPositions = () => {
   }, [addToast]);
 
   useEffect(() => {
+    if (!selectedAccountId) return;
     setSessionActive(null);
     setPositions([]);
     loadPositions(selectedAccountId);
@@ -257,19 +267,6 @@ const OpenPositions = () => {
           <p className="text-sm text-muted-foreground">Your live positions - followers are copying these in real-time</p>
         </div>
         <div className="flex items-center gap-2">
-          {accounts.length > 1 && (
-            <DivSelect
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              includeEmptyOption={false}
-              className="w-full sm:w-auto"
-              options={accounts.map((a) => ({
-                value: a.accountId || a.id,
-                label: `${a.broker} - ${a.nickname || a.clientId}`,
-              }))}
-              triggerClassName="w-full sm:w-auto bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
-            />
-          )}
           <DownloadButton onClick={handleDownload} disabled={filteredPositions.length === 0} label="Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>

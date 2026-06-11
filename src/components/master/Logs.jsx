@@ -51,7 +51,15 @@ const EmptyState = ({ icon: Icon = FileText, title = 'No logs found', sub = 'Log
 const formatDate = (value) => {
   if (!value) return 'N/A';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? 'N/A' : d.toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? 'N/A' : d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 };
 
 const shortId = (value) => {

@@ -21,7 +21,6 @@ import UserManagement from '@/components/master/UserManagement';
 import DematDetail from '@/components/master/DematDetail';
 import CopyTrading from '@/components/master/CopyTrading';
 import Logs from '@/components/master/Logs';
-import FollowRequests from '@/components/master/FollowRequests';
 import PnLAnalytics from '@/components/master/PnLAnalytics';
 import MasterOptionsStatus from '@/components/master/OptionsStatus';
 import LatencyHistory from '@/components/master/LatencyHistory';
@@ -127,7 +126,6 @@ const AppRouter = () => {
                 <Route path="master/user-management" element={<UserManagement />} />
                 <Route path="master/demat/:accountId" element={<DematDetailWrapper />} />
                 <Route path="master/copy-trading" element={<CopyTrading />} />
-                <Route path="master/follow-requests" element={<FollowRequests />} />
                 <Route path="master/latency-history" element={<LatencyHistory />} />
                 <Route path="master/logs" element={<Logs />} />
                 <Route path="master/pnl-analytics" element={<PnLAnalytics />} />
