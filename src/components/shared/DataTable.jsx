@@ -190,7 +190,7 @@ const DataTable = ({
                     className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
                       currentPage === page
                         ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105'
-                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-500 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground border border-slate-200/60 dark:border-white/10'
+                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-400 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground border border-slate-200/60 dark:border-white/10'
                     }`}
                   >
                     {page}
@@ -203,7 +203,7 @@ const DataTable = ({
                     className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
                       currentPage === 1
                         ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105'
-                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-500 dark:text-muted-foreground border border-slate-200/60 dark:border-white/10'
+                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-400 dark:text-muted-foreground border border-slate-200/60 dark:border-white/10'
                     }`}
                   >
                     1
@@ -222,7 +222,7 @@ const DataTable = ({
                     className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
                       currentPage === totalPages
                         ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 scale-105'
-                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-500 dark:text-muted-foreground border border-slate-200/60 dark:border-white/10'
+                        : 'bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-400 dark:text-muted-foreground border border-slate-200/60 dark:border-white/10'
                     }`}
                   >
                     {totalPages}

@@ -271,12 +271,19 @@ const UserManagement = ({
     }
   }, [accounts]);
 
+  const usedBrokerKeys = useMemo(
+    () => new Set(accounts.map((a) => normalizeBrokerKey(a.brokerId || a.broker || a.brokerName || ''))),
+    [accounts]
+  );
+
   const brokerOptions = useMemo(
-    () => brokers.map((b) => ({
-      value: normalizeBrokerKey(b.brokerId || b.id || b.name),
-      label: b.name || b.brokerName || b.brokerId || b.id,
-    })),
-    [brokers]
+    () => brokers
+      .filter((b) => !usedBrokerKeys.has(normalizeBrokerKey(b.brokerId || b.id || b.name)))
+      .map((b) => ({
+        value: normalizeBrokerKey(b.brokerId || b.id || b.name),
+        label: b.name || b.brokerName || b.brokerId || b.id,
+      })),
+    [brokers, usedBrokerKeys]
   );
 
   const brokerMetaMap = useMemo(

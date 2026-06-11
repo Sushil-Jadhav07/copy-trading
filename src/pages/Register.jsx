@@ -9,9 +9,11 @@ import {
   Crown,
   Eye,
   EyeOff,
+  Loader2,
   Lock,
   Mail,
   User,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import GoogleSignInCard from '@/components/shared/GoogleSignInCard';
@@ -86,6 +88,7 @@ const Register = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailCheck, setEmailCheck] = useState({ checking: false, taken: false, message: '' });
   const [step, setStep] = useState(1);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState(fallbackPasswordValidation(''));
@@ -130,6 +133,7 @@ const Register = () => {
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (field === 'email') setEmailCheck({ checking: false, taken: false, message: '' });
   };
 
   const validateStep = (currentStep) => {
@@ -168,10 +172,29 @@ const Register = () => {
     return true;
   };
 
-  const handleNext = () => {
-    if (validateStep(step)) {
-      setStep((prev) => Math.min(prev + 1, 3));
+  const handleEmailBlur = async () => {
+    const email = formData.email.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    setEmailCheck({ checking: true, taken: false, message: '' });
+    const result = await authService.checkEmailAvailability(email);
+    setEmailCheck({ checking: false, taken: !result.available, message: result.message || '' });
+  };
+
+  const handleNext = async () => {
+    if (!validateStep(step)) return;
+    if (step === 1) {
+      const email = formData.email.trim();
+      if (email) {
+        setEmailCheck({ checking: true, taken: false, message: '' });
+        const result = await authService.checkEmailAvailability(email);
+        setEmailCheck({ checking: false, taken: !result.available, message: result.message || '' });
+        if (!result.available) {
+          setError(result.message || 'This email is already registered. Please login or use a different email.');
+          return;
+        }
+      }
     }
+    setStep((prev) => Math.min(prev + 1, 3));
   };
 
   const handleBack = () => {
@@ -324,7 +347,7 @@ const Register = () => {
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                     s < step ? 'bg-emerald-500 text-white' :
                     s === step ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400' :
-                    'bg-white/5 border border-white/10 text-slate-500'
+                    'bg-white/5 border border-white/10 text-slate-400'
                   }`}
                 >
                   {s < step ? <Check className="h-3.5 w-3.5" /> : s}
@@ -349,7 +372,7 @@ const Register = () => {
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="relative group">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                         <input
                           aria-label="First name"
                           type="text"
@@ -394,16 +417,33 @@ const Register = () => {
                       Email Address <span className="text-red-400">*</span>
                     </label>
                     <div className="relative group">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                       <input
                         type="email"
                         value={formData.email}
                         onChange={(e) => updateField('email', e.target.value)}
+                        onBlur={handleEmailBlur}
                         placeholder="Enter your email"
                         required
-                        className="w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:bg-white/10 text-white outline-none transition-all"
+                        className={`w-full pl-11 pr-10 py-3 rounded-xl text-sm bg-white/5 border focus:bg-white/10 text-white outline-none transition-all ${
+                          emailCheck.taken
+                            ? 'border-red-500/60 focus:border-red-500/60'
+                            : 'border-white/10 focus:border-emerald-500/50'
+                        }`}
                       />
+                      {emailCheck.checking && (
+                        <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+                      )}
+                      {!emailCheck.checking && emailCheck.taken && (
+                        <XCircle className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+                      )}
                     </div>
+                    {emailCheck.taken && (
+                      <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1">
+                        {emailCheck.message || 'This email is already registered.'}{' '}
+                        <Link to="/login" className="underline text-red-300 hover:text-white transition-colors">Sign in instead</Link>
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -432,7 +472,7 @@ const Register = () => {
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Password *</label>
                     <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={formData.password}
@@ -445,7 +485,7 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -481,7 +521,7 @@ const Register = () => {
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Confirm *</label>
                     <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                       <input
                         type={showConfirm ? 'text' : 'password'}
                         value={formData.confirmPassword}
@@ -493,7 +533,7 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => setShowConfirm(!showConfirm)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                       >
                         {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -635,7 +675,7 @@ const Register = () => {
 const Divider = ({ label }) => (
   <div className="flex items-center gap-3">
     <div className="h-px flex-1 bg-white/10" />
-    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{label}</span>
+    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</span>
     <div className="h-px flex-1 bg-white/10" />
   </div>
 );

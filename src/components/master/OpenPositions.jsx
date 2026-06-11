@@ -64,7 +64,7 @@ const OpenPositions = () => {
     setSessionLoading(true);
 
     try {
-      const liveData = await masterService.getPositions().catch(() => null);
+      const liveData = await masterService.getPositions(_accountId).catch(() => null);
       if (liveData) {
         setPositionsMeta(liveData);
         setPositions(Array.isArray(liveData.positions) ? liveData.positions : []);

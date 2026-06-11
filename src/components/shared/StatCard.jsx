@@ -41,7 +41,7 @@ const StatCard = ({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest">{title}</p>
+          <p className="text-[11px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">{title}</p>
           <h3 className="text-2xl sm:text-3xl font-extrabold mt-1 text-slate-900 dark:text-foreground break-words tracking-tight">
             {hasValue ? prefix : ''}
             {formatValue(animatedValue)}

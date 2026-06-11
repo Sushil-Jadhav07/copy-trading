@@ -20,15 +20,8 @@ const GoogleSignInCard = ({
   onSuccess,
   onError,
   disabled = false,
-  title = 'Continue with Google',
-  subtitle = 'Choose a default role for first-time sign-in.',
 }) => (
-  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-    <div className="mb-4">
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
-    </div>
-
+  <div className="">
     <div className={disabled ? 'pointer-events-none opacity-70' : ''}>
       <GoogleLogin
         onSuccess={onSuccess}
@@ -60,7 +53,7 @@ const GoogleSignInCard = ({
                 onClick={() => onRoleChange?.(option.value)}
                 className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-all ${
                   active
-                    ? 'bg-emerald-400 text-slate-950'
+                    ? 'bg-emerald-400 text-white'
                     : 'text-slate-300 hover:bg-white/[0.05]'
                 }`}
               >

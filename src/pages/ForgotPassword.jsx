@@ -124,7 +124,7 @@ const ForgotPassword = () => {
   });
   const tabCls = (active) =>
     `flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-      active ? '' : 'text-slate-500 dark:text-slate-400 hover:text-foreground'
+      active ? '' : 'text-slate-400 dark:text-slate-400 hover:text-foreground'
     }`;
 
   return (
@@ -150,7 +150,7 @@ const ForgotPassword = () => {
 
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Reset password</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 dark:text-slate-400 mt-1">
               {method === 'email' && emailStage === 'otp'
                 ? 'Enter the code from your email and choose a new password.'
                 : method === 'phone' && phoneStage === 'otp'
@@ -193,7 +193,7 @@ const ForgotPassword = () => {
                   <div>
                     <p>{error}</p>
                     {errorType === 'email_not_found' && (
-                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      <p className="mt-2 text-xs text-slate-400 dark:text-slate-400">
                         No account found with this email.{' '}
                         <button type="button" className="underline font-medium text-emerald-600 dark:text-emerald-400"
                           onClick={() => { setMethod('phone'); setError(''); setErrorType(''); }}>
@@ -217,13 +217,13 @@ const ForgotPassword = () => {
                     Email Address
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
                     <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your registered email"
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                       style={inputCls(isDark)} required />
                   </div>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-1.5">
                     We&apos;ll send a 6-digit verification code to this email.
                   </p>
                 </div>
@@ -264,7 +264,7 @@ const ForgotPassword = () => {
                   {loading ? 'Resetting…' : 'Reset password'}
                 </button>
                 <button type="button" onClick={() => { setEmailStage('input'); setOtp(''); setError(''); }}
-                  className="w-full text-sm text-slate-500 hover:text-slate-700 dark:hover:text-white">
+                  className="w-full text-sm text-slate-400 hover:text-slate-700 dark:hover:text-white">
                   ← Change email
                 </button>
               </motion.form>
@@ -288,7 +288,7 @@ const ForgotPassword = () => {
                     required
                     placeholder="10-digit number"
                   />
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-1.5">
                     We'll send a one-time code. After verifying, you can change your password in Profile settings.
                   </p>
                 </div>
@@ -320,7 +320,7 @@ const ForgotPassword = () => {
                     style={inputCls(isDark)}
                     required
                   />
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 text-center">
+                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-1.5 text-center">
                     Code sent to {countryCode} {phone}
                   </p>
                 </div>
@@ -331,14 +331,14 @@ const ForgotPassword = () => {
                     : 'Verify & Login'}
                 </button>
                 <button type="button" onClick={resetPhoneFlow}
-                  className="w-full text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
+                  className="w-full text-sm text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
                   ← Change phone number
                 </button>
               </motion.form>
             )}
           </AnimatePresence>
 
-          <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-500">
+          <p className="mt-5 text-center text-sm text-slate-400 dark:text-slate-400">
             Remembered your password?{' '}
             <Link to="/login" className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium flex items-center justify-center gap-1 mt-1">
               <ChevronLeft className="w-3.5 h-3.5" /> Back to login

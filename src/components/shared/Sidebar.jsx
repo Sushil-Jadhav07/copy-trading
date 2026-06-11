@@ -50,7 +50,7 @@ const SidebarItem = ({ to, icon: Icon, label, collapsed, badge }) => {
           `flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden ${
             isActive
               ? 'bg-brand-purple/10 text-brand-purple dark:text-white border border-brand-purple/20 shadow-lg shadow-brand-purple/5'
-              : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-foreground border border-transparent'
+              : 'text-slate-400 dark:text-muted-foreground hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-foreground border border-transparent'
           }`
         }
       >

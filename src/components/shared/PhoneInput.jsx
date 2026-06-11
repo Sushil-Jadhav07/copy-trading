@@ -117,7 +117,7 @@ const PhoneInput = ({
 
       {/* Phone number input */}
       <div className="relative flex-1">
-        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
         <input
           type="tel"
           name="phone"

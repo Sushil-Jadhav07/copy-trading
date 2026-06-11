@@ -230,8 +230,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await authService.sendOtp(phone);
       const data = res?.data || res;
+      // retryAfter/expiresIn sit at the top level of the response body, not nested under data.data
+      const retryAfter = data?.retryAfter ?? data?.data?.retryAfter ?? null;
+      const expiresIn  = data?.expiresIn  ?? data?.data?.expiresIn  ?? null;
       if (data?.success === false) {
-        const retryAfter = data?.data?.retryAfter ?? null;
         return {
           success: false,
           error: data?.message || data?.error || 'Failed to send OTP',
@@ -239,8 +241,6 @@ export const AuthProvider = ({ children }) => {
           retryAfter,
         };
       }
-      const retryAfter = data?.data?.retryAfter ?? null;
-      const expiresIn = data?.data?.expiresIn ?? null;
       return { success: true, retryAfter, expiresIn };
     } catch (error) {
       return { success: false, error: error.message };

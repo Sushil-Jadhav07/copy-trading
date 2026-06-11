@@ -108,6 +108,10 @@ const Login = () => {
       if (res.user?.twoFactorEnabled) { setStep('2fa'); setOtpCode(''); }
       else                            { redirectAfterLogin(res.user); }
     } else {
+      if (res.errorCode === 'USER_NOT_FOUND') {
+        navigate('/register', { state: { phone: `${form.countryCode}${form.phone}`, message: 'No account found for this number. Please register first.' } });
+        return;
+      }
       const otpErrors = {
         INVALID_OTP: 'Invalid OTP code.',
         OTP_EXPIRED: 'OTP expired. Request a new code.',
@@ -214,7 +218,7 @@ const Login = () => {
 
   const tabCls = (active) =>
     `flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
-      active ? '' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+      active ? '' : 'text-slate-400 hover:text-slate-300 hover:bg-white/5'
     }`;
 
   const formatOtpTimer = (seconds) => {
@@ -407,7 +411,7 @@ const Login = () => {
                         <BtnSubmit>
                           Send OTP <ArrowRight className="w-4 h-4 ml-1" />
                         </BtnSubmit>
-                        <p className="text-center text-xs text-slate-500">
+                        <p className="text-center text-xs text-slate-400">
                           A one-time code will be sent to your phone.
                         </p>
 
@@ -439,7 +443,7 @@ const Login = () => {
                             Email Address
                           </label>
                           <div className="relative group">
-                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                             <input
                               type="email" value={form.email}
                               onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -458,7 +462,7 @@ const Login = () => {
                             </button>
                           </div>
                           <div className="relative group">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                             <input
                               id="login-password"
                               type={showPass ? 'text' : 'password'} value={form.password}
@@ -469,7 +473,7 @@ const Login = () => {
                             />
                             <button type="button" onClick={() => setShowPass(!showPass)}
                               aria-label={showPass ? 'Hide password' : 'Show password'}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
                               {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
@@ -546,7 +550,7 @@ const OtpInput = ({ value, onChange, isDark }) => (
 const Divider = ({ label }) => (
   <div className="flex items-center gap-3">
     <div className="h-px flex-1 bg-white/10" />
-    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{label}</span>
+    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</span>
     <div className="h-px flex-1 bg-white/10" />
   </div>
 );

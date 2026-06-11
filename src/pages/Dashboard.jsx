@@ -117,7 +117,7 @@ const Dashboard = () => {
                   <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
                     {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
                   </h1>
-                  <p className="text-slate-500 dark:text-muted-foreground font-medium mt-1">
+                  <p className="text-slate-400 dark:text-muted-foreground font-medium mt-1">
                     Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here&apos;s your performance summary.
                   </p>
                 </div>

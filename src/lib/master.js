@@ -601,9 +601,12 @@ export const masterService = {
     }
   },
 
-  async getPositions() {
+  async getPositions(accountId) {
     try {
-      const res = await api.get('/api/v1/master/positions');
+      if (!accountId) {
+        throw new Error('Account ID is required to load positions');
+      }
+      const res = await api.get(`/api/v1/brokers/accounts/${accountId}/positions`);
       return normalizePositionsPayload(res.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load positions'));

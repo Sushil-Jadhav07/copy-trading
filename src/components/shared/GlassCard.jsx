@@ -24,7 +24,7 @@ const GlassCard = ({
               <h3 className="font-bold text-slate-800 dark:text-foreground tracking-tight">{title}</h3>
             )}
             {subtitle && (
-              <p className="text-xs font-medium text-slate-500 dark:text-muted-foreground mt-0.5">{subtitle}</p>
+              <p className="text-xs font-medium text-slate-400 dark:text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
           {action && <div className="relative z-10">{action}</div>}

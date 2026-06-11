@@ -331,16 +331,14 @@ export const authService = {
     }
   },
 
-  async verifyLoginOtp(email, otp) {
+  async verifyLoginOtp(_email, otp) {
     const pending = getPending2FAToken();
     const headers = pending ? { Authorization: `Bearer ${pending}` } : {};
     const postOpts = { skipAuthRefresh: true, headers };
+    // Doc: body is { otp } only — identity comes from Bearer token
+    const body = { otp };
     try {
-      const response = await api.post(
-        '/api/v1/auth/verify-login-otp',
-        { email, otp },
-        postOpts,
-      );
+      const response = await api.post('/api/v1/auth/verify-login-otp', body, postOpts);
       const token = extractAccessToken(response.data);
       const refreshToken = extractRefreshToken(response.data);
       clearPending2FAToken();
@@ -350,11 +348,7 @@ export const authService = {
       return { user };
     } catch (error) {
       try {
-        const fallback = await api.post(
-          '/api/v1/auth/verify-email-otp',
-          { email, otp },
-          postOpts,
-        );
+        const fallback = await api.post('/api/v1/auth/verify-email-otp', body, postOpts);
         const token = extractAccessToken(fallback.data);
         const refreshToken = extractRefreshToken(fallback.data);
         clearPending2FAToken();
@@ -368,24 +362,26 @@ export const authService = {
     }
   },
 
-  async sendOtp(phone, purpose = 'login') {
-    return await api.post('/api/v1/auth/send-otp', { phone, purpose }, { skipAuthRefresh: true });
+  async sendOtp(phone) {
+    return await api.post('/api/v1/auth/send-otp', { phone }, { skipAuthRefresh: true });
   },
 
-  async verifyOtp(phone, otp, purpose = 'login') {
+  async verifyOtp(phone, otp) {
     try {
-      const response = await api.post('/api/v1/auth/verify-otp', { phone, otp, purpose }, { skipAuthRefresh: true });
+      const response = await api.post('/api/v1/auth/verify-otp', { phone, otp }, { skipAuthRefresh: true });
+      // Response shape: { success, data: { accessToken, refreshToken, user } }
       const payload = response?.data || {};
       if (payload?.success === false) {
         const error = new Error(payload?.message || payload?.error || 'OTP verification failed');
         error.errorCode = payload?.error || payload?.errorCode || null;
         throw error;
       }
-      const token = extractAccessToken(response.data);
-      const refreshToken = extractRefreshToken(response.data);
+      const inner = payload?.data || payload;
+      const token = extractAccessToken(inner);
+      const refreshToken = extractRefreshToken(inner);
       if (token) setAccessToken(token);
       if (refreshToken) setRefreshToken(refreshToken);
-      const user = response.data?.user ? normalizeUser(response.data) : await this.getMe();
+      const user = inner?.user ? normalizeUser(inner) : await this.getMe();
       return { user };
     } catch (error) {
       const wrapped = new Error(getErrorMessage(error, 'OTP verification failed'));
@@ -411,6 +407,22 @@ export const authService = {
       );
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Registration failed'));
+    }
+  },
+
+  async checkEmailAvailability(email) {
+    try {
+      const res = await api.post('/api/v1/auth/check-email', { email }, { skipAuthRefresh: true });
+      const data = res.data?.data || res.data || {};
+      const taken = data.exists === true || data.available === false;
+      return { available: !taken };
+    } catch (error) {
+      const status = error?.response?.status;
+      if (status === 409 || status === 400) {
+        const msg = getErrorMessage(error, '');
+        if (msg) return { available: false, message: msg };
+      }
+      return { available: true }; // endpoint missing or unknown error — don't block
     }
   },
 
@@ -559,7 +571,15 @@ export const authService = {
   },
 
   changePassword: async function({ currentPassword, newPassword }) {
-    return await this.updateMe({ currentPassword, newPassword });
+    try {
+      const response = await api.put('/api/v1/auth/me', {
+        currentPassword,
+        newPassword,
+      });
+      return normalizeUser(response.data?.data || response.data);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to update password'));
+    }
   },
 };
 
