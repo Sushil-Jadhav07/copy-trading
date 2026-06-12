@@ -162,8 +162,12 @@ const CopyTrading = () => {
   const { children, loading, refetch, setChildren } = useMasterChildren();
   const { subscriptions, loading: subscriptionsLoading, refetch: refetchSubscriptions } = useMasterSubscriptions();
 
-  const [masterAccountId, setMasterAccountId] = useState('');
-  const [masterConnected, setMasterConnected] = useState(false);
+  const [masterAccountId, setMasterAccountId] = useState(
+    () => window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY) || ''
+  );
+  const [masterConnected, setMasterConnected] = useState(
+    () => window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY + '_connected') === 'true'
+  );
   const [tradingEnabled, setTradingEnabled] = useState(true);
   const [settingActive, setSettingActive] = useState(false);
   const [selectedChild, setSelectedChild] = useState('');
@@ -211,9 +215,12 @@ const CopyTrading = () => {
 
       const activeId = data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || '';
       if (activeId) {
-        const acc = accounts.find((item) => item.accountId === activeId);
         setMasterAccountId(activeId);
         setMasterConnected(true);
+        window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, activeId);
+        window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY + '_connected', 'true');
+      } else if (!window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY + '_connected')) {
+        setMasterConnected(false);
       }
 
       if (data?.pollingIntervalMs) {
@@ -387,39 +394,6 @@ const CopyTrading = () => {
     return () => window.removeEventListener('focus', onFocus);
   }, [loadCopyTradingData, refetch, refetchSubscriptions]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    masterService.getActiveAccount().then((res) => {
-      if (!isMounted) return;
-      const activeId = res?.brokerAccountId || res?.accountId || '';
-      
-      if (activeId) {
-        const acc = accounts.find((item) => item.accountId === activeId);
-        if (acc) {
-          setMasterAccountId(activeId);
-          setMasterConnected(true);
-          window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, activeId);
-        }
-      } else {
-        // No active account on server, check local storage for preference but don't mark as connected
-        const localId = window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY) || '';
-        if (localId) {
-          const acc = accounts.find((item) => item.accountId === localId);
-          if (acc) setMasterAccountId(localId);
-        }
-        setMasterConnected(false);
-      }
-    }).catch(() => {
-      if (isMounted) {
-        setMasterConnected(false);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [accounts]);
 
   useEffect(() => {
     let isMounted = true;
@@ -676,12 +650,13 @@ const CopyTrading = () => {
       try {
         await masterService.clearActiveAccount();
         window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY);
+        window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY + '_connected');
         setMasterConnected(false);
         setMasterAccountId('');
         addToast('Master disconnected', 'warning');
       } catch (error) {
-        // Even if API fails, clear local state for better UX
         window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY);
+        window.localStorage.removeItem(ACTIVE_MASTER_STORAGE_KEY + '_connected');
         setMasterConnected(false);
         setMasterAccountId('');
         addToast('Master disconnected locally', 'warning');
@@ -699,6 +674,7 @@ const CopyTrading = () => {
       await masterService.setActiveAccount(masterAccountId);
       setMasterConnected(true);
       window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, masterAccountId);
+      window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY + '_connected', 'true');
       addToast('Master connected successfully', 'success');
     } catch (error) {
       addToast(error.message || 'Failed to connect master', 'error');
