@@ -325,29 +325,27 @@ const MyMasters = () => {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="overflow-hidden rounded-[24px] border border-emerald-500/15 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_38%),linear-gradient(135deg,rgba(8,20,18,0.98),rgba(10,17,16,0.92))]">
-        <div className="flex flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl space-y-2.5">
-            <div className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
-              Child Copy Dashboard
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-[20px] border border-emerald-500/20 bg-white dark:border-emerald-500/15 dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_38%),linear-gradient(135deg,rgba(8,20,18,0.98),rgba(10,17,16,0.92))]">
+        <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-xl space-y-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+              My Masters
             </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight sm:text-2xl">My Masters</h1>
-              <p className="mt-1.5 max-w-xl text-[13px] leading-5 text-muted-foreground">
-                Manage every master connection from one place. Review performance, adjust scaling, and control copying with a cleaner, simpler layout.
-              </p>
-            </div>
+            <p className="max-w-lg text-xs leading-5 text-slate-500 dark:text-slate-300">
+              Manage every master connection from one place. Review performance, adjust scaling, and control copying with a cleaner, simpler layout.
+            </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3.5 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Connected Masters</p>
-              <p className="mt-1 text-xl font-black text-emerald-300">{masters.length}</p>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 dark:border-white/15 dark:bg-white/[0.04]">
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Connected Masters:</p>
+              <p className="text-sm font-black text-emerald-600 dark:text-emerald-300">{masters.length}</p>
             </div>
             {masters.length > 0 && (
               <button
                 onClick={handleBulkUnfollow}
-                className="w-full rounded-xl bg-danger px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-danger/90 sm:w-auto"
+                className="w-full rounded-xl bg-danger px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-danger/90 sm:w-auto"
               >
                 Unfollow All
               </button>
@@ -356,7 +354,7 @@ const MyMasters = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
         {[
           { label: 'Masters Copied', value: masters.length, icon: Users, color: 'text-brand-purple' },
           { label: 'Active', value: active, icon: Copy, color: 'text-success' },
@@ -373,14 +371,14 @@ const MyMasters = () => {
             color: 'text-brand-blue',
           },
         ].map((stat) => (
-          <GlassCard key={stat.label} className="rounded-[20px] border border-white/6 bg-gradient-to-br from-white/[0.04] to-white/[0.02]">
-            <div className="flex items-start gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/10 dark:bg-white/5">
+          <GlassCard key={stat.label} className="rounded-[16px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/90 p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.08)] dark:border-white/6 dark:from-white/[0.04] dark:to-white/[0.02] dark:shadow-none">
+            <div className="flex items-start gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-white/5">
                 <stat.icon className={`h-4.5 w-4.5 ${stat.color}`} />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{stat.label}</p>
-                <p className={`mt-1.5 text-xl font-black ${stat.color}`}>{stat.value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-muted-foreground">{stat.label}</p>
+                <p className={`mt-1 text-lg font-black ${stat.color}`}>{stat.value}</p>
               </div>
             </div>
           </GlassCard>
@@ -440,7 +438,7 @@ const MyMasters = () => {
           </Empty>
         </GlassCard>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {masters.map((master, idx) => {
             const statusMeta = getStatusMeta(master.status);
             const canToggle = ['ACTIVE', 'PAUSED'].includes(normalizeStatus(master.status));
@@ -455,36 +453,36 @@ const MyMasters = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.08 }}
-                className={`rounded-[22px] border bg-[linear-gradient(135deg,rgba(18,32,28,0.96),rgba(13,24,22,0.92))] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.16)] ${
-                  master.tradingEnabled ? 'border-emerald-500/30' : 'border-white/8 opacity-85'
+                className={`rounded-[18px] border p-3 shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_32px_rgba(0,0,0,0.14)] bg-white dark:bg-[linear-gradient(135deg,rgba(18,32,28,0.96),rgba(13,24,22,0.92))] text-slate-900 dark:text-white ${
+                  master.tradingEnabled ? 'border-emerald-500/30' : 'border-slate-200 dark:border-white/10 opacity-90'
                 }`}
               >
                 {isPending && (
-                  <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                  <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                     Waiting for master approval - you'll be notified when accepted
                   </div>
                 )}
 
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600">
-                      <span className="text-xs font-black text-slate-950">{getMasterInitials(master.name)}</span>
+                <div className="mb-3 flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600">
+                      <span className="text-xs font-black text-white">{getMasterInitials(master.name)}</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-base font-black tracking-tight">{master.name}</p>
-                      <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${statusMeta.pill}`}>
+                      <p className="truncate text-sm font-black tracking-tight text-slate-900 dark:text-white">{master.name}</p>
+                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${statusMeta.pill}`}>
                         {statusMeta.label}
                       </span>
-                      <p className="mt-1.5 max-w-sm text-xs leading-5 text-muted-foreground">{statusMeta.subtitle}</p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      <p className="mt-1 max-w-sm text-[11px] leading-4 text-slate-500 dark:text-slate-300">{statusMeta.subtitle}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-300">
                           {getCopySidesLabel(master.copySides)}
                         </span>
-                        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                        <span className="rounded-full border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-300">
                           {master.multiplier}x Scaling
                         </span>
                         {master.allowShortSelling && (
-                          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">
+                          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-amber-600 dark:text-amber-300">
                             Short Selling On
                           </span>
                         )}
@@ -495,7 +493,7 @@ const MyMasters = () => {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleOpenSettings(master)}
-                      className="rounded-lg border border-white/8 bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06]"
+                      className="rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.08]"
                       title="Subscription Settings"
                     >
                       <Settings className="h-3.5 w-3.5 text-muted-foreground" />
@@ -505,7 +503,7 @@ const MyMasters = () => {
                         setSelectedMaster(master);
                         setUnfollowModal(true);
                       }}
-                      className="rounded-lg border border-danger/20 bg-danger/10 p-2 transition-colors hover:bg-danger/20"
+                      className="rounded-lg border border-danger/20 bg-danger/10 p-1.5 transition-colors hover:bg-danger/20"
                       title="Unfollow Master"
                     >
                       <UserMinus className="h-3.5 w-3.5 text-danger" />
@@ -513,10 +511,10 @@ const MyMasters = () => {
                   </div>
                 </div>
 
-                <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                <div className="mb-3 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
                   {[
-                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '-', 'text-foreground'],
-                    ['Trades Today', master.tradesCopiedToday, 'text-foreground'],
+                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '-', 'text-emerald-600 dark:text-emerald-400'],
+                    ['Trades Today', master.tradesCopiedToday, 'text-emerald-600 dark:text-emerald-400'],
                     [
                       'Total P&L',
                       `${master.totalPnL >= 0 ? '+' : ''}${formatCurrency(master.totalPnL)}`,
@@ -528,32 +526,32 @@ const MyMasters = () => {
                       master.brokerAccountId ? 'text-brand-blue' : 'text-danger',
                     ],
                   ].map(([label, value, cls]) => (
-                    <div key={label} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-                      <p className={`mt-1.5 text-base font-black ${cls}`}>{value}</p>
+                    <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] px-2 py-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{label}</p>
+                      <p className={`mt-1 text-sm font-black ${cls}`}>{value}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="mb-4 rounded-[20px] border border-white/8 bg-black/10 px-3.5 py-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-3 rounded-[16px] border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-black/10 px-2.5 py-2">
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Scaling Control</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Adjust copied quantity directly from the card.</p>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Scaling Control</p>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-300">Adjust copied quantity directly from the card.</p>
                     </div>
                     <div className="flex items-center gap-2.5">
                       <button
                         onClick={() => handleMultiplier(master.id, 'down')}
                         disabled={!canScale}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/10 text-base font-black transition-colors hover:bg-white/10 disabled:opacity-40"
+                        className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 dark:bg-black/10 text-slate-900 dark:text-white text-sm font-black transition-colors hover:bg-slate-300 dark:hover:bg-white/10 disabled:opacity-40"
                       >
                         -
                       </button>
-                      <span className="w-12 text-center text-base font-black text-amber-300">{master.multiplier}x</span>
+                      <span className="w-9 text-center text-sm font-black text-amber-500 dark:text-amber-300">{master.multiplier}x</span>
                       <button
                         onClick={() => handleMultiplier(master.id, 'up')}
                         disabled={!canScale}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/10 text-base font-black transition-colors hover:bg-white/10 disabled:opacity-40"
+                        className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 dark:bg-black/10 text-slate-900 dark:text-white text-sm font-black transition-colors hover:bg-slate-300 dark:hover:bg-white/10 disabled:opacity-40"
                       >
                         +
                       </button>
@@ -562,16 +560,16 @@ const MyMasters = () => {
                 </div>
 
                 {lastSkipReason && (
-                  <div className="mb-4 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Recent Skip Reason</p>
-                    <p className="mt-1.5 text-xs text-amber-300">{lastSkipReason}</p>
+                  <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] px-2.5 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Recent Skip Reason</p>
+                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-300">{lastSkipReason}</p>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.03] px-3.5 py-3">
+                <div className="flex items-center justify-between rounded-[16px] border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] px-2.5 py-2">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Copy Trading</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Copy Trading</p>
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-300">
                       {master.brokerAccountId ? 'Pause or resume instantly.' : 'Link a broker account to enable copying.'}
                     </p>
                   </div>

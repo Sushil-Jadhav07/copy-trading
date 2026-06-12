@@ -11,16 +11,16 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     const storedTheme = localStorage.getItem('Ascentra Capital_theme');
     if (storedTheme) {
       setIsDark(storedTheme === 'dark');
     } else {
-      // Default to dark mode
-      setIsDark(true);
-      localStorage.setItem('Ascentra Capital_theme', 'dark');
+      // Default to light mode
+      setIsDark(false);
+      localStorage.setItem('Ascentra Capital_theme', 'light');
     }
   }, []);
 

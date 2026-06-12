@@ -981,14 +981,6 @@ const CopyTrading = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleVerifyEngine}
-            disabled={resettingCache}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-purple/30 bg-brand-purple/5 text-brand-purple hover:bg-brand-purple/10 transition-all text-xs font-bold"
-          >
-            <Zap className={`w-3.5 h-3.5 ${resettingCache ? 'animate-spin' : ''}`} />
-            Verify Engine
-          </button>
-          <button
             onClick={handleResetPollingCache}
             disabled={resettingCache}
             className="flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-xs font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-60"
