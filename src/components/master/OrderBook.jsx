@@ -341,7 +341,7 @@ const OrderBook = () => {
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
+                  {['#', 'Time', 'Symbol', 'Exchange', 'Segment', 'Order Type', 'Type', 'Qty', 'Price', 'Status'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -356,6 +356,7 @@ const OrderBook = () => {
                     className="border-b border-border/30 hover:bg-white/3 transition-colors"
                   >
                     <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                    <td className="px-4 py-3 text-sm">{getOrderDate(order)?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-sm">{order.symbol}</td>
                     <td className="px-4 py-3 text-sm">{order.exchange || '—'}</td>
                     <td className="px-4 py-3">
