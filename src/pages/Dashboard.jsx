@@ -35,6 +35,7 @@ const Dashboard = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { position, isVisible } = useCursorGlow(isDark);
   const isOverviewRoute = /\/overview$/.test(location.pathname);
+  const showShellOverviewHeader = isOverviewRoute && normalizedRole !== 'ADMIN';
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -111,7 +112,7 @@ const Dashboard = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            {isOverviewRoute && (
+            {showShellOverviewHeader && (
               <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
                 <div>
                   <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
