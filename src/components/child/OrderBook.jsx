@@ -108,7 +108,7 @@ const ChildOrderBook = () => {
     if (!silent) setLoading(true);
     setSessionLoading(true);
     try {
-      const data = await childService.getOpenBook();
+      const data = await childService.getOpenBook(accountId);
       setMeta(data || {});
       const active = !data?.errorCode;
       setSessionActive(active);

@@ -556,9 +556,10 @@ export const childService = {
     }
   },
 
-  async getOpenBook() {
+  async getOpenBook(accountId) {
     try {
-      const res = await api.get('/api/v1/child/open-book');
+      const url = accountId ? `/api/v1/child/open-book?accountId=${accountId}` : '/api/v1/child/open-book';
+      const res = await api.get(url);
       const payload = res.data?.data || res.data || {};
       const orders = Array.isArray(payload.orders) ? payload.orders : [];
       return {
