@@ -209,7 +209,26 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
         }
       } catch (e) {
         if (!isMounted) return;
-        addToast(e.message || 'Unable to load account', 'error');
+        try {
+          const fallback = await brokerService.getAccount(accountId);
+          if (!isMounted) return;
+          setAccount({
+            broker: fallback.broker || fallback.brokerName || fallback.brokerId || '',
+            userId: fallback.clientId || fallback.userId || '',
+            nickname: fallback.nickname || '',
+            margin: 0,
+            sessionActive: false,
+            status: 'INACTIVE',
+            linkedAt: fallback.linkedAt || fallback.createdAt || null,
+            proxyHost: fallback.proxyHost || '',
+            proxyPort: fallback.proxyPort || 0,
+            proxyUser: fallback.proxyUser || '',
+            proxyConfigured: Boolean(fallback.proxyConfigured),
+          });
+          setPositionsError('Broker session is not active. Re-login to see live data.');
+        } catch {
+          addToast(e.message || 'Unable to load account', 'error');
+        }
       } finally {
         if (isMounted) setLoadingData(false);
       }
@@ -282,7 +301,20 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
 
       addToast('Refreshed', 'success');
     } catch (e) {
-      addToast(e.message || 'Refresh failed', 'error');
+      try {
+        const fallback = await brokerService.getAccount(accountId);
+        setAccount((prev) => ({
+          ...(prev || {}),
+          broker: fallback.broker || fallback.brokerName || prev?.broker || '',
+          userId: fallback.clientId || prev?.userId || '',
+          nickname: fallback.nickname || prev?.nickname || '',
+          sessionActive: false,
+          status: 'INACTIVE',
+        }));
+        setPositionsError('Broker session is not active. Re-login to see live data.');
+      } catch {
+        addToast(e.message || 'Refresh failed', 'error');
+      }
     } finally {
       setRefreshing(false);
     }

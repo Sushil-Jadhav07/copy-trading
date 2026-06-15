@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   CreditCard,
   Link2,
+  History,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -239,6 +240,7 @@ const childSidebarItems = [
         { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
         { to: '/admin/system-logs', icon: FileText, label: 'System Logs' },
         { to: '/admin/pnl', icon: DollarSign, label: 'Platform P&L' },
+        { to: '/admin/trade-history', icon: History, label: 'Trade History' },
       ],
     },
   ];

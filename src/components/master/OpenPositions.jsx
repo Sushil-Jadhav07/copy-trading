@@ -476,7 +476,7 @@ const OpenPositions = () => {
               </div>
             </div>
           ))}
-          <button onClick={() => setChildDetailModal(false)} className="w-full py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors mt-2">Close</button>
+          <button onClick={() => setChildDetailModal(false)} className="w-full py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors mt-2">Close</button>
         </div>
       </Modal>
     </div>

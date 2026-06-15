@@ -48,6 +48,7 @@ import LiveTrades from '@/components/admin/LiveTrades';
 import OrderFeed from '@/components/admin/OrderFeed';
 import AdminPnL from '@/components/admin/AdminPnL';
 import AdminProfile from '@/components/admin/Profile';
+import TradeHistory from '@/components/admin/TradeHistory';
 
 const DematDetailWrapper = () => {
   const { accountId } = useParams();
@@ -161,6 +162,7 @@ const AppRouter = () => {
                 <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />
+                <Route path="admin/trade-history" element={<TradeHistory />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/login" replace />} />

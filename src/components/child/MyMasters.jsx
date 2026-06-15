@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserMinus, TrendingUp, TrendingDown, Users, Copy, IndianRupee, Settings, ShieldAlert } from 'lucide-react';
+import { UserMinus, TrendingUp, TrendingDown, Users, Copy, Activity, Settings, ShieldAlert } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -367,7 +367,7 @@ const MyMasters = () => {
           {
             label: 'Trades Today',
             value: masters.reduce((sum, m) => sum + m.tradesCopiedToday, 0),
-            icon: IndianRupee,
+            icon: Activity,
             color: 'text-brand-blue',
           },
         ].map((stat) => (
@@ -447,135 +447,150 @@ const MyMasters = () => {
             const isToggling = Boolean(togglingMasters[master.id]);
             const lastSkipReason = SKIP_REASON_LABELS[master.lastSkipReason] || master.lastSkipReason || '';
 
+            const brokerLabel = (() => {
+              if (!master.brokerAccountId) return null;
+              const acc = brokerAccounts.find((a) => (a.accountId || a.id) === master.brokerAccountId);
+              if (acc) return `${acc.broker} · ${acc.nickname || acc.clientId}`;
+              return master.brokerName || null;
+            })();
+
             return (
               <motion.div
                 key={master.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.08 }}
-                className={`rounded-[18px] border p-3 shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_32px_rgba(0,0,0,0.14)] bg-white dark:bg-[linear-gradient(135deg,rgba(18,32,28,0.96),rgba(13,24,22,0.92))] text-slate-900 dark:text-white ${
-                  master.tradingEnabled ? 'border-emerald-500/30' : 'border-slate-200 dark:border-white/10 opacity-90'
+                className={`rounded-2xl border bg-white dark:bg-[linear-gradient(145deg,rgba(16,30,26,0.97),rgba(10,20,18,0.95))] text-slate-900 dark:text-white shadow-sm dark:shadow-[0_8px_32px_rgba(0,0,0,0.2)] transition-all ${
+                  master.tradingEnabled
+                    ? 'border-emerald-500/30'
+                    : 'border-slate-200 dark:border-white/[0.08] opacity-90'
                 }`}
               >
-                {isPending && (
-                  <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-                    Waiting for master approval - you'll be notified when accepted
-                  </div>
-                )}
-
-                <div className="mb-3 flex items-start justify-between gap-2.5">
-                  <div className="flex items-start gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600">
-                      <span className="text-xs font-black text-white">{getMasterInitials(master.name)}</span>
+                {/* Card Header */}
+                <div className="px-4 pt-4 pb-3">
+                  {isPending && (
+                    <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                      Waiting for master approval — you'll be notified when accepted
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black tracking-tight text-slate-900 dark:text-white">{master.name}</p>
-                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${statusMeta.pill}`}>
-                        {statusMeta.label}
-                      </span>
-                      <p className="mt-1 max-w-sm text-[11px] leading-4 text-slate-500 dark:text-slate-300">{statusMeta.subtitle}</p>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        <span className="rounded-full border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-300">
-                          {getCopySidesLabel(master.copySides)}
-                        </span>
-                        <span className="rounded-full border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-300">
-                          {master.multiplier}x Scaling
-                        </span>
-                        {master.allowShortSelling && (
-                          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-amber-600 dark:text-amber-300">
-                            Short Selling On
+                  )}
+
+                  <div className="flex items-start justify-between gap-3">
+                    {/* Avatar + Identity */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 shadow-md">
+                        <span className="text-sm font-black text-white">{getMasterInitials(master.name)}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-black tracking-tight text-slate-900 dark:text-white truncate">{master.name}</p>
+                          <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${statusMeta.pill}`}>
+                            {statusMeta.label}
                           </span>
+                        </div>
+                        {brokerLabel ? (
+                          <p className="mt-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">{brokerLabel}</p>
+                        ) : (
+                          <p className="mt-0.5 text-[11px] text-danger font-semibold">No broker linked</p>
                         )}
+                        <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500 truncate">{statusMeta.subtitle}</p>
                       </div>
                     </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleOpenSettings(master)}
+                        className="rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.09]"
+                        title="Subscription Settings"
+                      >
+                        <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => { setSelectedMaster(master); setUnfollowModal(true); }}
+                        className="rounded-lg border border-danger/20 bg-danger/10 p-1.5 transition-colors hover:bg-danger/20"
+                        title="Unfollow Master"
+                      >
+                        <UserMinus className="h-3.5 w-3.5 text-danger" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleOpenSettings(master)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.08]"
-                      title="Subscription Settings"
-                    >
-                      <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedMaster(master);
-                        setUnfollowModal(true);
-                      }}
-                      className="rounded-lg border border-danger/20 bg-danger/10 p-1.5 transition-colors hover:bg-danger/20"
-                      title="Unfollow Master"
-                    >
-                      <UserMinus className="h-3.5 w-3.5 text-danger" />
-                    </button>
+                  {/* Badges */}
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    <span className="rounded-full border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.06] px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-300">
+                      {getCopySidesLabel(master.copySides)}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.06] px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-300">
+                      {master.multiplier}x Scaling
+                    </span>
+                    {master.allowShortSelling && (
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-amber-600 dark:text-amber-300">
+                        Short Selling On
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="mb-3 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
+                {/* Divider */}
+                <div className="mx-4 border-t border-slate-100 dark:border-white/[0.06]" />
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-3 mx-4 my-3 rounded-xl overflow-hidden border border-slate-100 dark:border-white/[0.08]">
                   {[
-                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '-', 'text-emerald-600 dark:text-emerald-400'],
-                    ['Trades Today', master.tradesCopiedToday, 'text-emerald-600 dark:text-emerald-400'],
+                    ['Allocation', master.allocation != null ? formatCurrency(master.allocation) : '—', 'text-slate-800 dark:text-white'],
+                    ['Trades Today', master.tradesCopiedToday ?? '—', 'text-emerald-600 dark:text-emerald-400'],
                     [
-                      'Total P&L',
+                      'P&L',
                       `${master.totalPnL >= 0 ? '+' : ''}${formatCurrency(master.totalPnL)}`,
                       master.totalPnL >= 0 ? 'text-success' : 'text-danger',
                     ],
-                    [
-                      'Broker',
-                      master.brokerAccountId ? (master.brokerName || 'Connected') : 'Not Linked',
-                      master.brokerAccountId ? 'text-brand-blue' : 'text-danger',
-                    ],
-                  ].map(([label, value, cls]) => (
-                    <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] px-2 py-1.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{label}</p>
-                      <p className={`mt-1 text-sm font-black ${cls}`}>{value}</p>
+                  ].map(([label, value, cls], i) => (
+                    <div key={label} className={`px-3 py-2.5 text-center ${i < 2 ? 'border-r border-slate-100 dark:border-white/20' : ''}`}>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 dark:text-slate-500">{label}</p>
+                      <p className={`mt-1 text-sm font-black truncate ${cls}`}>{value}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="mb-3 rounded-[16px] border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-black/10 px-2.5 py-2">
-                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Scaling Control</p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-300">Adjust copied quantity directly from the card.</p>
-                    </div>
-                    <div className="flex items-center gap-2.5">
+                {/* Skip reason */}
+                {lastSkipReason && (
+                  <div className="mx-4 mb-3 flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                    <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                    <p className="text-[11px] text-amber-600 dark:text-amber-300 font-medium">{lastSkipReason}</p>
+                  </div>
+                )}
+
+                {/* Divider */}
+                <div className="mx-4 border-t border-slate-100 dark:border-white/[0.06]" />
+
+                {/* Bottom Bar: Scale + Toggle */}
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  {/* Scaling */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Scale</span>
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleMultiplier(master.id, 'down')}
                         disabled={!canScale}
-                        className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 dark:bg-black/10 text-slate-900 dark:text-white text-sm font-black transition-colors hover:bg-slate-300 dark:hover:bg-white/10 disabled:opacity-40"
+                        className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 dark:bg-white/[0.07] text-slate-700 dark:text-white text-sm font-black transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.12] disabled:opacity-40"
                       >
                         -
                       </button>
-                      <span className="w-9 text-center text-sm font-black text-amber-500 dark:text-amber-300">{master.multiplier}x</span>
+                      <span className="w-8 text-center text-sm font-black text-amber-500 dark:text-amber-300">{master.multiplier}x</span>
                       <button
                         onClick={() => handleMultiplier(master.id, 'up')}
                         disabled={!canScale}
-                        className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 dark:bg-black/10 text-slate-900 dark:text-white text-sm font-black transition-colors hover:bg-slate-300 dark:hover:bg-white/10 disabled:opacity-40"
+                        className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 dark:bg-white/[0.07] text-slate-700 dark:text-white text-sm font-black transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.12] disabled:opacity-40"
                       >
                         +
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {lastSkipReason && (
-                  <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] px-2.5 py-2">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Recent Skip Reason</p>
-                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-300">{lastSkipReason}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between rounded-[16px] border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] px-2.5 py-2">
-                  <div>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Copy Trading</p>
-                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-300">
-                      {master.brokerAccountId ? 'Pause or resume instantly.' : 'Link a broker account to enable copying.'}
-                    </p>
-                  </div>
+                  {/* Toggle */}
                   <div className="flex items-center gap-2">
                     {!master.brokerAccountId && (
-                      <span className="rounded-full border border-danger/20 bg-danger/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-danger">
+                      <span className="rounded-full border border-danger/20 bg-danger/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-danger">
                         No Broker
                       </span>
                     )}

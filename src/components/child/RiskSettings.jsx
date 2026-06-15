@@ -24,7 +24,7 @@ const DEFAULT_RULES = {
   maxOpenPositions: 20,
   maxCapitalExposure: 80,
   marginCheckEnabled: true,
-  allowedSides: 'BUY_ONLY',
+  allowedSides: 'BUY_AND_SELL',
 };
 
 const clampNumber = (value, min, max) => {
@@ -241,7 +241,7 @@ const RiskSettings = () => {
         maxOpenPositions: clampNumber(rules.maxOpenPositions, 1, 200),
         maxCapitalExposure: clampNumber(rules.maxCapitalExposure, 1, 100),
         marginCheckEnabled: Boolean(rules.marginCheckEnabled),
-        allowedSides: rules.allowedSides || 'BUY_ONLY',
+        allowedSides: rules.allowedSides || 'BUY_AND_SELL',
       };
       const response = await riskService.updateRules(payload);
       setRules({ ...rules, ...payload, ...response });
