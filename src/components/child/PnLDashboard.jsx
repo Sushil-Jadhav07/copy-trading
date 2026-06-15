@@ -57,6 +57,7 @@ const PnLDashboard = () => {
   );
 
   const totalPnl = safeNum(analytics.totalPnL ?? analytics.totalPnl);
+  const monthlyPnl = safeNum(analytics.monthlyPnL ?? analytics.monthlyPnl ?? totalPnl);
   const copiedPnl = safeNum(analytics.copiedPnL ?? analytics.totalPnL);
   const personalPnl = safeNum(analytics.personalPnL);
   const todayPnl = safeNum(
@@ -165,8 +166,8 @@ const PnLDashboard = () => {
       <GlassCard>
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground mb-2">Total P&L This Month</p>
-          <p className={`text-5xl font-black ${pnlClass(totalPnl, 'Total P&L This Month')}`}>
-            {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+          <p className={`text-5xl font-black ${pnlClass(monthlyPnl, 'Total P&L This Month')}`}>
+            {monthlyPnl >= 0 ? '+' : ''}{formatCurrency(monthlyPnl)}
           </p>
         </div>
       </GlassCard>
