@@ -47,7 +47,7 @@ const ChildOpenPositions = () => {
     setSessionLoading(true);
 
     try {
-      const data = await childService.getPositions();
+      const data = await childService.getPositions(_accountId);
       setPositionsMeta(data);
       setPositions(Array.isArray(data.positions) ? data.positions : []);
       setSessionActive(!data.errorCode);
@@ -217,7 +217,7 @@ const ChildOpenPositions = () => {
       {sessionActive === true && (
         <div className="flex items-center gap-2 text-xs text-emerald-500">
           <Wifi className="w-3.5 h-3.5" />
-          <span>Live - reading positions from {positionsMeta.brokerId || selectedAccount?.broker || 'broker'}; auto-refresh every 15s</span>
+          <span>Live - reading positions from {positionsMeta.brokerId || selectedAccount?.broker || 'broker'}{selectedAccount?.clientId ? ` (${selectedAccount.clientId})` : ''}; auto-refresh every 15s</span>
         </div>
       )}
 

@@ -187,7 +187,7 @@ const TradeTimeline = () => {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
-  const [datePreset, setDatePreset] = useState('7d');
+  const [datePreset, setDatePreset] = useState('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -299,7 +299,7 @@ const TradeTimeline = () => {
   }, [filteredTrades]);
 
   const clearFilters = () => {
-    setDatePreset('7d');
+    setDatePreset('today');
     setCustomFrom('');
     setCustomTo('');
     setStatusFilter('ALL');

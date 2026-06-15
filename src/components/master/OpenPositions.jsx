@@ -8,6 +8,7 @@ import RefreshButton from '@/components/shared/RefreshButton';
 import DownloadButton from '@/components/shared/DownloadButton';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
+import DivSelect from '@/components/shared/DivSelect';
 import { formatCurrency } from '@/lib/utils';
 import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
 import { useToast } from '@/components/shared/Toast';
@@ -267,6 +268,18 @@ const OpenPositions = () => {
           <p className="text-sm text-muted-foreground">Your live positions - followers are copying these in real-time</p>
         </div>
         <div className="flex items-center gap-2">
+          {accounts.length > 1 && (
+            <DivSelect
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              includeEmptyOption={false}
+              options={accounts.map((a) => ({
+                value: a.accountId || a.id,
+                label: `${a.broker} - ${a.nickname || a.clientId}`,
+              }))}
+              triggerClassName="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
+            />
+          )}
           <DownloadButton onClick={handleDownload} disabled={filteredPositions.length === 0} label="Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>

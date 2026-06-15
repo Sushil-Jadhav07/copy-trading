@@ -1,6 +1,6 @@
 import api from '@/lib/api';
 
-const ACCOUNT_COLLECTION_PATHS = ['/api/v1/broker/accounts', '/api/v1/brokers/accounts'];
+const ACCOUNT_COLLECTION_PATHS = ['/api/v1/brokers/accounts', '/api/v1/broker/accounts'];
 
 const getErrorMessage = (error, fallback = 'Request failed') => {
   const backendMsg =

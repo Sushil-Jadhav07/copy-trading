@@ -36,26 +36,26 @@ const clampNumber = (value, min, max) => {
 const COPY_DIRECTION_OPTIONS = [
   {
     value: 'BUY_ONLY',
-    label: 'BUY Only',
-    shortLabel: 'Buy',
-    description: 'Only master BUY orders are copied. This is the default mode for conservative copying.',
+    label: 'Buy only (safe default)',
+    shortLabel: 'BUY',
+    description: 'Copy BUY; SELL only with copied BUY + live position.',
     tone: 'emerald',
     requiresConsent: false,
   },
   {
-    value: 'SELL_ONLY',
-    label: 'SELL Only',
-    shortLabel: 'Sell',
-    description: 'Only SELL orders are copied. Use this only for short-selling or option-writing strategies.',
-    tone: 'rose',
+    value: 'BUY_AND_SELL',
+    label: 'Buy and sell',
+    shortLabel: 'B&S',
+    description: 'Copy BUY and SELL when child has live long qty.',
+    tone: 'amber',
     requiresConsent: true,
   },
   {
-    value: 'BOTH',
-    label: 'Both BUY & SELL',
-    shortLabel: 'Both',
-    description: 'Copies every side from the master. Required for hedges, spreads, and paired exits.',
-    tone: 'amber',
+    value: 'MIRROR',
+    label: 'Mirror master',
+    shortLabel: 'ALL',
+    description: 'Copy all sides; optional naked short if allowShortSelling.',
+    tone: 'rose',
     requiresConsent: true,
   },
 ];
@@ -513,7 +513,7 @@ const RiskSettings = () => {
               })}
             </div>
 
-            {(currentRules.allowedSides === 'SELL_ONLY' || currentRules.allowedSides === 'BOTH') && (
+            {(currentRules.allowedSides === 'BUY_AND_SELL' || currentRules.allowedSides === 'MIRROR') && (
               <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <p className="text-xs font-medium leading-relaxed text-amber-600 dark:text-amber-400">

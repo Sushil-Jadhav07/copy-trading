@@ -517,9 +517,10 @@ export const childService = {
     }
   },
 
-  async getPositions() {
+  async getPositions(accountId) {
     try {
-      const res = await api.get('/api/v1/child/positions');
+      const params = accountId ? { accountId } : {};
+      const res = await api.get('/api/v1/child/positions', { params });
       return normalizePositionsPayload(res.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load positions'));
