@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw,
-  Eye,
   Link,
   Trash2,
   Zap,
@@ -17,6 +16,8 @@ import {
   Users,
   Search,
   Info,
+  Check,
+  X,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
@@ -170,7 +171,6 @@ const CopyTrading = () => {
   );
   const [tradingEnabled, setTradingEnabled] = useState(true);
   const [settingActive, setSettingActive] = useState(false);
-  const [selectedChild, setSelectedChild] = useState('');
   const [childMultiplier, setChildMultiplier] = useState('1');
   const [refreshing, setRefreshing] = useState({});
   const [deleteModal, setDeleteModal] = useState(false);
@@ -510,6 +510,17 @@ const CopyTrading = () => {
     () => resolvedRows.filter((row) => ['ACTIVE', 'PAUSED', 'PENDING_APPROVAL', 'APPROVED'].includes(row.status)),
     [resolvedRows],
   );
+  const primarySourceAccountId = useMemo(() => {
+    const resolvedMaster = String(masterAccountId || '').trim();
+    if (resolvedMaster && accounts.some((account) => String(account.accountId || account.id) === resolvedMaster)) {
+      return resolvedMaster;
+    }
+    return String(accounts[0]?.accountId || accounts[0]?.id || '');
+  }, [accounts, masterAccountId]);
+  const primarySourceAccount = useMemo(
+    () => accounts.find((account) => String(account.accountId || account.id) === String(primarySourceAccountId)) || null,
+    [accounts, primarySourceAccountId],
+  );
 
   useEffect(() => {
     if (usingCopyTradingEndpoint) return () => {};
@@ -564,18 +575,6 @@ const CopyTrading = () => {
     };
   }, [linkedRows, usingCopyTradingEndpoint]);
 
-  const availableChildRows = useMemo(() => {
-    const map = new Map();
-
-    resolvedRows.forEach((child) => {
-      const key = String(child.id || child.accountId || child.userId);
-      if (!key) return;
-      map.set(key, { ...map.get(key), ...child });
-    });
-
-    return Array.from(map.values());
-  }, [resolvedRows]);
-
   useEffect(() => {
     let isMounted = true;
 
@@ -592,11 +591,50 @@ const CopyTrading = () => {
     };
   }, [connectedRows]);
 
-  const childOptions = availableChildRows.filter(
-    (child) =>
-      String(child.childId) !== String(masterAccountId) &&
-      !linkedRows.some((row) => String(row.childId) === String(child.childId)),
+  const childOptions = useMemo(
+    () =>
+      accounts
+        .map((account) => {
+          const accountId = String(account.accountId || account.id || '');
+          return {
+            id: accountId,
+            childId: accountId,
+            accountId,
+            brokerAccountId: accountId,
+            userId: account.userId || account.clientId || accountId,
+            nickname: account.nickname || account.name || '',
+            broker: account.broker || account.brokerName || 'Broker',
+            margin: Number(account.margin || 0),
+          };
+        })
+        .filter(
+          (child) =>
+            child.accountId &&
+            String(child.accountId) !== String(primarySourceAccountId) &&
+            !linkedRows.some(
+              (row) =>
+                String(row.brokerAccountId || row.accountId || row.childId) === String(child.accountId),
+            ),
+        ),
+    [accounts, linkedRows, primarySourceAccountId],
   );
+
+  const ensureActiveSourceAccount = useCallback(async () => {
+    if (!primarySourceAccountId) {
+      throw new Error('Please connect at least one broker account first');
+    }
+
+    if (String(masterAccountId) === String(primarySourceAccountId) && masterConnected) {
+      return primarySourceAccountId;
+    }
+
+    await masterService.setActiveAccount(primarySourceAccountId);
+    setMasterAccountId(primarySourceAccountId);
+    setMasterConnected(true);
+    window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, primarySourceAccountId);
+    window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY + '_connected', 'true');
+    return primarySourceAccountId;
+  }, [masterAccountId, masterConnected, primarySourceAccountId]);
 
   const handleManualCopyTrade = async () => {
     if (!manualTrade.symbol || !manualTrade.qty) {
@@ -686,68 +724,15 @@ const CopyTrading = () => {
     setSettingActive(true);
     try {
       await masterService.setActiveAccount(accountId);
-      const acc = accounts.find((item) => item.accountId === accountId);
       setMasterAccountId(accountId);
+      setMasterConnected(true);
       window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY, accountId);
+      window.localStorage.setItem(ACTIVE_MASTER_STORAGE_KEY + '_connected', 'true');
       addToast('Active trading account updated', 'success');
     } catch (error) {
       addToast(error.message || 'Failed to set active account', 'error');
     } finally {
       setSettingActive(false);
-    }
-  };
-
-  const handleAddChild = async () => {
-    if (!selectedChild) {
-      addToast('Please select a child account', 'error');
-      return;
-    }
-
-    const selectedChildRow = childOptions.find((item) => String(item.id) === String(selectedChild));
-    const targetChildId = selectedChildRow?.childId || selectedChild;
-    const scalingFactor = clampScalingFactor(childMultiplier);
-
-    try {
-      await masterService.linkChild(targetChildId, scalingFactor);
-      if (selectedChildRow) {
-        setChildren((prev) => {
-          const exists = prev.some((item) => String(item.id || item.childId) === String(targetChildId));
-          if (exists) {
-            return prev.map((item) =>
-              String(item.id || item.childId) === String(targetChildId)
-                ? { ...item, multiplier: scalingFactor, status: 'ACTIVE', enabled: true, isLinked: true, isSubscribedOnly: false }
-                : item,
-            );
-          }
-
-          return [
-            ...prev,
-            {
-              ...selectedChildRow,
-              childId: targetChildId,
-              id: targetChildId,
-              multiplier: scalingFactor,
-              status: 'ACTIVE',
-              enabled: true,
-              isLinked: true,
-              isSubscribedOnly: false,
-            },
-          ];
-        });
-      }
-
-      setSelectedChild('');
-      setChildMultiplier('1');
-      addToast('Child linked successfully', 'success');
-      await Promise.all([refetch(), refetchSubscriptions()]);
-    } catch (error) {
-      const message = error.message || 'Unable to link child';
-      if (message.toLowerCase().includes('already linked')) {
-        addToast('Child already linked', 'warning');
-        await Promise.all([refetch(), refetchSubscriptions()]);
-        return;
-      }
-      addToast(message, 'error');
     }
   };
 
@@ -758,6 +743,7 @@ const CopyTrading = () => {
     }
 
     try {
+      await ensureActiveSourceAccount();
       await masterService.bulkLinkChildren(
         selectedBulkChildren.map((rowId) => ({
           childId: childOptions.find((child) => String(child.id) === String(rowId))?.childId || rowId,
@@ -765,7 +751,6 @@ const CopyTrading = () => {
         })),
       );
       setSelectedBulkChildren([]);
-      setSelectedChild('');
       setChildMultiplier('1');
       addToast('Children connected successfully', 'success');
       await Promise.all([refetch(), refetchSubscriptions()]);
@@ -1037,137 +1022,261 @@ const CopyTrading = () => {
         <TradeLatencyCard copyResults={copyResultHistory} />
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GlassCard title="Master Setup" subtitle="Select the primary account to poll trades from">
-          {!masterConnected ? (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex-1">
-                  <DivSelect
-                    value={masterAccountId}
-                    onChange={setMasterAccountId}
-                    placeholder="Select Master Trading Account"
-                    options={accounts.map((account) => ({
-                      value: account.accountId,
-                      label: `${account.broker} - ${account.userId || account.accountId.slice(0, 8)}${account.nickname ? ` (${account.nickname})` : ''}`,
-                    }))}
-                    triggerClassName="w-full rounded-xl border border-border bg-black/5 px-4 py-3 text-sm font-bold focus:border-brand-purple dark:bg-white/5"
-                  />
-                </div>
-                <button
-                  onClick={handleConnectMaster}
-                  className="btn-primary px-8 py-3 text-sm font-black uppercase tracking-widest"
-                >
-                  Connect Master
-                </button>
-              </div>
-              <p className="text-[10px] text-muted-foreground bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-border/30">
-                Tip: The engine will monitor this account for new order executions and replicate them to all linked children based on their multipliers.
-              </p>
-            </div>
-          ) : (
-            <div className="relative flex flex-col gap-5 rounded-2xl border p-5 sm:p-6"
-              style={{ background: 'linear-gradient(135deg, rgba(0,200,150,0.1) 0%, rgba(0,200,150,0.04) 100%)', borderColor: 'rgba(0,200,150,0.25)' }}>
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 mt-0.5">
-                  <Wifi className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70">Master Account Active</p>
-                    <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
-                  </div>
-                  <p className="mt-1 text-2xl font-black tracking-tight text-foreground uppercase leading-tight break-words">
-                    {accounts.find((item) => item.accountId === masterAccountId)?.broker || 'Unknown'}
-                    <span className="mx-1 text-emerald-500/70">•</span>
-                    <span className="text-emerald-500">
-                      {accounts.find((item) => item.accountId === masterAccountId)?.nickname || accounts.find((item) => item.accountId === masterAccountId)?.userId || 'MASTER'}
-                    </span>
-                  </p>
-                </div>
-              </div>
+      {/* ── Master Setup ─────────────────────────────────────────────────────── */}
+      <div className="hidden" />
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="inline-flex items-center">
-                  <ToggleSwitch checked={pollingEnabled} disabled={togglingPolling} onChange={handleTogglePolling} label="Trading" showStateText />
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
-                {accounts.length > 1 && (
-                  <DivSelect
-                    value={masterAccountId}
-                    onChange={handleSetActiveAccount}
-                    disabled={settingActive}
-                    includeEmptyOption={false}
-                    options={accounts.map((account) => ({
-                      value: account.accountId,
-                      label: `${account.broker} - ${account.userId || account.accountId.slice(0, 8)}`,
-                    }))}
-                    triggerClassName="w-full sm:w-auto rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 text-xs font-bold text-emerald-500 focus:ring-0"
-                  />
+      {/* ── Connect Followers ─────────────────────────────────────────────────── */}
+      <GlassCard noPadding>
+        {/* Header */}
+        <div className="border-b border-border/40 px-6 pt-5 pb-4">
+          <div>
+            <h3 className="text-base font-black uppercase tracking-tight">Broker Connections</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Select multiple broker accounts on the left and connect them. Connected brokers will appear on the right.</p>
+          </div>
+        </div>
+
+        {/* Two-column body */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border/40">
+
+          {/* ── LEFT: Available to connect ─────────────────────────────────── */}
+          <div className="p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Available Brokers
+                {childOptions.length > 0 && (
+                  <span className="ml-1.5 text-foreground/60">({childOptions.length})</span>
                 )}
-                <button
-                  onClick={handleConnectMaster}
-                  className="btn-danger px-5 py-2.5 text-xs font-black uppercase tracking-widest"
-                >
-                  Disconnect
-                </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </GlassCard>
-
-        <GlassCard title="Connect Followers" subtitle="Link child accounts to your master feed">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Follower Accounts</label>
-                <MultiSelect
-                  value={selectedBulkChildren}
-                  onChange={setSelectedBulkChildren}
-                  placeholder="Select children to link..."
-                  options={childOptions.map((child) => ({
-                    value: child.id,
-                    label: `${child.broker} - ${child.nickname || child.userId}`,
-                  }))}
-                />
-              </div>
-              <div className="w-full sm:w-32 space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Multiplier</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={childMultiplier}
-                    onChange={(event) => setChildMultiplier(event.target.value)}
-                    placeholder="1.0"
-                    min="0.1"
-                    step="0.1"
-                    className="w-full rounded-xl border border-border bg-black/5 pl-4 pr-8 py-3 text-sm font-black focus:outline-none focus:border-brand-purple dark:bg-white/5"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">x</span>
-                </div>
+              </p>
+              <div className="flex items-center gap-3">
+                {childOptions.length > 0 && selectedBulkChildren.length < childOptions.length && (
+                  <button
+                    onClick={() => setSelectedBulkChildren(childOptions.map((c) => c.id))}
+                    className="text-[10px] font-black text-brand-purple hover:underline transition-colors"
+                  >
+                    Select all
+                  </button>
+                )}
+                {selectedBulkChildren.length > 0 && (
+                  <button
+                    onClick={() => setSelectedBulkChildren([])}
+                    className="text-[10px] font-black text-muted-foreground hover:text-rose-500 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 pt-4 border-t border-border/30">
+            <div className="space-y-1.5 flex-1 overflow-y-auto max-h-52 pr-0.5 scrollbar-hide">
+              {childOptions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-2.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <p className="text-xs font-bold text-muted-foreground">All brokers are connected</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">No pending broker accounts to link</p>
+                </div>
+              ) : (
+                childOptions.map((child) => {
+                  const isSelected = selectedBulkChildren.includes(child.id);
+                  return (
+                    <button
+                      key={child.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedBulkChildren((prev) =>
+                          isSelected ? prev.filter((id) => id !== child.id) : [...prev, child.id],
+                        )
+                      }
+                      className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-all text-left group ${
+                        isSelected
+                          ? 'border-brand-purple/40 bg-brand-purple/10'
+                          : 'border-border/40 bg-black/3 dark:bg-white/3 hover:border-brand-purple/20 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-all shrink-0 ${
+                          isSelected ? 'bg-brand-purple border-brand-purple' : 'border-border/60 group-hover:border-brand-purple/40'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black uppercase tracking-tight truncate">
+                          {child.nickname || child.userId || 'Broker Account'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-bold truncate">{child.userId}</p>
+                      </div>
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0 bg-brand-purple/15 text-brand-purple border border-brand-purple/20">
+                        {child.broker}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2.5 pt-1">
               <button
                 onClick={handleBulkLink}
                 disabled={selectedBulkChildren.length === 0}
-                className="btn-primary flex-1 px-6 py-3 text-sm font-black"
+                className="btn-primary flex-1 py-2.5 text-xs font-black disabled:opacity-50"
               >
-                <Link className="h-4 w-4" />
+                <Link className="h-3.5 w-3.5" />
                 Connect {selectedBulkChildren.length > 0 ? `(${selectedBulkChildren.length})` : 'Selected'}
               </button>
               <button
                 onClick={handleBulkUnlink}
-                className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-6 py-3 text-sm font-black text-rose-500 transition-all hover:bg-rose-500 hover:text-white"
+                disabled={linkedRows.length === 0}
+                className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-2.5 text-xs font-black text-rose-500 hover:bg-rose-500 hover:text-white transition-all disabled:opacity-40"
               >
                 Disconnect All
               </button>
             </div>
           </div>
-        </GlassCard>
-      </div>
+
+          {/* ── RIGHT: Connected followers ──────────────────────────────────── */}
+          <div className="p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Connected Brokers
+                {linkedRows.length > 0 && (
+                  <span className="ml-1.5 text-emerald-500">({linkedRows.length})</span>
+                )}
+              </p>
+              {linkedRows.length > 0 && (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </span>
+              )}
+            </div>
+
+            {linkedRows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center flex-1">
+                <div className="w-10 h-10 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center mb-2.5">
+                  <Users className="w-5 h-5 text-muted-foreground/40" />
+                </div>
+                <p className="text-xs font-bold text-muted-foreground">No brokers connected yet</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">Select accounts on the left and click Connect</p>
+              </div>
+            ) : (
+              <div className="space-y-2 overflow-y-auto max-h-64 pr-0.5 scrollbar-hide">
+                {primarySourceAccount && (
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/6 px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                        <span className="text-[10px] font-black uppercase tracking-wide text-emerald-500">
+                          Source Broker
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-sm font-black uppercase tracking-tight">
+                        {primarySourceAccount.broker || primarySourceAccount.brokerName || 'Broker'}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10px] font-bold text-muted-foreground">
+                        {primarySourceAccount.nickname || primarySourceAccount.userId || primarySourceAccount.clientId || shortId(primarySourceAccount.accountId || primarySourceAccount.id)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {linkedRows.map((child) => (
+                  <div
+                    key={`summary-${child.id}`}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-black/4 px-4 py-3 dark:bg-white/4"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                        <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                          {child.broker}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-sm font-black uppercase tracking-tight">
+                        {child.nickname || child.userId || 'Broker Account'}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10px] font-bold text-muted-foreground">
+                        {child.userId || shortId(child.brokerAccountId || child.accountId)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedRow(child); setDeleteModal(true); }}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 transition-all hover:bg-rose-500/10 hover:text-rose-500"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {false && linkedRows.map((child) => {
+                  return (
+                    <div
+                      key={child.id}
+                      className={`relative flex flex-col gap-2 p-3 rounded-2xl border transition-all ${
+                        isActive
+                          ? 'border-emerald-500/25 bg-emerald-500/6'
+                          : isPaused
+                          ? 'border-amber-500/25 bg-amber-500/6'
+                          : 'border-border/40 bg-black/4 dark:bg-white/4'
+                      }`}
+                    >
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedRow(child); setDeleteModal(true); }}
+                        className="absolute top-2.5 right-2.5 w-5 h-5 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+
+                      {/* Broker + status */}
+                      <div className="flex items-center gap-2 pr-5">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            isActive ? 'bg-emerald-500 animate-pulse' : isPaused ? 'bg-amber-500' : 'bg-slate-400'
+                          }`}
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                          {child.broker}
+                        </span>
+                      </div>
+
+                      {/* Name */}
+                      <p className="text-sm font-black uppercase tracking-tight truncate leading-none">
+                        {child.nickname || child.userId || 'Child'}
+                      </p>
+
+                      {/* Margin + multiplier row */}
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold ${effectiveMargin > 0 ? 'text-muted-foreground' : 'text-muted-foreground/40'}`}>
+                          {effectiveMargin > 0 ? formatCurrency(effectiveMargin) : '—'}
+                        </span>
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-brand-purple/15 text-brand-purple border border-brand-purple/20">
+                          {child.multiplier}x
+                        </span>
+                      </div>
+
+                      {/* Status badge */}
+                      <span
+                        className={`self-start text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${
+                          isActive
+                            ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
+                            : isPaused
+                            ? 'bg-amber-500/15 text-amber-500 border border-amber-500/20'
+                            : 'bg-black/10 dark:bg-white/10 text-muted-foreground border border-border/40'
+                        }`}
+                      >
+                        {child.status || 'Unknown'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </GlassCard>
 
       {masterConnected && (
         <div className="flex flex-col gap-4">
@@ -1488,13 +1597,6 @@ const CopyTrading = () => {
                             <RefreshCw className={`w-4 h-4 ${refreshing[child.id] ? 'animate-spin' : ''}`} />
                           </button>
                           <button
-                            onClick={() => navigate(`/master/demat/${child.brokerAccountId || child.accountId}`)}
-                            title="View Details"
-                            className="p-2 rounded-lg bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10 transition-all"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
                             onClick={() => {
                               setSelectedRow(child);
                               setDeleteModal(true);
@@ -1543,6 +1645,15 @@ const CopyTrading = () => {
               onClick={async () => {
                 try {
                   await masterService.unlinkChild(selectedRow.childId);
+                  setChildren((prev) =>
+                    prev.filter((child) => {
+                      const rowId = String(child.id || child.childId || '');
+                      const childId = String(child.childId || child.id || '');
+                      const selectedId = String(selectedRow.id || '');
+                      const selectedChildId = String(selectedRow.childId || '');
+                      return rowId !== selectedId && childId !== selectedChildId;
+                    }),
+                  );
                   addToast('Removed', 'success');
                   refetch();
                 } catch (error) {
