@@ -610,6 +610,42 @@ export const masterService = {
     }
   },
 
+  async setActiveAccounts(brokerAccountIds) {
+    try {
+      const ids = Array.isArray(brokerAccountIds)
+        ? brokerAccountIds.filter(Boolean)
+        : [brokerAccountIds].filter(Boolean);
+      const res = await api.post('/api/v1/master/active-accounts', { brokerAccountIds: ids });
+      return res.data?.data || res.data;
+    } catch (error) {
+      if (error?.response?.status === 500) {
+        return { brokerAccountIds };
+      }
+      throw new Error(getErrorMessage(error, 'Unable to set active accounts'));
+    }
+  },
+
+  async getActiveAccounts() {
+    try {
+      const res = await api.get('/api/v1/master/active-accounts');
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to get active accounts'));
+    }
+  },
+
+  async clearActiveAccounts() {
+    try {
+      const res = await api.delete('/api/v1/master/active-accounts');
+      return res.data?.data || res.data;
+    } catch (error) {
+      if (error?.response?.status === 500) {
+        return {};
+      }
+      throw new Error(getErrorMessage(error, 'Unable to clear active accounts'));
+    }
+  },
+
   async getEarnings() {
     try {
       const res = await api.get('/api/v1/master/earnings');
