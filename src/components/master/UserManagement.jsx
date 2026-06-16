@@ -179,6 +179,7 @@ const UserManagement = ({
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (error) addToast(error, 'error'); }, [addToast, error]);
 
+  // postMessage listener — fires when DematConnected popup completes OAuth and signals success
   useEffect(() => {
     const handler = (event) => {
       if (event.origin !== window.location.origin) return;
@@ -192,6 +193,7 @@ const UserManagement = ({
     return () => window.removeEventListener('message', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   const loadLiveAccountSnapshot = async (acc) => {
     const id = acc.accountId || acc.id;
@@ -744,16 +746,21 @@ const UserManagement = ({
       );
       const msg = e.message || '';
       const isOAuthBroker = ['upstox', 'zerodha', 'fyers'].includes(brokerKey);
+      // Only treat as an expired/used-code scenario when the backend says so explicitly.
+      // Do NOT include generic "400" or "invalid" — those trigger the reopen-OAuth loop
+      // for unrelated failures (e.g. API key not configured, redirect URL mismatch).
       const isExpiredOrUsedCode =
         msg.includes('already used') ||
         msg.includes('Invalid Auth') ||
         msg.includes('Invalid request_token') ||
         msg.includes('auth code') ||
-        msg.includes('single-use');
+        msg.includes('single-use') ||
+        msg.includes('AuthCodeAlreadyUsed') ||
+        msg.includes('code has expired');
 
-      if (isOAuthBroker && isExpiredOrUsedCode) {
-        // Before reopening OAuth, check if the backend already processed the code via its
-        // own callback handler — in that case the account is now connected and we're done.
+      if (isOAuthBroker) {
+        // Always check first: backend may have processed the OAuth via its own callback —
+        // in that case the account is already ACTIVE and we can just close the modal.
         try {
           const latestAccount = await brokerService.getAccount(loginTarget);
           const alreadyConnected =
@@ -766,36 +773,37 @@ const UserManagement = ({
             return;
           }
         } catch {
-          // Could not verify account status — fall through to offer fresh login
+          // Could not verify account status — fall through
         }
 
-        // Code was genuinely expired/unused: offer a fresh login
-        addToast(
-          'Auth code expired or already used — opening fresh broker login...',
-          'error'
-        );
-        setOauthRedirectUrl('');
-        setOauthOpened(false);
-        try {
-          const freshOauth = await brokerService.getOAuthUrl(loginTarget);
-          const freshUrl =
-            freshOauth?.oauthUrl || freshOauth?.loginUrl || freshOauth?.url || '';
-          if (freshUrl) {
-            setLoginConfig((prev) => ({
-              ...prev,
-              oauthUrl: freshUrl,
-              message: freshOauth?.message || prev?.message || '',
-            }));
-            openOauthWindow(freshUrl);
-          } else {
-            addToast('Could not get fresh login URL — please close and re-open the login modal.', 'error');
+        // Only auto-reopen OAuth when the code is genuinely expired or already used.
+        // For any other error (400 from bad credentials, redirect URL mismatch, etc.)
+        // just show the message so the user knows what to fix — don't loop.
+        if (isExpiredOrUsedCode) {
+          addToast('Auth code expired or already used — opening fresh broker login...', 'error');
+          setOauthRedirectUrl('');
+          setOauthOpened(false);
+          try {
+            const freshOauth = await brokerService.getOAuthUrl(loginTarget);
+            const freshUrl = freshOauth?.oauthUrl || freshOauth?.loginUrl || freshOauth?.url || '';
+            if (freshUrl) {
+              setLoginConfig((prev) => ({
+                ...prev,
+                oauthUrl: freshUrl,
+                message: freshOauth?.message || prev?.message || '',
+              }));
+              openOauthWindow(freshUrl);
+            } else {
+              addToast('Could not get fresh login URL — please close and re-open the login modal.', 'error');
+            }
+          } catch {
+            addToast('Could not get fresh login URL. Please try again.', 'error');
           }
-        } catch {
-          addToast('Could not get fresh login URL. Please try again.', 'error');
+          return;
         }
-        return;
       }
 
+      // Show the actual backend error message so the user knows what's wrong.
       addToast(msg || 'Broker login failed', 'error');
     } finally {
       setLoginLoading(false);
@@ -1469,13 +1477,28 @@ const UserManagement = ({
                       <p className="text-xs text-danger">Could not get OAuth URL. Delete and re-add this account.</p>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    {oauthOpened ? 'After completing login, copy the full redirect URL from your browser and paste it below.' : 'Click above to open broker login. After login, paste the redirect URL here.'}
-                  </p>
+                  {oauthOpened ? (
+                    <div className="flex items-start gap-2.5 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/8">
+                      <span className="mt-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Waiting for login to complete...</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Complete the login in the popup. This dialog will close automatically once connected.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Click above to open broker login in a popup. The dialog will close automatically once you complete login.</p>
+                  )}
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Redirect URL (paste after login)</label>
+                    <label className="block text-xs text-muted-foreground mb-1">
+                      {oauthOpened ? 'Not closing automatically? Paste redirect URL or auth code here' : 'Or paste redirect URL / auth code manually'}
+                    </label>
                     <input value={oauthRedirectUrl} onChange={(e) => setOauthRedirectUrl(e.target.value)}
-                      placeholder="https://...?tokenId=..." className={inputCls} />
+                      placeholder="Paste full URL  —  or just the authCode value" className={inputCls} />
+                    {oauthOpened && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Tip: paste the full callback URL <span className="font-mono">(...?code=XXX)</span> or just the code value itself.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1492,13 +1515,28 @@ const UserManagement = ({
                   <p className="text-xs text-danger">Could not get OAuth URL. Delete and re-add this account.</p>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                {oauthOpened ? 'After completing login, copy the full redirect URL from your browser and paste it below.' : 'Click above to open broker login. After login, paste the redirect URL here.'}
-              </p>
+              {oauthOpened ? (
+                <div className="flex items-start gap-2.5 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/8">
+                  <span className="mt-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Waiting for login to complete...</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Complete the login in the popup. This dialog will close automatically once connected.</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Click above to open broker login in a popup. The dialog will close automatically once you complete login.</p>
+              )}
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Redirect URL (paste after login)</label>
+                <label className="block text-xs text-muted-foreground mb-1">
+                  {oauthOpened ? 'Not closing automatically? Paste the redirect URL or auth code here' : 'Or paste redirect URL / auth code manually'}
+                </label>
                 <input value={oauthRedirectUrl} onChange={(e) => setOauthRedirectUrl(e.target.value)}
-                  placeholder="https://...?request_token=..." className={inputCls} />
+                  placeholder="Paste full URL  —  or just the authCode value" className={inputCls} />
+                {oauthOpened && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Tip: you can paste the full callback URL <span className="font-mono">(...?code=XXX)</span> or just the code value itself.
+                  </p>
+                )}
               </div>
             </div>
           ) : (

@@ -235,24 +235,24 @@ const FindMasters = () => {
   };
 
   const MultiplierControl = () => (
-    <div>
-      <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-        <Sliders className="w-4 h-4 text-brand-purple" /> Scaling Factor
+    <div className="space-y-2.5">
+      <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Sliders className="h-3.5 w-3.5 text-brand-purple" /> Scaling Factor
       </label>
-      <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-xl border border-border/40">
+      <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-black/5 px-3 py-3 dark:bg-white/5">
         <button type="button"
           onClick={() => { const i = MULTIPLIER_STEPS.indexOf(multiplier); if (i > 0) setMultiplier(MULTIPLIER_STEPS[i - 1]); }}
-          className="w-9 h-9 bg-black/8 dark:bg-white/8 hover:bg-black/12 dark:hover:bg-white/12 rounded-lg text-lg font-bold transition-all border border-border flex items-center justify-center">
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-black/10 text-lg font-bold transition-all hover:bg-black/15 dark:bg-white/10 dark:hover:bg-white/15">
           −
         </button>
         <div className="flex-1 text-center">
-          <span className="text-3xl font-black bg-gradient-to-r from-brand-purple to-brand-blue bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-brand-purple to-brand-blue bg-clip-text text-2xl font-black text-transparent">
             {multiplier}x
           </span>
         </div>
         <button type="button"
           onClick={() => { const i = MULTIPLIER_STEPS.indexOf(multiplier); if (i < MULTIPLIER_STEPS.length - 1) setMultiplier(MULTIPLIER_STEPS[i + 1]); }}
-          className="w-9 h-9 bg-black/8 dark:bg-white/8 hover:bg-black/12 dark:hover:bg-white/12 rounded-lg text-lg font-bold transition-all border border-border flex items-center justify-center">
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-black/10 text-lg font-bold transition-all hover:bg-black/15 dark:bg-white/10 dark:hover:bg-white/15">
           +
         </button>
       </div>
@@ -270,7 +270,7 @@ const FindMasters = () => {
           step="0.5"
           value={priceTolerancePct}
           onChange={(e) => setPriceTolerancePct(clampPriceTolerance(e.target.value))}
-          className="w-20 rounded-lg border border-border bg-black/5 px-2 py-1 text-right text-sm font-bold outline-none focus:border-brand-purple dark:bg-white/5"
+          className="w-20 rounded-xl border border-border bg-black/5 px-3 py-1.5 text-right text-sm font-bold outline-none focus:border-brand-purple dark:bg-white/5"
         />
       </div>
       <input
@@ -282,7 +282,7 @@ const FindMasters = () => {
         onChange={(e) => setPriceTolerancePct(clampPriceTolerance(e.target.value))}
         className="w-full accent-brand-purple"
       />
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
         Adjusts limit order price by +/-{clampPriceTolerance(priceTolerancePct).toFixed(1)}% to handle slippage. Default 2%. Set 0 for exact master price.
       </p>
     </div>
@@ -436,7 +436,7 @@ const FindMasters = () => {
       {/* Subscribe modal */}
       <Modal isOpen={subscribeModal} onClose={() => setSubscribeModal(false)} title={`Subscribe — ${subscribeMaster?.name}`} size="md">
         {subscribeMaster && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {subscribeSuccess ? (
               <div className="text-center py-4 space-y-3">
                 <div className="w-14 h-14 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center mx-auto">
@@ -450,12 +450,12 @@ const FindMasters = () => {
             ) : (
               <>
                 {/* Master preview */}
-                <div className="p-3 bg-brand-purple/8 border border-brand-purple/18 rounded-xl flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-black/5 px-4 py-4 dark:bg-white/5">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-purple to-brand-blue">
                     <span className="text-sm font-bold text-white">{subscribeMaster.initials}</span>
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm">{subscribeMaster.name}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{subscribeMaster.name}</p>
                     <p className="text-xs text-muted-foreground">+{subscribeMaster.return30d}% 30d · {subscribeMaster.winRate}% win rate</p>
                   </div>
                 </div>
@@ -467,11 +467,11 @@ const FindMasters = () => {
                   {loadingBrokers ? (
                     <div className="text-xs text-muted-foreground">Loading accounts...</div>
                   ) : brokerAccounts.length === 0 ? (
-                    <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-3 py-2 text-xs text-rose-500">
+                    <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-3 py-2.5 text-xs leading-relaxed text-rose-500">
                       No active broker accounts found. Please connect a broker in Demat Accounts first.
                     </div>
                   ) : (
-                                        <DivSelect
+                    <DivSelect
                       value={selectedBrokerAccountId}
                       onChange={setSelectedBrokerAccountId}
                       placeholder="Select broker account..."
@@ -479,7 +479,7 @@ const FindMasters = () => {
                         value: account.accountId,
                         label: `${account.brokerName || account.broker} - ${account.nickname || account.clientId}${!account.sessionActive ? ' (session expired)' : ''}`,
                       }))}
-                      triggerClassName="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple"
+                      triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm focus:border-brand-purple dark:bg-white/5"
                     />
                   )}
                   {selectedBrokerAccountId && brokerAccounts.find((a) => a.accountId === selectedBrokerAccountId && !a.sessionActive) && (
@@ -492,7 +492,7 @@ const FindMasters = () => {
                 <MultiplierControl />
                 <PriceToleranceControl />
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allocation Amount (Optional)</label>
                   <input
                     type="number"
@@ -501,14 +501,14 @@ const FindMasters = () => {
                     value={allocationAmount}
                     onChange={(e) => setAllocationAmount(e.target.value)}
                     placeholder="e.g. 50000"
-                    className="w-full rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple outline-none"
+                    className="w-full rounded-xl border border-border bg-black/5 px-3 py-2.5 text-sm outline-none focus:border-brand-purple dark:bg-white/5"
                   />
                 </div>
 
                 {/* NEW: Copy Mode selector */}
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Copy Mode</label>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {copySidesOptions.map((opt) => (
                       <button
                         key={opt.id}
@@ -517,27 +517,27 @@ const FindMasters = () => {
                           setCopySides(opt.id);
                           if (opt.id !== 'MIRROR') setAllowShortSelling(false);
                         }}
-                        className={`w-full text-left rounded-xl border p-3 transition-all text-sm ${
+                        className={`w-full rounded-xl border p-3.5 text-left transition-all text-sm ${
                           copySides === opt.id
                             ? 'border-brand-purple/50 bg-brand-purple/10 text-foreground'
                             : 'border-border/50 bg-black/5 dark:bg-white/5 text-muted-foreground hover:border-brand-purple/30'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-xs">{opt.label}</span>
+                          <span className="text-xs font-semibold">{opt.label}</span>
                           <span className={`h-3 w-3 rounded-full border-2 shrink-0 ${
                             copySides === opt.id ? 'border-brand-purple bg-brand-purple' : 'border-muted-foreground/40'
                           }`} />
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1">{opt.description}</p>
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{opt.description}</p>
                       </button>
                     ))}
                   </div>
                   {copySides === 'MIRROR' && (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5">
                       <div>
                         <p className="text-xs font-semibold">Allow Short Selling</p>
-                        <p className="text-[11px] text-muted-foreground">Enable naked shorts in MIRROR mode</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Enable naked shorts in MIRROR mode</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer shrink-0">
                         <input type="checkbox" checked={allowShortSelling} onChange={(e) => setAllowShortSelling(e.target.checked)} className="sr-only" />
@@ -550,12 +550,12 @@ const FindMasters = () => {
                 </div>
 
                 {/* Approval flow info */}
-                <div className="p-3 bg-amber-500/8 border border-amber-500/18 rounded-xl">
+                <div className="rounded-xl border border-amber-500/18 bg-amber-500/8 p-3.5">
                   <div className="flex items-start gap-2">
                     <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-0.5">Approval Required</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs leading-relaxed text-muted-foreground">
                         Your request will be sent to {subscribeMaster.name} for approval. Trading will start automatically once they accept. You can cancel anytime.
                       </p>
                     </div>
@@ -563,9 +563,9 @@ const FindMasters = () => {
                 </div>
 
                 <div className="flex gap-3 pt-1">
-                  <button onClick={() => setSubscribeModal(false)} className="flex-1 py-2.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm transition-colors">Cancel</button>
+                  <button onClick={() => setSubscribeModal(false)} className="flex-1 rounded-xl bg-black/5 py-2.5 text-sm font-medium transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10">Cancel</button>
                   <button onClick={confirmSubscribe} disabled={!selectedBrokerAccountId || loadingBrokers || brokerAccounts.length === 0 || subscribing}
-                    className="flex-1 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-purple py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-purple/90 disabled:opacity-50">
                     {subscribing ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
                     {subscribing ? 'Sending…' : 'Send Request'}
                   </button>

@@ -144,6 +144,21 @@ const normalizeChildRow = (child) => {
   };
 };
 
+const matchesChildRow = (row, target) => {
+  const rowId = String(row?.id || row?.childId || row?.subscriptionId || '');
+  const rowChildId = String(row?.childId || row?.id || '');
+  const rowAccountId = String(row?.brokerAccountId || row?.accountId || '');
+  const targetId = String(target?.id || target?.childId || target?.subscriptionId || '');
+  const targetChildId = String(target?.childId || target?.id || '');
+  const targetAccountId = String(target?.brokerAccountId || target?.accountId || '');
+
+  return (
+    (targetId && rowId === targetId) ||
+    (targetChildId && rowChildId === targetChildId) ||
+    (targetAccountId && rowAccountId === targetAccountId)
+  );
+};
+
 const StatusLabel = ({ status }) => {
   const normalized = String(status || '').toUpperCase();
   const cls =
@@ -161,7 +176,7 @@ const CopyTrading = () => {
   const navigate = useNavigate();
   const { accounts, loading: accountsLoading } = useBrokerAccounts();
   const { children, loading, refetch, setChildren } = useMasterChildren();
-  const { subscriptions, loading: subscriptionsLoading, refetch: refetchSubscriptions } = useMasterSubscriptions();
+  const { subscriptions, setSubscriptions, loading: subscriptionsLoading, refetch: refetchSubscriptions } = useMasterSubscriptions();
 
   const [masterAccountId, setMasterAccountId] = useState(
     () => window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY) || ''
@@ -769,10 +784,8 @@ const CopyTrading = () => {
 
     try {
       await Promise.allSettled(linkedRows.map((child) => masterService.unlinkChild(child.childId)));
-      setChildren(prev => prev.filter(item => {
-        const id = item.id || item.childId;
-        return !linkedRows.some(lr => lr.childId === id);
-      }));
+      setChildren((prev) => prev.filter((item) => !linkedRows.some((row) => matchesChildRow(item, row))));
+      setSubscriptions((prev) => prev.filter((item) => !linkedRows.some((row) => matchesChildRow(item, row))));
       addToast('All linked children disconnected', 'success');
       await Promise.all([refetch(), refetchSubscriptions()]);
     } catch (error) {
@@ -1645,17 +1658,10 @@ const CopyTrading = () => {
               onClick={async () => {
                 try {
                   await masterService.unlinkChild(selectedRow.childId);
-                  setChildren((prev) =>
-                    prev.filter((child) => {
-                      const rowId = String(child.id || child.childId || '');
-                      const childId = String(child.childId || child.id || '');
-                      const selectedId = String(selectedRow.id || '');
-                      const selectedChildId = String(selectedRow.childId || '');
-                      return rowId !== selectedId && childId !== selectedChildId;
-                    }),
-                  );
+                  setChildren((prev) => prev.filter((child) => !matchesChildRow(child, selectedRow)));
+                  setSubscriptions((prev) => prev.filter((child) => !matchesChildRow(child, selectedRow)));
                   addToast('Removed', 'success');
-                  refetch();
+                  await Promise.all([refetch(), refetchSubscriptions()]);
                 } catch (error) {
                   addToast(error.message, 'error');
                 }

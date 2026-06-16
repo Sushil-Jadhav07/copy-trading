@@ -47,7 +47,7 @@ export const useMasterSubscriptions = () => {
     load();
   }, [load]);
 
-  return { subscriptions, loading, error, refetch: load };
+  return { subscriptions, setSubscriptions, loading, error, refetch: load };
 };
 
 export const useMasterPendingChildren = () => {
