@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, AlertTriangle, AlertCircle, Server } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertTriangle, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
@@ -55,35 +55,6 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(num) ? num : fallback;
 };
 
-const buildProxyFormState = (source = {}) => ({
-  proxyHost: String(source.proxyHost || '').trim(),
-  proxyPort: source.proxyPort ? String(source.proxyPort) : '',
-  proxyUser: String(source.proxyUser || '').trim(),
-  proxyPass: '',
-});
-
-const validateProxyForm = (values = {}) => {
-  const proxyHost = String(values.proxyHost || '').trim();
-  const rawProxyPort = String(values.proxyPort || '').trim();
-  const proxyUser = String(values.proxyUser || '').trim();
-  const proxyPass = String(values.proxyPass || '').trim();
-
-  if (!proxyHost && !rawProxyPort && !proxyUser && !proxyPass) {
-    return {};
-  }
-
-  const errors = {};
-  if (!proxyHost) errors.proxyHost = 'Proxy host is required';
-
-  const port = Number(rawProxyPort);
-  if (!rawProxyPort) {
-    errors.proxyPort = 'Proxy port is required';
-  } else if (!Number.isInteger(port) || port <= 0) {
-    errors.proxyPort = 'Enter a valid port number';
-  }
-
-  return errors;
-};
 
 const TransBadge = ({ type }) => (
   <span
@@ -131,10 +102,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const [balanceAlert, setBalanceAlert] = useState(null);
   const [growwReAuthToken, setGrowwReAuthToken] = useState('');
   const [growwReAuthLoading, setGrowwReAuthLoading] = useState(false);
-  const [proxyForm, setProxyForm] = useState(buildProxyFormState());
-  const [proxyErrors, setProxyErrors] = useState({});
-  const [proxySaving, setProxySaving] = useState(false);
-  const [proxyRemoving, setProxyRemoving] = useState(false);
   const isChildScope = scope === 'child';
 
   const resolvedBack = onBack || (() => navigate('/master/user-management'));
@@ -164,14 +131,8 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           sessionActive: data.account.sessionActive,
           status: data.account.status,
           linkedAt: data.account.linkedAt || null,
-          proxyHost: data.account.proxyHost || '',
-          proxyPort: data.account.proxyPort || 0,
-          proxyUser: data.account.proxyUser || '',
-          proxyConfigured: Boolean(data.account.proxyConfigured),
         };
         setAccount(nextAccount);
-        setProxyForm(buildProxyFormState(nextAccount));
-        setProxyErrors({});
 
         if (data.errors?.positions) {
           setPositionsError(data.errors.positions);
@@ -220,10 +181,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
             sessionActive: false,
             status: 'INACTIVE',
             linkedAt: fallback.linkedAt || fallback.createdAt || null,
-            proxyHost: fallback.proxyHost || '',
-            proxyPort: fallback.proxyPort || 0,
-            proxyUser: fallback.proxyUser || '',
-            proxyConfigured: Boolean(fallback.proxyConfigured),
           });
           setPositionsError('Broker session is not active. Re-login to see live data.');
         } catch {
@@ -262,17 +219,9 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           sessionActive: data.account.sessionActive,
           status: data.account.status,
           linkedAt: data.account.linkedAt || prev?.linkedAt || null,
-          proxyHost: data.account.proxyHost || '',
-          proxyPort: data.account.proxyPort || 0,
-          proxyUser: data.account.proxyUser || '',
-          proxyConfigured: Boolean(data.account.proxyConfigured),
         };
         return refreshedAccount;
       });
-      if (refreshedAccount) {
-        setProxyForm(buildProxyFormState(refreshedAccount));
-        setProxyErrors({});
-      }
 
       if (data.errors?.positions) {
         setPositionsError(data.errors.positions);
@@ -369,17 +318,9 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           ...(prev || {}),
           sessionActive: data.account.sessionActive,
           margin: data.margin?.availableMargin ?? prev?.margin ?? 0,
-          proxyHost: data.account.proxyHost || '',
-          proxyPort: data.account.proxyPort || 0,
-          proxyUser: data.account.proxyUser || '',
-          proxyConfigured: Boolean(data.account.proxyConfigured),
         };
         return refreshedAccount;
       });
-      if (refreshedAccount) {
-        setProxyForm(buildProxyFormState(refreshedAccount));
-        setProxyErrors({});
-      }
       setPositions(data.positions || []);
       setOrders(data.orders || []);
     } catch (e) {
@@ -405,49 +346,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
 
     const days = Math.floor(hrs / 24);
     return `Last synced: ${days} day${days === 1 ? '' : 's'} ago`;
-  };
-
-  const handleProxyFieldChange = (field, value) => {
-    setProxyForm((prev) => ({ ...prev, [field]: value }));
-    setProxyErrors((prev) => ({ ...prev, [field]: '' }));
-  };
-
-  const handleSaveProxy = async () => {
-    const errors = validateProxyForm(proxyForm);
-    setProxyErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setProxySaving(true);
-    try {
-      await brokerService.updateAccount(accountId, {
-        proxyHost: proxyForm.proxyHost.trim(),
-        proxyPort: Number(proxyForm.proxyPort),
-        proxyUser: proxyForm.proxyUser.trim(),
-        proxyPass: proxyForm.proxyPass,
-      });
-      await handleRefresh();
-      setProxyForm((prev) => ({ ...prev, proxyPass: '' }));
-      addToast('Proxy settings updated', 'success');
-    } catch (e) {
-      addToast(e.message || 'Unable to update proxy settings', 'error');
-    } finally {
-      setProxySaving(false);
-    }
-  };
-
-  const handleRemoveProxy = async () => {
-    setProxyRemoving(true);
-    try {
-      await brokerService.updateAccount(accountId, { proxyHost: '', proxyPort: 0, proxyUser: '', proxyPass: '' });
-      await handleRefresh();
-      setProxyForm(buildProxyFormState());
-      setProxyErrors({});
-      addToast('Proxy removed. Broker is back on direct routing.', 'success');
-    } catch (e) {
-      addToast(e.message || 'Unable to remove proxy', 'error');
-    } finally {
-      setProxyRemoving(false);
-    }
   };
 
   if (!account && !loadingData) {
@@ -494,8 +392,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
     const parts = [nickname, broker, userId].filter(Boolean);
     return parts.length ? parts.join(' - ').toUpperCase() : 'DEMAT ACCOUNT';
   })();
-  const proxyActive = Boolean(account?.proxyConfigured && account?.proxyHost && Number(account?.proxyPort) > 0);
-
   return (
     <div className="space-y-6">
       <div className="glass-card p-4 flex items-center justify-between">
@@ -582,91 +478,6 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           </div>
         </div>
       )}
-
-      <div className="glass-card p-4 space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Server className="w-4 h-4 text-brand-purple" />
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-wide">Proxy Routing</h2>
-              <p className="text-xs text-muted-foreground">
-                Optional. Use this when your broker requires a whitelisted source IP.
-              </p>
-            </div>
-          </div>
-          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${proxyActive ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-border bg-black/5 text-muted-foreground dark:bg-white/5'}`}>
-            {proxyActive ? `Active: ${account?.proxyHost}:${account?.proxyPort}` : 'Direct connection'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="space-y-1">
-            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Host</label>
-            <input
-              value={proxyForm.proxyHost}
-              onChange={(e) => handleProxyFieldChange('proxyHost', e.target.value)}
-              placeholder="127.0.0.1"
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
-            />
-            {proxyErrors.proxyHost && <p className="text-danger text-xs">{proxyErrors.proxyHost}</p>}
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Proxy Port</label>
-            <input
-              value={proxyForm.proxyPort}
-              onChange={(e) => handleProxyFieldChange('proxyPort', e.target.value.replace(/[^\d]/g, ''))}
-              placeholder="8889"
-              inputMode="numeric"
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
-            />
-            {proxyErrors.proxyPort && <p className="text-danger text-xs">{proxyErrors.proxyPort}</p>}
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Username</label>
-            <input
-              value={proxyForm.proxyUser}
-              onChange={(e) => handleProxyFieldChange('proxyUser', e.target.value)}
-              placeholder="Optional"
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground">Password</label>
-            <input
-              type="password"
-              value={proxyForm.proxyPass}
-              onChange={(e) => handleProxyFieldChange('proxyPass', e.target.value)}
-              placeholder={proxyActive ? 'Enter only when changing password' : 'Optional'}
-              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">
-            Leave all fields empty for direct routing. Proxy passwords are not returned by the API, so only re-enter them when changing credentials.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={handleRemoveProxy}
-              disabled={proxyRemoving || proxySaving || !proxyActive}
-              className="px-4 py-2 rounded-lg border border-border/70 bg-black/5 text-sm transition-colors hover:bg-black/10 disabled:opacity-50 dark:bg-white/5 dark:hover:bg-white/10"
-            >
-              {proxyRemoving ? 'Removing...' : 'Remove Proxy'}
-            </button>
-            <button
-              onClick={handleSaveProxy}
-              disabled={proxySaving || proxyRemoving}
-              className="px-4 py-2 rounded-lg bg-brand-purple text-sm font-medium text-white transition-colors hover:bg-brand-purple/90 disabled:opacity-60"
-            >
-              {proxySaving ? 'Saving...' : 'Save Proxy'}
-            </button>
-          </div>
-        </div>
-      </div>
 
       <div className="glass-card overflow-hidden">
         <div className="flex border-b border-border/50">

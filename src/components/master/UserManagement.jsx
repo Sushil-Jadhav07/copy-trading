@@ -155,7 +155,6 @@ const UserManagement = ({
   const [selectedAcc, setSelectedAcc]   = useState(null);
   const [refreshing, setRefreshing]     = useState({});
   const [testing, setTesting]           = useState({});
-  const [search, setSearch]             = useState('');
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [formErrors, setFormErrors]     = useState({});
   const [loginTarget, setLoginTarget]   = useState(null);
@@ -302,9 +301,7 @@ const UserManagement = ({
     [brokers]
   );
 
-  const filtered = accounts.filter((a) =>
-    !search || `${a.broker} ${a.userId} ${a.nickname} ${a.proxyHost || ''}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = accounts;
 
   const handleBrokerChange = (value) => {
     setForm({ ...EMPTY_FORM, broker: normalizeBrokerKey(value) });
@@ -665,19 +662,25 @@ const UserManagement = ({
       const selectedMethod = normalizeLoginMethod(activeLoginMethod || loginConfig.recommendedLoginMethod || loginConfig.loginMethod);
       const needsApiKey = Boolean(loginConfig.needsCredentials);
       const needsApiSecret = Boolean(loginConfig.needsCredentials);
+      // hasStoredApiKey: credentials were saved during addAccount — don't require re-entry
+      const hasStoredApiKey = Boolean(loginConfig?.hasStoredApiKey);
+      const newApiKey = needsApiKey ? form.apiKey.trim() : '';
+      const newApiSecret = needsApiSecret ? form.apiSecret.trim() : '';
       const nextErrors = {};
-      if (needsApiKey && !form.apiKey.trim()) nextErrors.apiKey = 'Required';
-      if (needsApiSecret && !form.apiSecret.trim()) nextErrors.apiSecret = 'Required';
+      // Only block if credentials are truly missing (not stored and not entered now)
+      if (needsApiKey && !newApiKey && !hasStoredApiKey) nextErrors.apiKey = 'Required';
+      if (needsApiSecret && !newApiSecret && !hasStoredApiKey) nextErrors.apiSecret = 'Required';
       if (Object.keys(nextErrors).length > 0) {
         setLoginFormErrors(nextErrors);
         addToast('Enter the required broker credentials first', 'error');
         return;
       }
       setLoginFormErrors({});
-      if (needsApiKey || needsApiSecret) {
+      // Only update credentials when the user explicitly entered new ones — never overwrite with empty
+      if (newApiKey || newApiSecret) {
         await brokerService.updateAccount(loginTarget, {
-          ...(needsApiKey ? { apiKey: form.apiKey.trim() } : {}),
-          ...(needsApiSecret ? { apiSecret: form.apiSecret.trim() } : {}),
+          ...(newApiKey ? { apiKey: newApiKey } : {}),
+          ...(newApiSecret ? { apiSecret: newApiSecret } : {}),
         });
         const brokerKey = normalizeBrokerKey(
           loginConfig?.brokerId || loginConfig?.broker || ''
@@ -749,8 +752,26 @@ const UserManagement = ({
         msg.includes('single-use');
 
       if (isOAuthBroker && isExpiredOrUsedCode) {
+        // Before reopening OAuth, check if the backend already processed the code via its
+        // own callback handler — in that case the account is now connected and we're done.
+        try {
+          const latestAccount = await brokerService.getAccount(loginTarget);
+          const alreadyConnected =
+            latestAccount?.sessionActive ||
+            String(latestAccount?.status || '').toUpperCase() === 'ACTIVE';
+          if (alreadyConnected) {
+            closeLoginModal();
+            addToast('Broker connected & verified successfully', 'success');
+            refetch();
+            return;
+          }
+        } catch {
+          // Could not verify account status — fall through to offer fresh login
+        }
+
+        // Code was genuinely expired/unused: offer a fresh login
         addToast(
-          'Auth code expired or already used - opening fresh broker login...',
+          'Auth code expired or already used — opening fresh broker login...',
           'error'
         );
         setOauthRedirectUrl('');
@@ -767,7 +788,7 @@ const UserManagement = ({
             }));
             openOauthWindow(freshUrl);
           } else {
-            addToast('Could not get fresh login URL - please close and re-open the login modal.', 'error');
+            addToast('Could not get fresh login URL — please close and re-open the login modal.', 'error');
           }
         } catch {
           addToast('Could not get fresh login URL. Please try again.', 'error');
@@ -782,21 +803,6 @@ const UserManagement = ({
   };
 
   /* ── Test existing account connection ── */
-  const handleTestAccount = async (acc) => {
-    const id = acc.accountId || acc.id;
-    setTesting((p) => ({ ...p, [id]: true }));
-    try {
-      const test = await brokerService.testAccount(id);
-      await refetch();
-      const message = test?.message || 'Connection verified';
-      addToast(message, 'success');
-    } catch (e) {
-      addToast('Connection test failed: ' + e.message, 'error');
-    } finally {
-      setTesting((p) => ({ ...p, [id]: false }));
-    }
-  };
-
   const handleRefresh = async (acc) => {
     const id = acc.accountId || acc.id;
     setRefreshing((p) => ({ ...p, [id]: true }));
@@ -1181,13 +1187,6 @@ const UserManagement = ({
 
       {/* ── Accounts table ── */}
       <GlassCard noPadding>
-        <div className="p-4 border-b border-border/50 flex items-center justify-between gap-3 flex-wrap">
-          <label htmlFor="usermgmt-search" className="sr-only">Search accounts</label>
-          <input id="usermgmt-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts..." autoComplete="off"
-            className="w-full max-w-xs bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-purple placeholder:text-muted-foreground/40" />
-          <span className="text-xs text-muted-foreground">{filtered.length} account{filtered.length !== 1 ? 's' : ''}</span>
-        </div>
-
         {loading ? (
           <div className="p-4"><SkeletonLoader type="table" rows={4} columns={8} /></div>
         ) : (
@@ -1262,10 +1261,6 @@ const UserManagement = ({
                           <ActionBtn title="Refresh" color="purple" onClick={() => handleRefresh(acc)} spin={refreshing[id]}>
                             <RefreshCw className="w-3.5 h-3.5" />
                           </ActionBtn>
-                          {/* Test Connection */}
-                          <ActionBtn title="Test Connection" color="amber" onClick={() => handleTestAccount(acc)} spin={testing[id]}>
-                            <Zap className="w-3.5 h-3.5" />
-                          </ActionBtn>
                           {!isChildScope && (
                             <ActionBtn title="View Details" color="blue" onClick={() => navigate(`${detailBasePath}/${id}`)}>
                               <Eye className="w-3.5 h-3.5" />
@@ -1317,16 +1312,23 @@ const UserManagement = ({
           {loginConfig?.message && <p className="text-xs text-muted-foreground">{loginConfig.message}</p>}
           {(loginNeedsApiKey || loginNeedsApiSecret) && (
             <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/60 bg-black/5 p-3 dark:bg-white/5">
+              {loginConfig?.hasStoredApiKey && (
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                  API credentials are already stored. Leave blank to keep existing credentials, or enter new ones to update.
+                </p>
+              )}
               {loginNeedsApiKey && (
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">API Key</label>
+                  <label className="block text-xs text-muted-foreground mb-1">
+                    API Key{loginConfig?.hasStoredApiKey ? ' (optional — stored)' : ''}
+                  </label>
                   <input
                     value={form.apiKey}
                     onChange={(e) => {
                       setForm((prev) => ({ ...prev, apiKey: e.target.value }));
                       setLoginFormErrors((prev) => ({ ...prev, apiKey: undefined }));
                     }}
-                    placeholder="Enter your broker API key"
+                    placeholder={loginConfig?.hasStoredApiKey ? 'Leave blank to keep stored key' : 'Enter your broker API key'}
                     className={inputCls}
                   />
                   {loginFormErrors.apiKey && <p className="text-danger text-xs mt-1">{loginFormErrors.apiKey}</p>}
@@ -1334,7 +1336,9 @@ const UserManagement = ({
               )}
               {loginNeedsApiSecret && (
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">API Secret</label>
+                  <label className="block text-xs text-muted-foreground mb-1">
+                    API Secret{loginConfig?.hasStoredApiKey ? ' (optional — stored)' : ''}
+                  </label>
                   <input
                     type="password"
                     value={form.apiSecret}
@@ -1342,7 +1346,7 @@ const UserManagement = ({
                       setForm((prev) => ({ ...prev, apiSecret: e.target.value }));
                       setLoginFormErrors((prev) => ({ ...prev, apiSecret: undefined }));
                     }}
-                    placeholder="Enter your broker API secret"
+                    placeholder={loginConfig?.hasStoredApiKey ? 'Leave blank to keep stored secret' : 'Enter your broker API secret'}
                     className={inputCls}
                   />
                   {loginFormErrors.apiSecret && <p className="text-danger text-xs mt-1">{loginFormErrors.apiSecret}</p>}

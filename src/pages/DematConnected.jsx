@@ -39,7 +39,8 @@ const DematConnected = () => {
   const storedAccountId = typeof window !== 'undefined'
     ? window.sessionStorage.getItem('oauth-pending-account-id')
     : null;
-  const accountId = searchParams.get('accountId') || searchParams.get('account_id') || storedAccountId;
+  // Upstox sends ?state=<accountId>&code=<authCode>; Zerodha/Fyers may send ?accountId=
+  const accountId = searchParams.get('accountId') || searchParams.get('account_id') || searchParams.get('state') || storedAccountId;
   const requestToken = searchParams.get('request_token');   // Zerodha
   const authCode    = searchParams.get('auth_code');        // Fyers
   const code        = searchParams.get('code');             // Upstox — sends ?code= not ?auth_code=
