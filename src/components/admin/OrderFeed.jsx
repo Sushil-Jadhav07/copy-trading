@@ -130,6 +130,7 @@ const OrderFeed = () => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [feedRows, setFeedRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedTradeId, setSelectedTradeId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -142,7 +143,8 @@ const OrderFeed = () => {
           setFeedRows(mapped);
           setSelectedTradeId((prev) => prev ?? (mapped[0]?.id ?? null));
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setLoading(false));
     };
 
     load();
@@ -265,14 +267,20 @@ const OrderFeed = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {feedRows.length === 0 && (
+                  {loading ? (
                     <tr>
                       <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
-                        Loading trade feed…
+                        Loading trade feed...
                       </td>
                     </tr>
-                  )}
-                  {filteredRows.map((row) => (
+                  ) : feedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
+                        No live trades detected yet.
+                      </td>
+                    </tr>
+                  ) : null}
+                  {!loading && filteredRows.map((row) => (
                     <tr
                       key={row.id}
                       className={`border-b border-slate-100/80 transition-colors hover:bg-black/[0.02] dark:border-white/[0.04] dark:hover:bg-white/[0.03] ${
