@@ -158,8 +158,8 @@ const Overview = () => {
       title: 'Total Platform Users',
       value: analytics ? analytics.totalUsers : null,
       note: analytics
-        ? `${analytics.totalMasters} masters, ${analytics.totalChildren} children`
-        : 'Loading…',
+        ? `${analytics.totalAdmins} admins, ${analytics.totalMasters} masters, ${analytics.totalChildren} children`
+        : 'Loading...',
       icon: Users,
       accent: '#7c85ff',
       format: 'count',

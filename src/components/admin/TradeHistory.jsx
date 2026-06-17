@@ -12,19 +12,8 @@ const buildStats = (trades) => {
     { label: 'Win Trades', value: String(wins), tone: 'positive' },
     { label: 'Loss Trades', value: String(losses), tone: 'negative' },
     { label: 'Win Rate', value: `${winRate}%`, tone: 'neutral' },
-    { label: 'Avg Profit', value: '+₹2,140', tone: 'positive' },
-    { label: 'Avg Loss', value: '-₹1,380', tone: 'negative' },
-    { label: 'Profit Factor', value: '2.24', tone: 'neutral' },
-    { label: 'Best Trade', value: '+₹18,400', tone: 'positive' },
-    { label: 'Worst Trade', value: '-₹8,600', tone: 'negative' },
   ];
 };
-
-const topSummary = [
-  { label: 'This Week', value: '+₹18,240' },
-  { label: 'This Month', value: '+₹1,24,500' },
-  { label: 'This Quarter', value: '+₹3,08,200' },
-];
 
 const panelClass = 'glass-card relative overflow-hidden rounded-[22px]';
 
@@ -138,23 +127,7 @@ const TradeHistory = () => {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {topSummary.map((item) => (
-          <article key={item.label} className={`${panelClass} p-5`}>
-            <div className="relative z-10 flex items-center gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <TrendingUp className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400 dark:text-muted-foreground">{item.label}</div>
-                <div className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-emerald-600 dark:text-emerald-400">{item.value}</div>
-              </div>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-9">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {buildStats(trades).map((stat) => (
           <article key={stat.label} className={`${panelClass} p-4 text-center`}>
             <div className="relative z-10">

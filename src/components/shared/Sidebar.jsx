@@ -224,8 +224,6 @@ const childSidebarItems = [
         { to: '/admin/users', icon: Users, label: 'All Users' },
         { to: '/admin/masters', icon: TrendingUp, label: 'Masters' },
         { to: '/admin/children', icon: UserCheck, label: 'Children' },
-        { to: '/admin/master-accounts', icon: LayoutGrid, label: 'Master Accounts' },
-        { to: '/admin/child-accounts', icon: LayoutGrid, label: 'Child Accounts' },
         { to: '/admin/verification', icon: UserPlus, label: 'Pending Verification', badge: pendingVerificationBadge },
       ],
     },
