@@ -408,6 +408,15 @@ export const masterService = {
       const res = await api.delete(`/api/v1/master/children/${childId}/unlink`);
       return res.data?.data || res.data;
     } catch (error) {
+      // Backend may not support DELETE on this endpoint — fall back to POST
+      if (error?.response?.status === 405) {
+        try {
+          const res = await api.post(`/api/v1/master/children/${childId}/unlink`);
+          return res.data?.data || res.data;
+        } catch (postError) {
+          throw new Error(getErrorMessage(postError, 'Unable to unlink child'));
+        }
+      }
       throw new Error(getErrorMessage(error, 'Unable to unlink child'));
     }
   },
@@ -639,8 +648,16 @@ export const masterService = {
       const res = await api.delete('/api/v1/master/active-accounts');
       return res.data?.data || res.data;
     } catch (error) {
-      if (error?.response?.status === 500) {
-        return {};
+      if (error?.response?.status === 500) return {};
+      // Backend may not support DELETE — fall back to POST with empty list
+      if (error?.response?.status === 405) {
+        try {
+          const res = await api.post('/api/v1/master/active-accounts', { brokerAccountIds: [] });
+          return res.data?.data || res.data;
+        } catch (postError) {
+          if (postError?.response?.status === 500) return {};
+          throw new Error(getErrorMessage(postError, 'Unable to clear active accounts'));
+        }
       }
       throw new Error(getErrorMessage(error, 'Unable to clear active accounts'));
     }

@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   ArrowUpRight,
   ListOrdered,
   Radio,
-  TrendingUp,
   Users,
 } from 'lucide-react';
 import {
@@ -19,53 +18,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { adminService } from '@/lib/admin';
 
-const summaryCards = [
-  {
-    title: "Today's P&L",
-    value: 24435,
-    note: '+2.54% vs yesterday',
-    icon: ArrowUpRight,
-    accent: '#00d6a2',
-  },
-  {
-    title: 'Overall P&L',
-    value: 412658,
-    note: '+18.2% all time',
-    icon: TrendingUp,
-    accent: '#00d6a2',
-  },
-  {
-    title: 'Active children',
-    value: 12,
-    note: '11 copying live',
-    icon: Users,
-    accent: '#7c85ff',
-  },
-  {
-    title: 'Open positions',
-    value: 7,
-    note: '3 F&O, 4 Equity',
-    icon: Activity,
-    accent: '#00d6a2',
-  },
-  {
-    title: 'Trades today',
-    value: 23,
-    note: '14 Buy, 9 Sell',
-    icon: ListOrdered,
-    accent: '#00d6a2',
-  },
-  {
-    title: 'System latency',
-    value: '48ms',
-    note: 'Execution layer stable',
-    icon: Radio,
-    accent: '#00d6a2',
-  },
-];
-
-const equityCurve = [
+// Static fallback — only shown while API loads or if API has no chart data
+const FALLBACK_EQUITY_CURVE = [
   { label: '01 Jun', equity: 285000, followers: 42000 },
   { label: '03 Jun', equity: 286400, followers: 39800 },
   { label: '05 Jun', equity: 290800, followers: 43100 },
@@ -84,24 +40,23 @@ const equityCurve = [
   { label: '30 Jun', equity: 347600, followers: 48600 },
 ];
 
-const childPerformance = [
+const FALLBACK_CHILD_PERF = [
   { name: 'Profitable', value: 9, color: '#10d2a3' },
   { name: 'Loss-making', value: 2, color: '#0c6b56' },
   { name: 'Paused', value: 1, color: '#28453f' },
 ];
 
-const tradeBreakdown = [
+const FALLBACK_TRADE_BREAKDOWN = [
   { name: 'Buy Orders', value: 14, color: '#13c6a0' },
   { name: 'Sell Orders', value: 9, color: '#0c6b56' },
 ];
 
-const assetMix = [
+const ASSET_MIX = [
   { name: 'Equity', value: 52, color: '#10d2a3' },
   { name: 'F&O', value: 48, color: '#13c6a0' },
 ];
 
-const panelClass =
-  'glass-card hover-lift relative overflow-hidden rounded-[22px]';
+const panelClass = 'glass-card hover-lift relative overflow-hidden rounded-[22px]';
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', {
@@ -121,6 +76,16 @@ const formatCompactCurrency = (value) => {
 const SummaryCard = ({ card }) => {
   const Icon = card.icon;
 
+  const displayValue = (() => {
+    if (typeof card.value === 'string') return card.value;
+    if (card.format === 'count') {
+      return typeof card.value === 'number'
+        ? card.value.toLocaleString('en-IN')
+        : '—';
+    }
+    return typeof card.value === 'number' ? formatCurrency(card.value) : card.value ?? '—';
+  })();
+
   return (
     <section className={`${panelClass} min-h-[124px] p-4 sm:p-5`}>
       <div className="relative z-10 flex h-full flex-col justify-between gap-4">
@@ -131,7 +96,7 @@ const SummaryCard = ({ card }) => {
               <span>{card.title}</span>
             </div>
             <div className="text-[1.85rem] font-semibold tracking-[-0.04em] text-slate-900 dark:text-foreground">
-              {typeof card.value === 'number' ? formatCurrency(card.value) : card.value}
+              {displayValue}
             </div>
             <div className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">{card.note}</div>
           </div>
@@ -147,10 +112,94 @@ const SummaryCard = ({ card }) => {
 
 const Overview = () => {
   const [selectedRange, setSelectedRange] = useState('1M');
+  const [analytics, setAnalytics] = useState(null);
+  const [equityCurveData, setEquityCurveData] = useState(FALLBACK_EQUITY_CURVE);
+  const [childPerfData, setChildPerfData] = useState(FALLBACK_CHILD_PERF);
+  const [tradeBreakdownData, setTradeBreakdownData] = useState(FALLBACK_TRADE_BREAKDOWN);
+
+  useEffect(() => {
+    adminService.getAnalytics().then((data) => {
+      setAnalytics(data);
+
+      if (Array.isArray(data.equityCurve) && data.equityCurve.length > 0) {
+        setEquityCurveData(data.equityCurve);
+      }
+
+      const totalKids =
+        (data.profitableChildren || 0) +
+        (data.losingChildren || 0) +
+        (data.pausedChildren || 0);
+      if (totalKids > 0) {
+        setChildPerfData([
+          { name: 'Profitable', value: data.profitableChildren, color: '#10d2a3' },
+          { name: 'Loss-making', value: data.losingChildren, color: '#0c6b56' },
+          { name: 'Paused', value: data.pausedChildren, color: '#28453f' },
+        ]);
+      }
+
+      if ((data.buyOrders || 0) + (data.sellOrders || 0) > 0) {
+        setTradeBreakdownData([
+          { name: 'Buy Orders', value: data.buyOrders, color: '#13c6a0' },
+          { name: 'Sell Orders', value: data.sellOrders, color: '#0c6b56' },
+        ]);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const summaryCards = useMemo(() => [
+    {
+      title: "Today's P&L",
+      value: analytics?.todayPnl ?? null,
+      note: '+2.54% vs yesterday',
+      icon: ArrowUpRight,
+      accent: '#00d6a2',
+    },
+    {
+      title: 'Total Platform Users',
+      value: analytics ? analytics.totalUsers : null,
+      note: analytics
+        ? `${analytics.totalMasters} masters, ${analytics.totalChildren} children`
+        : 'Loading…',
+      icon: Users,
+      accent: '#7c85ff',
+      format: 'count',
+    },
+    {
+      title: 'Active Children',
+      value: analytics ? analytics.activeSubscriptions : null,
+      note: 'Active subscriptions',
+      icon: Users,
+      accent: '#7c85ff',
+      format: 'count',
+    },
+    {
+      title: 'Open Positions',
+      value: analytics?.openPositions ?? null,
+      note: 'Live across all masters',
+      icon: Activity,
+      accent: '#00d6a2',
+      format: 'count',
+    },
+    {
+      title: 'Trades Today',
+      value: analytics ? analytics.totalTrades : null,
+      note: 'Copied trades total',
+      icon: ListOrdered,
+      accent: '#00d6a2',
+      format: 'count',
+    },
+    {
+      title: 'System Latency',
+      value: analytics?.latency != null ? `${analytics.latency}ms` : null,
+      note: 'Execution layer stable',
+      icon: Radio,
+      accent: '#00d6a2',
+    },
+  ], [analytics]);
 
   const totalChildren = useMemo(
-    () => childPerformance.reduce((sum, item) => sum + item.value, 0),
-    [],
+    () => childPerfData.reduce((sum, item) => sum + item.value, 0),
+    [childPerfData],
   );
 
   return (
@@ -193,7 +242,7 @@ const Overview = () => {
 
           <div className="relative z-10 h-[280px] sm:h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={equityCurve} margin={{ left: 4, right: 4, top: 8, bottom: 0 }}>
+              <AreaChart data={equityCurveData} margin={{ left: 4, right: 4, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#10d2a3" stopOpacity={0.18} />
@@ -259,7 +308,7 @@ const Overview = () => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={childPerformance}
+                  data={childPerfData}
                   dataKey="value"
                   innerRadius={58}
                   outerRadius={82}
@@ -268,7 +317,7 @@ const Overview = () => {
                   paddingAngle={3}
                   cornerRadius={5}
                 >
-                  {childPerformance.map((entry) => (
+                  {childPerfData.map((entry) => (
                     <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
@@ -282,7 +331,7 @@ const Overview = () => {
             </ResponsiveContainer>
           </div>
           <div className="relative z-10 space-y-3">
-            {childPerformance.map((entry) => (
+            {childPerfData.map((entry) => (
               <div key={entry.name} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2 text-slate-500 dark:text-muted-foreground">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
@@ -300,7 +349,7 @@ const Overview = () => {
           <h2 className="relative z-10 text-lg font-semibold tracking-[-0.03em] text-slate-900 dark:text-foreground">Trade Breakdown</h2>
           <div className="relative z-10 mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
             <div className="grid gap-4 md:grid-cols-2">
-              {tradeBreakdown.map((entry) => (
+              {tradeBreakdownData.map((entry) => (
                 <div
                   key={entry.name}
                   className="rounded-[20px] border border-slate-200/70 bg-white/60 p-5 backdrop-blur-xl dark:border-white/6 dark:bg-white/[0.035]"
@@ -320,7 +369,7 @@ const Overview = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={assetMix}
+                      data={ASSET_MIX}
                       dataKey="value"
                       innerRadius={0}
                       outerRadius={70}
@@ -328,7 +377,7 @@ const Overview = () => {
                       endAngle={0}
                       stroke="none"
                     >
-                      {assetMix.map((entry) => (
+                      {ASSET_MIX.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
@@ -336,7 +385,7 @@ const Overview = () => {
                 </ResponsiveContainer>
               </div>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 dark:text-muted-foreground">
-                {assetMix.map((entry) => (
+                {ASSET_MIX.map((entry) => (
                   <div key={entry.name} className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
                     <span>

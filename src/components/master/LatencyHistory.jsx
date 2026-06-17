@@ -334,15 +334,15 @@ const LatencyHistory = () => {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="inline-flex items-center ">
             {RANGE_OPTIONS.map((option) => (
               <button
                 key={option.key}
                 onClick={() => handleRangeChange(option.key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                className={`rounded-full px-4 py-1 text-xs font-bold transition-all ${
                   rangeKey === option.key
-                    ? 'bg-brand-purple text-white'
-                    : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {option.label}

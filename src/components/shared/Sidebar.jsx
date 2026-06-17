@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,21 +10,17 @@ import {
   Shield,
   Users,
   UserPlus,
-  DollarSign,
   Clock,
   Target,
-  Settings,
   Search,
   Copy,
   UserCheck,
-  Server,
   List,
   FileText,
   ChevronLeft,
   ChevronRight,
   LogOut,
   LayoutGrid,
-  CreditCard,
   Link2,
   History,
 } from 'lucide-react';
@@ -191,12 +187,6 @@ const childSidebarItems = [
       items: [{ to: '/child/overview', icon: Home, label: 'Overview' }],
     },
     {
-      section: 'Account Management',
-      items: [
-        { to: '/child/user-management', icon: LayoutGrid, label: 'Demat Accounts' },
-      ],
-    },
-    {
       section: 'Copy Trading',
       items: [
         { to: '/child/my-masters', icon: Users, label: 'My Masters' },
@@ -228,6 +218,7 @@ const childSidebarItems = [
         { to: '/admin/users', icon: Users, label: 'All Users' },
         { to: '/admin/masters', icon: TrendingUp, label: 'Masters' },
         { to: '/admin/children', icon: UserCheck, label: 'Children' },
+        { to: '/admin/master-accounts', icon: LayoutGrid, label: 'Master Accounts' },
         { to: '/admin/child-accounts', icon: LayoutGrid, label: 'Child Accounts' },
         { to: '/admin/verification', icon: UserPlus, label: 'Pending Verification', badge: pendingVerificationBadge },
       ],
@@ -236,9 +227,7 @@ const childSidebarItems = [
       section: 'Trade Monitor',
       items: [
         { to: '/admin/order-feed', icon: List, label: 'Trade Feed' },
-        { to: '/admin/open-positions', icon: Activity, label: 'Open Position' },
-        { to: '/admin/broker-status', icon: Server, label: 'Broker Status' },
-        { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
+        { to: '/admin/open-positions', icon: Activity, label: 'Open Positions' },
         { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
         { to: '/admin/trade-history', icon: History, label: 'Trade History' },
       ],

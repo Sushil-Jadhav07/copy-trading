@@ -38,16 +38,15 @@ import ChildTradeTimeline from '@/components/child/TradeTimeline';
 import ChildProfile from '@/components/child/Profile';
 
 import AdminOverview from '@/components/admin/Overview';
-import BrokerStatus from '@/components/admin/BrokerStatus';
-import Subscriptions from '@/components/admin/Subscriptions';
+import AdminOpenPositions from '@/components/admin/OpenPositions';
 import MasterChildMap from '@/components/admin/MasterChildMap';
 import AllUsers from '@/components/admin/AllUsers';
 import ChildAccounts from '@/components/admin/ChildAccounts';
+import MasterAccounts from '@/components/admin/MasterAccounts';
 import PendingVerification from '@/components/admin/PendingVerification';
 import SystemLogs from '@/components/admin/SystemLogs';
 import LiveTrades from '@/components/admin/LiveTrades';
 import OrderFeed from '@/components/admin/OrderFeed';
-import AdminOpenPositions from '@/components/admin/OpenPositions';
 import AdminPnL from '@/components/admin/AdminPnL';
 import AdminProfile from '@/components/admin/Profile';
 import TradeHistory from '@/components/admin/TradeHistory';
@@ -135,10 +134,7 @@ const AppRouter = () => {
                 <Route path="master/options-status" element={<MasterOptionsStatus />} />
 
                 <Route path="child/overview" element={<ChildOverview />} />
-                <Route
-                  path="child/user-management"
-                  element={<UserManagement title="Demat Accounts" connectTitle="Connect Child Broker" detailBasePath="/child/demat" />}
-                />
+                <Route path="child/user-management" element={<Navigate to="/child/overview" replace />} />
                 <Route path="child/demat/:accountId" element={<ChildDematDetailWrapper />} />
                 <Route path="child/find-masters" element={<FindMasters />} />
                 <Route path="child/my-masters" element={<MyMasters />} />
@@ -156,13 +152,12 @@ const AppRouter = () => {
                 <Route path="admin/masters" element={<AllUsers scope="masters" />} />
                 <Route path="admin/children" element={<AllUsers scope="children" />} />
                 <Route path="admin/child-accounts" element={<ChildAccounts />} />
+                <Route path="admin/master-accounts" element={<MasterAccounts />} />
                 <Route path="admin/verification" element={<PendingVerification />} />
                 <Route path="admin/profile" element={<AdminProfile />} />
                 <Route path="admin/live-trades" element={<LiveTrades />} />
-                <Route path="admin/open-positions" element={<AdminOpenPositions />} />
                 <Route path="admin/order-feed" element={<OrderFeed />} />
-                <Route path="admin/broker-status" element={<BrokerStatus />} />
-                <Route path="admin/subscriptions" element={<Subscriptions />} />
+                <Route path="admin/open-positions" element={<AdminOpenPositions />} />
                 <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />

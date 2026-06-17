@@ -1,5 +1,4 @@
 import api from '@/lib/api';
-import { authService } from '@/lib/auth';
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message ||
@@ -43,24 +42,20 @@ const pickRole = (role) => {
   return 'Child';
 };
 
-export const normalizeAdminUser = (payload = {}) => {
-  const user = authService.getMe ? payload : payload;
-
-  return {
-    id: payload.userId || payload.id || payload._id || '',
-    userId: payload.userId || payload.id || payload._id || '',
-    name: payload.name || payload.fullName || 'User',
-    email: payload.email || '',
-    phone: payload.phone || '',
-    role: pickRole(payload.role || payload.userType),
-    status: String(payload.status || 'ACTIVE').toUpperCase(),
-    joinedDate: toDateLabel(payload.createdAt || payload.created_at),
-    createdAt: payload.createdAt || payload.created_at || null,
-    twoFactorEnabled: Boolean(payload.twoFactorEnabled),
-    brokerAccounts: asArray(payload.brokerAccounts),
-    raw: payload,
-  };
-};
+export const normalizeAdminUser = (payload = {}) => ({
+  id: payload.userId || payload.id || payload._id || '',
+  userId: payload.userId || payload.id || payload._id || '',
+  name: payload.name || payload.fullName || 'User',
+  email: payload.email || '',
+  phone: payload.phone || '',
+  role: pickRole(payload.role || payload.userType),
+  status: String(payload.status || 'ACTIVE').toUpperCase(),
+  joinedDate: toDateLabel(payload.createdAt || payload.created_at),
+  createdAt: payload.createdAt || payload.created_at || null,
+  twoFactorEnabled: Boolean(payload.twoFactorEnabled),
+  brokerAccounts: asArray(payload.brokerAccounts),
+  raw: payload,
+});
 
 const extractCollection = (payload) => {
   if (Array.isArray(payload)) {
@@ -155,6 +150,24 @@ const normalizeSubscription = (subscription = {}, index = 0) => ({
   raw: subscription,
 });
 
+const normalizeAdminPosition = (pos = {}, index = 0) => ({
+  id: pos.id || pos.positionId || `pos-${index}`,
+  masterId: pos.masterId || '',
+  masterName: pos.masterName || pos.master || 'Unknown',
+  symbol: pos.symbol || pos.instrument || pos.tradingSymbol || 'N/A',
+  exchange: pos.exchange || 'NSE',
+  side: String(pos.side || pos.positionType || pos.direction || 'BUY').toUpperCase(),
+  qty: Number(pos.qty || pos.quantity || pos.netQty || 0),
+  avgPrice: Number(pos.avgPrice || pos.averagePrice || pos.entryPrice || 0),
+  ltp: Number(pos.ltp || pos.lastPrice || pos.currentPrice || 0),
+  pnl: Number(pos.pnl || pos.unrealizedPnl || pos.mtm || 0),
+  pnlPct: Number(pos.pnlPct || pos.pnlPercent || pos.changePercent || 0),
+  product: String(pos.product || pos.productType || 'MIS').toUpperCase(),
+  broker: pos.broker || pos.brokerName || 'N/A',
+  children: Number(pos.children || pos.childCount || pos.copiedCount || 0),
+  raw: pos,
+});
+
 const normalizeMasterChildMap = (entry = {}, index = 0) => {
   const children = Array.isArray(entry.children) ? entry.children : [];
 
@@ -234,22 +247,40 @@ const normalizeSystemHealthEntries = (payload = {}) => {
 };
 
 const normalizeAnalytics = (payload = {}) => {
-  // API returns: { totalUsers, totalMasters, totalChildren, totalAdmins, activeSubscriptions, totalTrades }
   const source = payload?.data && !Array.isArray(payload.data) ? payload.data : payload;
+
+  // Equity curve: try multiple field names, normalize to {label, equity, followers}
+  const rawCurve = asArray(
+    source.equityCurve || source.dailyStats || source.performanceChart || source.chartData,
+  );
+  const equityCurve = rawCurve.map((pt, i) => ({
+    label: pt.label || pt.date || pt.day || `Day ${i + 1}`,
+    equity: Number(pt.equity || pt.totalPnl || pt.pnl || pt.value || 0),
+    followers: Number(pt.followerPnl || pt.followersValue || pt.followers || 0),
+  }));
 
   return {
     totalUsers: Number(source.totalUsers ?? source.users ?? source.userCount ?? 0),
-    // API returns totalMasters, not activeMasters
-    activeMasters: Number(source.totalMasters ?? source.activeMasters ?? source.masters ?? source.masterCount ?? 0),
+    activeMasters: Number(source.totalMasters ?? source.activeMasters ?? source.masterCount ?? 0),
     totalMasters: Number(source.totalMasters ?? source.activeMasters ?? 0),
     totalChildren: Number(source.totalChildren ?? source.childCount ?? 0),
     totalAdmins: Number(source.totalAdmins ?? 0),
-    // API returns totalTrades, not volumeToday
-    volumeToday: Number(source.totalTrades ?? source.volumeToday ?? source.todayVolume ?? source.tradeVolume ?? 0),
+    volumeToday: Number(source.totalTrades ?? source.volumeToday ?? source.todayVolume ?? 0),
     totalTrades: Number(source.totalTrades ?? 0),
-    // API returns activeSubscriptions, not revenueMtd
     activeSubscriptions: Number(source.activeSubscriptions ?? 0),
     revenueMtd: Number(source.revenueMtd ?? source.monthlyRevenue ?? source.revenue ?? 0),
+    // Child performance breakdown
+    profitableChildren: Number(source.profitableChildren ?? source.profitable ?? 0),
+    losingChildren: Number(source.losingChildren ?? source.lossMaking ?? source.losing ?? 0),
+    pausedChildren: Number(source.pausedChildren ?? source.paused ?? 0),
+    // Trade direction split
+    buyOrders: Number(source.buyOrders ?? source.buys ?? source.buyCount ?? 0),
+    sellOrders: Number(source.sellOrders ?? source.sells ?? source.sellCount ?? 0),
+    // Other live fields
+    openPositions: source.openPositions != null ? Number(source.openPositions) : null,
+    todayPnl: source.todayPnl != null ? Number(source.todayPnl) : null,
+    latency: source.latency != null ? Number(source.latency) : null,
+    equityCurve,
     userGrowth: asArray(source.userGrowth || source.userGrowthData || source.growth),
     topMasters: asArray(source.topMasters || source.topPerformers || source.mastersByVolume),
     raw: source,
@@ -360,6 +391,15 @@ export const adminService = {
       return normalizeAnalytics(response.data);
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load analytics'));
+    }
+  },
+
+  async getPositions(params = {}) {
+    try {
+      const response = await api.get('/api/v1/admin/positions', { params });
+      return extractCollection(response.data).map(normalizeAdminPosition);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load positions'));
     }
   },
 

@@ -194,7 +194,6 @@ const CopiedTrades = () => {
   const failedCount = trades.filter((t) => String(t.status).toUpperCase() === 'FAILED').length;
   const skippedCount = trades.filter((t) => String(t.status).toUpperCase() === 'SKIPPED').length;
   const partialCount = trades.filter((t) => ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(String(t.status).toUpperCase())).length;
-  const pendingCount = trades.filter((t) => ['PENDING', 'QUEUED', 'PROCESSING'].includes(String(t.status).toUpperCase())).length;
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
@@ -269,7 +268,6 @@ const CopiedTrades = () => {
               <span className="text-rose-500">Failed ({failedCount})</span>
               <span className="text-amber-500">Skipped ({skippedCount})</span>
               <span className="text-brand-blue">Partial ({partialCount})</span>
-              <span className="text-muted-foreground">Pending ({pendingCount})</span>
             </div>
 
             <table className="w-full">
@@ -413,7 +411,7 @@ const CopiedTrades = () => {
                               )}
                               {showReloginCta && (
                                 <button
-onClick={() => navigate('/child/user-management')}
+onClick={() => navigate('/child/overview')}
                                   className="text-xs font-bold text-amber-500 underline hover:no-underline text-left"
                                 >
                                   Re-login broker →

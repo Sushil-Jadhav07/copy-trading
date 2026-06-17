@@ -10,7 +10,6 @@ import {
   WifiOff,
   CheckCircle2,
   AlertTriangle,
-  CalendarDays,
 } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
@@ -20,12 +19,6 @@ import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
 
-const DATE_FILTERS = [
-  { key: 'today', label: 'Today' },
-  { key: 'yesterday', label: 'Yesterday' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-];
 
 const normalizeSymbol = (value = '') =>
   String(value || '')
@@ -98,39 +91,9 @@ const formatDateTime = (value) => {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
-  }) + `.${String(date.getMilliseconds()).padStart(3, '0')}`;
+  });
 };
 
-const matchesDateFilter = (value, filterKey) => {
-  const date = new Date(value || '');
-  if (!Number.isFinite(date.getTime())) return false;
-
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  if (filterKey === 'today') return date >= startOfToday;
-
-  if (filterKey === 'yesterday') {
-    const start = new Date(startOfToday);
-    start.setDate(start.getDate() - 1);
-    return date >= start && date < startOfToday;
-  }
-
-  if (filterKey === 'week') {
-    const day = startOfToday.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    const weekStart = new Date(startOfToday);
-    weekStart.setDate(weekStart.getDate() - diff);
-    return date >= weekStart;
-  }
-
-  if (filterKey === 'month') {
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    return date >= monthStart;
-  }
-
-  return true;
-};
 
 const getSideClass = (side) => {
   const value = String(side || '').toUpperCase();
@@ -179,7 +142,7 @@ const OptionsStatus = () => {
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [trades, setTrades] = useState([]);
-  const [dateFilter, setDateFilter] = useState('today');
+
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -253,9 +216,8 @@ const OptionsStatus = () => {
     () =>
       trades
         .filter((item) => isOptionRecord(item))
-        .filter((item) => matchesDateFilter(getTradeTimestamp(item), dateFilter))
         .sort((a, b) => toMs(getTradeTimestamp(b)) - toMs(getTradeTimestamp(a))),
-    [trades, dateFilter],
+    [trades],
   );
 
   const totalOpenQty = optionPositions.reduce((sum, item) => sum + Number(item.qty || 0), 0);
@@ -331,26 +293,6 @@ const OptionsStatus = () => {
       </div>
 
       <GlassCard title="Taken Option Trades" subtitle="Only the necessary executed option trade fields">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-black/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground dark:bg-white/5">
-            <CalendarDays className="h-3.5 w-3.5" />
-            Date Filter
-          </div>
-          {DATE_FILTERS.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setDateFilter(item.key)}
-              className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                dateFilter === item.key
-                  ? 'bg-brand-purple text-white'
-                  : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
         {loading ? (
           <SkeletonLoader type="table" rows={6} columns={8} />
         ) : (
@@ -418,7 +360,7 @@ const OptionsStatus = () => {
                 {optionTrades.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No option trades found for the selected date range
+                      No option trades found
                     </td>
                   </tr>
                 )}

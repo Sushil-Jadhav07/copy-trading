@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TrendingUp, CircleDollarSign, BarChart3, CalendarDays } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import LineChart from '@/components/charts/LineChart';
 import BarChart from '@/components/charts/BarChart';
 import DonutChart from '@/components/charts/DonutChart';
-import Sparkline from '@/components/charts/Sparkline';
 import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { useToast } from '@/components/shared/Toast';
@@ -31,6 +29,11 @@ const PnLAnalytics = () => {
   const [unrealized, setUnrealized] = useState(null);
   const [childPerformance, setChildPerformance] = useState([]);
   const [dailyChart, setDailyChart] = useState([]);
+  const [instrumentPnlData, setInstrumentPnlData] = useState([]);
+  const [analyticsSummary, setAnalyticsSummary] = useState(null);
+  const [masterPositions, setMasterPositions] = useState([]);
+  const [bestTrade, setBestTrade] = useState(null);
+  const [worstTrade, setWorstTrade] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -49,6 +52,11 @@ const PnLAnalytics = () => {
 
         setDailyChart(daily);
         setChildPerformance(Array.isArray(data?.childPerformance) ? data.childPerformance : []);
+        setInstrumentPnlData(Array.isArray(data?.instrumentPnl) ? data.instrumentPnl : []);
+        setAnalyticsSummary(summaryPayload);
+        setMasterPositions(Array.isArray(data?.masterPositions) ? data.masterPositions : []);
+        setBestTrade(data?.bestTrade ?? null);
+        setWorstTrade(data?.worstTrade ?? null);
         setSummary(
           daily.map((row, index) => normalizeSummaryRow({
             id: row.id || row.date || index,
@@ -139,17 +147,21 @@ const PnLAnalytics = () => {
   }, [unrealized]);
 
   const totalTrades = useMemo(() => {
+    if (analyticsSummary?.totalTrades != null) return Number(analyticsSummary.totalTrades);
     if (summary.length) return safeSum(summary.map((row) => row.totalTrades));
     return realizedTrades.length;
-  }, [summary, realizedTrades]);
+  }, [analyticsSummary, summary, realizedTrades]);
 
   const avgWinRate = useMemo(() => {
+    if (analyticsSummary?.winRate != null) return Number(analyticsSummary.winRate);
     if (!summary.length) return 0;
     return roundTo(safeDiv(safeSum(summary.map((row) => row.winRate)), summary.length), 1);
-  }, [summary]);
+  }, [analyticsSummary, summary]);
 
   const monthlyTotal = safeAdd(realizedPnlVal, unrealizedPnlVal);
   const todayPnl = useMemo(() => {
+    // summary.todayPnl is the authoritative value (unrealized P&L for current session)
+    if (analyticsSummary?.todayPnl != null) return Number(analyticsSummary.todayPnl);
     if (dailyChart.length > 0) {
       const last = dailyChart[dailyChart.length - 1] || {};
       return Number(last.pnl ?? last.realizedPnl ?? last.value ?? 0);
@@ -159,7 +171,7 @@ const PnLAnalytics = () => {
       return safeAdd(last.realizedPnl, last.unrealizedPnl);
     }
     return 0;
-  }, [dailyChart, summary]);
+  }, [analyticsSummary, dailyChart, summary]);
 
   const dailyPnlChart = useMemo(() => {
     if (dailyChart.length > 0) {
@@ -183,6 +195,12 @@ const PnLAnalytics = () => {
   }, [summary]);
 
   const topInstruments = useMemo(() => {
+    if (instrumentPnlData.length) {
+      return [...instrumentPnlData]
+        .map((t) => ({ instrument: String(t.instrument || t.symbol || 'UNKNOWN').toUpperCase(), pnl: Number(t.pnl ?? 0) }))
+        .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
+        .slice(0, 6);
+    }
     const map = new Map();
     realizedTrades.forEach((t) => {
       const key = String(t.symbol || t.instrument || 'UNKNOWN').toUpperCase();
@@ -193,17 +211,20 @@ const PnLAnalytics = () => {
       .map(([instrument, pnl]) => ({ instrument, pnl }))
       .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
       .slice(0, 6);
-  }, [realizedTrades]);
+  }, [instrumentPnlData, realizedTrades]);
 
   const childComparison = useMemo(
     () =>
       (childPerformance.length ? childPerformance : (Array.isArray(unrealized?.children) ? unrealized.children : []))
         .map((c, idx) => ({
           id: c.id || c.childId || idx,
-          follower: c.name || c.childName || c.email || `Child ${idx + 1}`,
+          follower: c.name || c.nickname || c.childName || c.email || `Child ${idx + 1}`,
           copiedTrades: Number(c.tradesCopied || c.tradeCount || 0),
-          success: Number(c.winRate || c.successRate || 0),
+          winRate: c.winRate != null ? Number(c.winRate) : (c.successRate != null ? Number(c.successRate) : null),
           pnl: Number(c.pnlToday ?? c.pnl ?? c.totalPnL ?? 0),
+          multiplier: Number(c.scalingFactor || c.multiplier || 1),
+          status: String(c.copyingStatus || c.status || '').toUpperCase() || null,
+          openPositions: Number(c.openPositionsCount ?? c.openPositions ?? 0),
           pnlHistory: Array.isArray(c.pnlHistory) ? c.pnlHistory : [],
           dailyPnl: Array.isArray(c.dailyPnl) ? c.dailyPnl : [],
         }))
@@ -262,15 +283,14 @@ const PnLAnalytics = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
-          { label: "Today's P&L", value: todayPnl, icon: CalendarDays, isCurrency: true },
-          { label: 'Realized P&L', value: realizedPnlVal, icon: TrendingUp, isCurrency: true },
-          { label: 'Unrealized P&L', value: unrealizedPnlVal, icon: CircleDollarSign, isCurrency: true },
-          { label: 'Win Rate', value: `${avgWinRate}%`, icon: BarChart3 },
-          { label: 'Total Trades', value: totalTrades, icon: CalendarDays },
+          { label: "Today's P&L", value: todayPnl, isCurrency: true },
+          { label: 'Realized P&L', value: realizedPnlVal, isCurrency: true },
+          { label: 'Unrealized P&L', value: unrealizedPnlVal, isCurrency: true },
+          { label: 'Win Rate', value: `${avgWinRate}%` },
+          { label: 'Total Trades', value: totalTrades },
         ].map((card) => (
           <GlassCard key={card.label}>
             <div className="flex flex-col items-center gap-2 py-1">
-              <card.icon className="w-5 h-5 text-success" />
               <p className={`text-4xl font-bold ${typeof card.value === 'number' ? (card.value >= 0 ? 'text-success' : 'text-danger') : 'text-success'}`}>
                 {typeof card.value === 'number' ? (card.isCurrency ? formatCurrency(card.value) : card.value) : card.value}
               </p>
@@ -332,6 +352,24 @@ const PnLAnalytics = () => {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <GlassCard title="Top Instruments by P&L">
           <div className="space-y-3">
+            {(bestTrade || worstTrade) && (
+              <div className="flex gap-2 mb-4">
+                {bestTrade && (
+                  <div className="flex-1 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500/70 mb-0.5">Best Trade</p>
+                    <p className="text-sm font-black text-emerald-500">{bestTrade.instrument}</p>
+                    <p className="text-xs font-semibold text-emerald-400">+{formatCurrency(bestTrade.pnl)} · {bestTrade.trades} trades</p>
+                  </div>
+                )}
+                {worstTrade && (
+                  <div className="flex-1 rounded-xl border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-500/70 mb-0.5">Worst Trade</p>
+                    <p className="text-sm font-black text-rose-500">{worstTrade.instrument}</p>
+                    <p className="text-xs font-semibold text-rose-400">{formatCurrency(worstTrade.pnl)} · {worstTrade.trades} trades</p>
+                  </div>
+                )}
+              </div>
+            )}
             {topInstruments.length ? (
               topInstruments.map((row) => (
                 <div key={row.instrument} className="flex items-center justify-between border-b border-border/30 pb-2">
@@ -349,46 +387,89 @@ const PnLAnalytics = () => {
 
         <GlassCard title="Child Performance Comparison">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px]">
+            <table className="w-full min-w-[560px]">
               <thead>
-                <tr className="border-b border-border/50 text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 text-left">Follower</th>
-                  <th className="px-3 py-2 text-left">Copied Trades</th>
-                  <th className="px-3 py-2 text-left">Success</th>
-                  <th className="px-3 py-2 text-left">P&L Today</th>
-                  <th className="px-3 py-2 text-left">Trend</th>
+                <tr className="border-b border-border/50">
+                  {['Follower', 'Copied Trades', 'Multiplier', 'Win Rate', 'P&L Today', 'Open Positions'].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {childComparison.length ? (
-                  childComparison.map((row) => (
-                    <tr key={row.id} className="border-b border-border/30">
-                      <td className="px-3 py-2">{row.follower}</td>
-                      <td className="px-3 py-2">{row.copiedTrades}</td>
-                      <td className="px-3 py-2">{row.success ? `${row.success}%` : '--'}</td>
-                      <td className={`px-3 py-2 font-semibold ${row.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {row.pnl >= 0 ? '+' : ''}{formatCurrency(row.pnl)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Sparkline
-                          data={
-                            Array.isArray(row.pnlHistory)
-                              ? row.pnlHistory
-                              : Array.isArray(row.dailyPnl)
-                                ? row.dailyPnl
-                                : []
-                          }
-                          height={28}
-                          width={80}
-                          color={row.pnl >= 0 ? '#00C896' : '#EF4444'}
-                          strokeWidth={1.5}
-                        />
-                      </td>
-                    </tr>
-                  ))
+                  childComparison.map((row) => {
+                    const isUp = row.pnl >= 0;
+                    const statusCls = row.status === 'ACTIVE'
+                      ? 'bg-emerald-500'
+                      : row.status === 'PAUSED'
+                        ? 'bg-amber-500'
+                        : 'bg-slate-400';
+                    return (
+                      <tr key={row.id} className="border-b border-border/20 hover:bg-black/3 dark:hover:bg-white/3 transition-colors">
+                        {/* Follower */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {row.status && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusCls}`} />}
+                            <div>
+                              <p className="text-xs font-bold capitalize">{row.follower}</p>
+                              {row.status && (
+                                <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${
+                                  row.status === 'ACTIVE' ? 'text-emerald-500' : row.status === 'PAUSED' ? 'text-amber-500' : 'text-muted-foreground'
+                                }`}>{row.status}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        {/* Copied Trades */}
+                        <td className="px-4 py-3">
+                          <span className="text-sm font-black">{row.copiedTrades > 0 ? row.copiedTrades : '—'}</span>
+                        </td>
+                        {/* Multiplier */}
+                        <td className="px-4 py-3">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-brand-purple/15 text-brand-purple border border-brand-purple/20">
+                            {row.multiplier}x
+                          </span>
+                        </td>
+                        {/* Win Rate */}
+                        <td className="px-4 py-3">
+                          {row.winRate != null ? (
+                            <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${
+                              row.winRate >= 60
+                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                : row.winRate >= 40
+                                  ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                  : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                            }`}>
+                              {row.winRate}%
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground/40 font-bold">N/A</span>
+                          )}
+                        </td>
+                        {/* P&L Today */}
+                        <td className="px-4 py-3">
+                          <span className={`text-sm font-black ${isUp ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {isUp ? '+' : ''}{formatCurrency(row.pnl)}
+                          </span>
+                        </td>
+                        {/* Open Positions */}
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center justify-center min-w-[28px] rounded-full px-2.5 py-0.5 text-xs font-black border ${
+                            row.openPositions > 0
+                              ? 'bg-brand-purple/10 text-brand-purple border-brand-purple/20'
+                              : 'bg-black/5 dark:bg-white/5 text-muted-foreground border-border/30'
+                          }`}>
+                            {row.openPositions}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
                       No child performance data available.
                     </td>
                   </tr>
@@ -398,6 +479,65 @@ const PnLAnalytics = () => {
           </div>
         </GlassCard>
       </div>
+      {masterPositions.length > 0 && (
+        <GlassCard title={`Open Positions (${masterPositions.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
+              <thead>
+                <tr className="border-b border-border/50">
+                  {['Symbol', 'Side', 'Qty', 'Avg Price', 'LTP', 'Unrealized P&L', 'Change %', 'Product'].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {masterPositions.map((pos, idx) => {
+                  const pnl = Number(pos.unrealizedPnl ?? pos.pnl ?? 0);
+                  const change = Number(pos.change ?? 0);
+                  const isBuy = String(pos.side || pos.type).toUpperCase() === 'BUY';
+                  return (
+                    <tr key={pos.symbol || idx} className="border-b border-border/20 hover:bg-black/3 dark:hover:bg-white/3 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-black">{pos.symbol || pos.instrument}</p>
+                        <p className="text-[10px] text-muted-foreground">{pos.exchange}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                          isBuy
+                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                        }`}>
+                          {isBuy ? 'BUY' : 'SELL'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold">{pos.qty}</td>
+                      <td className="px-4 py-3 text-sm font-semibold">{formatCurrency(pos.avgPrice)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold">{formatCurrency(pos.ltp)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm font-black ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-black ${change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 text-muted-foreground">
+                          {pos.product}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      )}
     </div>
   );
 };

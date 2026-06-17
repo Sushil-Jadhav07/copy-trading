@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -70,7 +70,6 @@ const shortId = (value) => {
 
 const TABS = [
   { key: 'copy',   label: 'Copy Logs' },
-  { key: 'trade',  label: 'Trade Logs' },
   { key: 'broker', label: 'Broker Errors' },
 ];
 const TIME_FILTERS = [
@@ -525,17 +524,17 @@ const Logs = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <GlassCard>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Copy Logs</p>
           <p className="text-2xl font-black">{tabCounts.copy}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Replication events</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {statusCounts.EXECUTED > 0
+              ? `${((statusCounts.EXECUTED / tabCounts.copy) * 100).toFixed(0)}% success rate`
+              : 'Replication events'}
+          </p>
         </GlassCard>
-        <GlassCard>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Trade Logs</p>
-          <p className="text-2xl font-black">{tabCounts.trade}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Master-side trade entries</p>
-        </GlassCard>
+
         <GlassCard>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Broker Errors</p>
           <p className="text-2xl font-black text-rose-500">{tabCounts.broker}</p>

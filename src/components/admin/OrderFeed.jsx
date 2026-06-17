@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Check,
   ChevronRight,
@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { adminService } from '@/lib/admin';
 
 const FEED_FILTERS = ['All', 'Detected', 'Replicating', 'Completed', 'Failed'];
 
@@ -18,200 +19,6 @@ const CONNECTED_BROKERS = [
   { name: 'Dhan', state: 'live' },
 ];
 
-const FEED_ROWS = [
-  {
-    id: 1,
-    orderId: 'ORD001',
-    detectedAt: '14:32:10',
-    symbol: 'RELIANCE',
-    exchange: 'NSE EQ',
-    side: 'BUY',
-    qty: 50,
-    execPrice: 2912,
-    type: 'LIMIT',
-    broker: 'Zerodha',
-    children: '11',
-    status: 'Complete',
-    state: 'Completed',
-    detail: {
-      title: 'RELIANCE',
-      market: 'NSE EQ',
-      tradeLine: 'BUY 50 @ ₹2912',
-      type: 'LIMIT',
-      side: 'BUY',
-      quantity: '50',
-      price: '₹2912',
-      status: 'Complete',
-      masterBroker: 'Zerodha',
-      orderId: 'ZER-4421992',
-      detectedAt: '14:32:10.384 IST',
-      latency: '38ms',
-      tradeValue: '₹1,45,623',
-      timeline: [
-        { time: '14:32:10', text: 'Order Placed', delta: '0ms' },
-        { time: '14:33:10', text: 'Risk Check', delta: '12ms' },
-        { time: '14:34:10', text: 'Broker API', delta: '42ms' },
-        { time: '14:35:10', text: 'Confirmation', delta: '2ms' },
-      ],
-      latencyFooter: 'Total end-to-end latency: 91ms ✓ (under 100ms)',
-      childReplication: [
-        { name: 'Child A', broker: 'Zerodha', status: 'Complete', meta: '50 @ ₹2912' },
-        { name: 'Child B', broker: 'Angel One', status: 'Complete', meta: '100 @ ₹2912.5' },
-        { name: 'Child C', broker: 'Upstox', status: 'Failed', meta: 'Error: Insufficient margin' },
-      ],
-    },
-  },
-  {
-    id: 2,
-    orderId: 'ORD002',
-    detectedAt: '14:28:44',
-    symbol: 'INFY',
-    exchange: 'NSE EQ',
-    side: 'BUY',
-    qty: 200,
-    execPrice: 1471,
-    type: 'MARKET',
-    broker: 'Angel One',
-    children: '11',
-    status: 'Complete',
-    state: 'Completed',
-  },
-  {
-    id: 3,
-    orderId: 'ORD003',
-    detectedAt: '14:15:32',
-    symbol: 'HDFCBANK',
-    exchange: 'NSE EQ',
-    side: 'SELL',
-    qty: 100,
-    execPrice: 1720,
-    type: 'LIMIT',
-    broker: 'Zerodha',
-    children: '8',
-    status: 'Complete',
-    state: 'Completed',
-  },
-  {
-    id: 4,
-    orderId: 'ORD004',
-    detectedAt: '14:20:18',
-    symbol: 'NIFTY 25JUN 24000 CE',
-    exchange: 'NSE F&O',
-    side: 'BUY',
-    qty: 75,
-    execPrice: 145,
-    type: 'SL',
-    broker: 'Groww',
-    children: '9',
-    status: 'Complete',
-    state: 'Completed',
-  },
-  {
-    id: 5,
-    orderId: 'ORD005',
-    detectedAt: '14:15:33',
-    symbol: 'TCS',
-    exchange: 'NSE EQ',
-    side: 'SELL',
-    qty: 50,
-    execPrice: 3795,
-    type: 'MARKET',
-    broker: 'Dhan',
-    children: '7',
-    status: 'Complete',
-    state: 'Completed',
-  },
-  {
-    id: 6,
-    orderId: 'ORD006',
-    detectedAt: '14:10:55',
-    symbol: 'BAJFINANCE',
-    exchange: 'NSE EQ',
-    side: 'BUY',
-    qty: 25,
-    execPrice: 6785,
-    type: 'LIMIT',
-    broker: 'Zerodha',
-    children: '10',
-    status: 'Pending',
-    state: 'Detected',
-  },
-  {
-    id: 7,
-    orderId: 'ORD007',
-    detectedAt: '14:05:12',
-    symbol: 'BANKNIFTY 25JUN 51000 PE',
-    exchange: 'NSE F&O',
-    side: 'BUY',
-    qty: 50,
-    execPrice: 280,
-    type: 'SL',
-    broker: 'Angel One',
-    children: '10',
-    status: 'Trigger Pending',
-    state: 'Detected',
-  },
-  {
-    id: 8,
-    orderId: 'ORD008',
-    detectedAt: '13:58:44',
-    symbol: 'ICICIBANK',
-    exchange: 'NSE EQ',
-    side: 'BUY',
-    qty: 150,
-    execPrice: 1124,
-    type: 'MARKET',
-    broker: 'Upstox',
-    children: '0',
-    status: 'Complete',
-    state: 'Completed',
-  },
-  {
-    id: 9,
-    orderId: 'ORD009',
-    detectedAt: '13:52:30',
-    symbol: 'ADANIENT',
-    exchange: 'NSE EQ',
-    side: 'SELL',
-    qty: 80,
-    execPrice: 2895,
-    type: 'LIMIT',
-    broker: 'Upstox',
-    children: '0',
-    status: 'Rejected',
-    state: 'Failed',
-  },
-  {
-    id: 10,
-    orderId: 'ORD010',
-    detectedAt: '13:45:18',
-    symbol: 'RELIANCE',
-    exchange: 'NSE EQ',
-    side: 'SELL',
-    qty: 25,
-    execPrice: 0,
-    type: 'SL-M',
-    broker: 'Zerodha',
-    children: '0',
-    status: 'Cancelled',
-    state: 'Failed',
-  },
-  {
-    id: 11,
-    orderId: 'ORD011',
-    detectedAt: '13:38:55',
-    symbol: 'MARUTI',
-    exchange: 'NSE EQ',
-    side: 'BUY',
-    qty: 10,
-    execPrice: 11245,
-    type: 'LIMIT',
-    broker: 'Groww',
-    children: '6',
-    status: 'Complete',
-    state: 'Completed',
-  },
-];
 
 const panelClass = 'glass-card relative overflow-hidden rounded-[22px]';
 
@@ -223,17 +30,61 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   }).format(value);
 
+const formatTime = (ts) => {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return String(ts);
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+
+const mapLogToFeedRow = (log) => {
+  const statusState = {
+    success: { status: 'Complete', state: 'Completed' },
+    error: { status: 'Rejected', state: 'Failed' },
+    warning: { status: 'Pending', state: 'Detected' },
+  }[log.status] || { status: 'Complete', state: 'Completed' };
+
+  return {
+    id: log.id,
+    orderId: log.reference || `LOG-${log.id}`,
+    detectedAt: formatTime(log.timestamp),
+    symbol: log.symbol,
+    exchange: 'NSE',
+    side: log.action,
+    qty: log.qty,
+    execPrice: log.price,
+    type: log.type,
+    broker: log.broker,
+    children: String(log.children ?? 0),
+    status: statusState.status,
+    state: statusState.state,
+    detail: {
+      orderId: log.reference || String(log.id),
+      title: log.symbol,
+      type: log.type,
+      side: log.action,
+      quantity: String(log.qty),
+      price: log.price ? formatCurrency(log.price) : '—',
+      status: statusState.status,
+      masterBroker: log.broker,
+      timeline: [],
+      childReplication: [],
+      latencyFooter: log.message || '',
+    },
+  };
+};
+
 const exportCSV = (rows) => {
-  const headers = ['#', 'Detected At', 'Symbol', 'Exchange', 'Side', 'Qty', 'Exec Price', 'Product', 'Broker', 'Children', 'Status'];
+  const headers = ['#', 'Detected At', 'Symbol', 'Exchange', 'Side', 'Qty', 'Exec Price', 'Type', 'Broker', 'Children', 'Status'];
   const data = rows.map((row) => [
-    row.id,
+    row.orderId,
     row.detectedAt,
     row.symbol,
     row.exchange,
     row.side,
     row.qty,
     row.execPrice,
-    row.product,
+    row.type,
     row.broker,
     row.children,
     row.status,
@@ -278,14 +129,32 @@ const detailStatusClass = {
 const OrderFeed = () => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [search, setSearch] = useState('');
-  const [selectedTradeId, setSelectedTradeId] = useState(1);
+  const [feedRows, setFeedRows] = useState([]);
+  const [selectedTradeId, setSelectedTradeId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    const load = () => {
+      adminService
+        .getTradeLogs()
+        .then((logs) => {
+          const mapped = logs.map(mapLogToFeedRow);
+          setFeedRows(mapped);
+          setSelectedTradeId((prev) => prev ?? (mapped[0]?.id ?? null));
+        })
+        .catch(() => {});
+    };
+
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredRows = useMemo(() => {
     const state = stateMap[activeFilter];
     const query = search.trim().toLowerCase();
 
-    return FEED_ROWS.filter((row) => {
+    return feedRows.filter((row) => {
       if (state && row.state !== state) return false;
       if (
         query &&
@@ -297,11 +166,11 @@ const OrderFeed = () => {
       }
       return true;
     });
-  }, [activeFilter, search]);
+  }, [activeFilter, search, feedRows]);
 
   const selectedTrade = useMemo(
-    () => FEED_ROWS.find((row) => row.id === selectedTradeId) || FEED_ROWS[0],
-    [selectedTradeId],
+    () => feedRows.find((row) => row.id === selectedTradeId) || feedRows[0] || null,
+    [selectedTradeId, feedRows],
   );
 
   return (
@@ -396,11 +265,18 @@ const OrderFeed = () => {
                   </tr>
                 </thead>
                 <tbody>
+                  {feedRows.length === 0 && (
+                    <tr>
+                      <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
+                        Loading trade feed…
+                      </td>
+                    </tr>
+                  )}
                   {filteredRows.map((row) => (
                     <tr
                       key={row.id}
                       className={`border-b border-slate-100/80 transition-colors hover:bg-black/[0.02] dark:border-white/[0.04] dark:hover:bg-white/[0.03] ${
-                        row.id === selectedTrade.id ? 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.04]' : ''
+                        selectedTrade && row.id === selectedTrade.id ? 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.04]' : ''
                       }`}
                     >
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-brand-purple">{row.orderId}</td>
@@ -446,7 +322,7 @@ const OrderFeed = () => {
         </div>
       </section>
 
-      {detailsOpen && (
+      {detailsOpen && selectedTrade && (
         <>
           <button
             type="button"
@@ -454,7 +330,7 @@ const OrderFeed = () => {
             onClick={() => setDetailsOpen(false)}
             className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]"
           />
-          <aside className="fixed right-0 top-0 z-50 flex h-screen w-full max-w-[460px] flex-col border-l border-slate-200/70 bg-background shadow-2xl dark:border-white/[0.06]">
+          <aside className="fixed !mt-0 right-0 top-0 z-50 flex h-screen w-full max-w-[460px] flex-col border-l border-slate-200/70 bg-background shadow-2xl dark:border-white/[0.06]">
             <div className="border-b border-slate-200/70 px-6 py-6 dark:border-white/[0.06]">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-[2rem] font-semibold tracking-[-0.04em] text-slate-900 dark:text-foreground">Order Details</h2>
@@ -472,13 +348,13 @@ const OrderFeed = () => {
               <section className="rounded-[20px] border border-slate-200/80 bg-white/60 p-5 backdrop-blur-xl dark:border-white/6 dark:bg-white/[0.035]">
                 <div className="space-y-4 text-sm">
                   {[
-                    ['Order ID', selectedTrade.detail?.orderId || 'ORD001'],
+                    ['Order ID', selectedTrade.detail?.orderId || selectedTrade.orderId],
                     ['Symbol', selectedTrade.detail?.title || selectedTrade.symbol],
-                    ['Type', selectedTrade.detail?.type || 'LIMIT', 'pill'],
+                    ['Type', selectedTrade.detail?.type || selectedTrade.type, 'pill'],
                     ['Side', selectedTrade.detail?.side || selectedTrade.side, 'side'],
                     ['Quantity', selectedTrade.detail?.quantity || String(selectedTrade.qty)],
-                    ['Price', selectedTrade.detail?.price || formatCurrency(selectedTrade.execPrice)],
-                    ['Status', selectedTrade.detail?.status || 'Complete', 'status'],
+                    ['Price', selectedTrade.detail?.price || (selectedTrade.execPrice ? `₹${selectedTrade.execPrice}` : '—')],
+                    ['Status', selectedTrade.detail?.status || selectedTrade.status, 'status'],
                     ['Broker', selectedTrade.detail?.masterBroker || selectedTrade.broker],
                   ].map(([label, value, kind]) => (
                     <div key={label} className="flex items-center justify-between gap-4">
@@ -490,7 +366,7 @@ const OrderFeed = () => {
                       ) : kind === 'side' ? (
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400">{value}</span>
                       ) : kind === 'status' ? (
-                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${detailStatusClass.Complete}`}>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${detailStatusClass[value] || detailStatusClass.Complete}`}>
                           {value}
                         </span>
                       ) : (
@@ -520,6 +396,12 @@ const OrderFeed = () => {
                       </div>
                     </div>
                   ))}
+                  {(!selectedTrade.detail?.timeline || selectedTrade.detail.timeline.length === 0) && (
+                    <p className="text-sm text-slate-400 dark:text-muted-foreground">No timeline data available.</p>
+                  )}
+                  {selectedTrade.detail?.latencyFooter && (
+                    <p className="text-sm text-slate-400 dark:text-muted-foreground">{selectedTrade.detail.latencyFooter}</p>
+                  )}
                 </div>
               </section>
 
@@ -545,6 +427,9 @@ const OrderFeed = () => {
                       <div className="mt-2 text-sm text-slate-500 dark:text-muted-foreground">{child.meta}</div>
                     </div>
                   ))}
+                  {(!selectedTrade.detail?.childReplication || selectedTrade.detail.childReplication.length === 0) && (
+                    <p className="text-sm text-slate-400 dark:text-muted-foreground">No child replication data available.</p>
+                  )}
                 </div>
               </section>
             </div>
