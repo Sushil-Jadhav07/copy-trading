@@ -225,12 +225,11 @@ const childSidebarItems = [
     },
     {
       section: 'Trade Monitor',
-      items: [
-        { to: '/admin/order-feed', icon: List, label: 'Trade Feed' },
-        { to: '/admin/open-positions', icon: Activity, label: 'Open Positions' },
-        { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
-        { to: '/admin/trade-history', icon: History, label: 'Trade History' },
-      ],
+        items: [
+          { to: '/admin/order-feed', icon: List, label: 'Trade Feed' },
+          { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
+          { to: '/admin/trade-history', icon: History, label: 'Trade History' },
+        ],
     },
   ];
 

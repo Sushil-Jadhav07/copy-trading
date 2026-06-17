@@ -38,7 +38,6 @@ import ChildTradeTimeline from '@/components/child/TradeTimeline';
 import ChildProfile from '@/components/child/Profile';
 
 import AdminOverview from '@/components/admin/Overview';
-import AdminOpenPositions from '@/components/admin/OpenPositions';
 import MasterChildMap from '@/components/admin/MasterChildMap';
 import AllUsers from '@/components/admin/AllUsers';
 import ChildAccounts from '@/components/admin/ChildAccounts';
@@ -157,7 +156,6 @@ const AppRouter = () => {
                 <Route path="admin/profile" element={<AdminProfile />} />
                 <Route path="admin/live-trades" element={<LiveTrades />} />
                 <Route path="admin/order-feed" element={<OrderFeed />} />
-                <Route path="admin/open-positions" element={<AdminOpenPositions />} />
                 <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />
