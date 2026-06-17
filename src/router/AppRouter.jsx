@@ -133,7 +133,10 @@ const AppRouter = () => {
                 <Route path="master/options-status" element={<MasterOptionsStatus />} />
 
                 <Route path="child/overview" element={<ChildOverview />} />
-                <Route path="child/user-management" element={<Navigate to="/child/overview" replace />} />
+                <Route
+                  path="child/user-management"
+                  element={<UserManagement title="Demat Accounts" connectTitle="Connect Child Broker" detailBasePath="/child/demat" />}
+                />
                 <Route path="child/demat/:accountId" element={<ChildDematDetailWrapper />} />
                 <Route path="child/find-masters" element={<FindMasters />} />
                 <Route path="child/my-masters" element={<MyMasters />} />

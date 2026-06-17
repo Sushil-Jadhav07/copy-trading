@@ -232,7 +232,7 @@ const ChildOrderBook = () => {
             <p className="text-sm font-semibold text-amber-400">Broker session expired</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {meta.error || 'Your broker session is not active.'}{' '}
-              <a href="/child/overview" className="text-brand-purple underline">Go to Overview</a>
+              <a href="/child/user-management" className="text-brand-purple underline">Open Demat Accounts</a>
             </p>
           </div>
         </div>
