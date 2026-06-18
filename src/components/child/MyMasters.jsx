@@ -84,7 +84,7 @@ const MyMasters = () => {
   const [editingMaster, setEditingMaster] = useState(null);
   const [newBrokerAccountId, setNewBrokerAccountId] = useState('');
   const [newMultiplier, setNewMultiplier] = useState(1.0);
-  const [newCopySides, setNewCopySides] = useState('BUY_ONLY');
+  const [newCopySides, setNewCopySides] = useState('BUY_AND_SELL');
   const [newAllowShortSelling, setNewAllowShortSelling] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -192,7 +192,7 @@ const MyMasters = () => {
     setEditingMaster(master);
     setNewBrokerAccountId(master.brokerAccountId || '');
     setNewMultiplier(master.multiplier || 1.0);
-    setNewCopySides(master.copySides || 'BUY_ONLY');
+    setNewCopySides(master.copySides || 'BUY_AND_SELL');
     setNewAllowShortSelling(Boolean(master.allowShortSelling));
     setSettingsModal(true);
   };

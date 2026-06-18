@@ -53,7 +53,7 @@ const FindMasters = () => {
   const [selectedMasters, setSelectedMasters] = useState([]);
   const [bulkSubscribeModal, setBulkSubscribeModal] = useState(false);
   const [subscribeSuccess, setSubscribeSuccess]     = useState(false);
-  const [copySides, setCopySides]                   = useState('BUY_ONLY');
+  const [copySides, setCopySides]                   = useState('BUY_AND_SELL');
   const [allowShortSelling, setAllowShortSelling]   = useState(false);
   const [allocationAmount, setAllocationAmount]     = useState('');
   const [priceTolerancePct, setPriceTolerancePct]   = useState(2);
@@ -135,7 +135,7 @@ const FindMasters = () => {
     setMultiplier(1.0);
     setAllocationAmount('');
     setPriceTolerancePct(2);
-    setCopySides('BUY_ONLY');
+    setCopySides('BUY_AND_SELL');
     setAllowShortSelling(false);
     setSubscribeSuccess(false);
     await loadBrokerAccounts();
@@ -162,7 +162,7 @@ const FindMasters = () => {
     if (!activeAccounts.length) { addToast('Connect a broker account with an active session first', 'error'); return; }
     setMultiplier(1.0);
     setAllocationAmount('');
-    setCopySides('BUY_ONLY');
+    setCopySides('BUY_AND_SELL');
     setAllowShortSelling(false);
     setPriceTolerancePct(2);
     setBulkSubscribeModal(true);
