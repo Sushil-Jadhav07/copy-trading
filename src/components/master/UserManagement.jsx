@@ -1021,18 +1021,21 @@ const UserManagement = ({
             );
             if (isTotp) return (
               <>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <p className="text-xs font-semibold text-brand-purple mb-2">Step 1: Set Credentials</p>
+                </div>
                 <div className="sm:col-span-2 lg:col-span-2">
-                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Client ID</label>
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Angel One Client Code</label>
                   <input value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))} placeholder="Angel One Client Code" className={inputCls} />
                   {formErrors.clientId && <p className="text-danger text-xs mt-1">{formErrors.clientId}</p>}
                 </div>
                 <div className="sm:col-span-2 lg:col-span-2">
-                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">API Secret Key</label>
-                  <input type="password" value={form.apiSecret} onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))} placeholder="Angel One API Secret Key" className={inputCls} />
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Password</label>
+                  <input type="password" value={form.apiSecret} onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))} placeholder="Angel One Password" className={inputCls} />
                   {formErrors.apiSecret && <p className="text-danger text-xs mt-1">{formErrors.apiSecret}</p>}
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 flex items-end">
-                  <p className="text-xs text-muted-foreground">After adding, enter the 6-digit TOTP to activate the Angel One session.</p>
+                  <p className="text-xs text-muted-foreground">Click <strong>Add</strong> to save credentials. Step 2 (Login with TOTP) will open next.</p>
                 </div>
               </>
             );
