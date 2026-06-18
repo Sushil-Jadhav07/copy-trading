@@ -74,9 +74,26 @@ const DematConnected = () => {
   const verifyConnection = async () => {
     try {
       if (!accountId) {
-        setErrorMessage('');
-        setStatus('success');
-        return true;
+        // If we have a broker code but no accountId, we cannot exchange the code.
+        // Send the code back to the parent window so the user can confirm manually.
+        if (brokerCode && typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage(
+              { type: 'BROKER_OAUTH_CODE', code: brokerCode },
+              window.location.origin
+            );
+          } catch { /* ignore */ }
+        }
+        // If there is no broker code either, it is a plain redirect with no params — treat as success
+        if (!brokerCode) {
+          setErrorMessage('');
+          setStatus('success');
+          return true;
+        }
+        // Has code but no accountId — show error so user knows to paste manually
+        setErrorMessage('Could not identify your account. Please paste the redirect URL manually in the login dialog.');
+        setStatus('error');
+        return false;
       }
 
       if (brokerCode) {

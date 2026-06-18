@@ -188,6 +188,12 @@ const UserManagement = ({
         addToast('Broker connected & verified successfully', 'success');
         refetch();
       }
+      // Popup got the auth code but could not find accountId — auto-fill the paste field
+      // so the user only needs to click Confirm to complete login.
+      if (event.data?.type === 'BROKER_OAUTH_CODE' && event.data?.code) {
+        setOauthRedirectUrl(event.data.code);
+        addToast('Auth code received — click Confirm to complete login.', 'info');
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -724,6 +730,23 @@ const UserManagement = ({
         }
         await brokerService.loginAccount(loginTarget, { totpCode: sanitized });
       } else {
+        // If the popup already completed login, do not re-send the auth code.
+        // Check account status first and close the modal cleanly if already connected.
+        if (oauthOpened) {
+          try {
+            const latestAccount = await brokerService.getAccount(loginTarget);
+            const alreadyConnected =
+              latestAccount?.sessionActive ||
+              String(latestAccount?.status || '').toUpperCase() === 'ACTIVE';
+            if (alreadyConnected) {
+              closeLoginModal();
+              addToast('Broker connected & verified successfully', 'success');
+              refetch();
+              return;
+            }
+          } catch { /* could not verify — proceed with manual code submission */ }
+        }
+
         const extracted = parseCodeFromRedirectUrl(oauthRedirectUrl, loginConfig.loginField);
         if (!extracted) { addToast('Could not find the token in the pasted URL. Copy the full redirect URL after login.', 'error'); return; }
         const loginPayload = { [loginConfig.loginField]: extracted };
