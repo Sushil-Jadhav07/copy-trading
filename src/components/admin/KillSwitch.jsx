@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { AlertTriangle, Power } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Power, LoaderCircle } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
+import Modal from '@/components/shared/Modal';
+import { useToast } from '@/components/shared/Toast';
+import { getKillSwitch, setKillSwitch } from '@/lib/adminMock';
 
 // ADM-1: Global Kill Switch
-// Endpoints needed:
-//   GET  /api/v1/admin/kill-switch  → { enabled: bool, lastChangedBy, lastChangedAt, reason }
-//   POST /api/v1/admin/kill-switch  → body: { enable: bool, reason: string }
-// Until those exist: status shows "Unknown", toggle is disabled, all metadata shows —.
+// DATA: @/lib/adminMock → getKillSwitch() / setKillSwitch().
+// Backend swap: replace those two functions' bodies with the documented
+//   GET/POST /api/v1/admin/kill-switch calls. Nothing here changes.
 
 const WHAT_IT_DOES = [
   'Instantly stops all new copy orders being placed on any child account',
@@ -16,9 +18,50 @@ const WHAT_IT_DOES = [
   'Setting persists across server restarts',
 ];
 
+const fmtTime = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+};
+
 const KillSwitch = () => {
-  // reason field is wired up for when the endpoint becomes available
+  const { addToast } = useToast();
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [reason, setReason] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    getKillSwitch()
+      .then(setStatus)
+      .catch(() => addToast('Unable to load kill-switch status', 'error'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const halted = status?.enabled === true;
+
+  const apply = async () => {
+    setSubmitting(true);
+    try {
+      // toggling to the opposite of current state
+      const next = await setKillSwitch({ enable: !halted, reason: reason.trim() });
+      setStatus(next);
+      setReason('');
+      setConfirmOpen(false);
+      addToast(next.enabled ? 'Copy-trading halted platform-wide' : 'Copy-trading resumed', 'success');
+    } catch {
+      addToast('Action failed', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const canHalt = !halted && reason.trim().length > 0;
 
   return (
     <div className="space-y-6">
@@ -31,27 +74,29 @@ const KillSwitch = () => {
         </p>
       </section>
 
-      <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-600 dark:text-amber-400">
-        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-        <span>
-          Kill-switch toggle is disabled until{' '}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-            POST /api/v1/admin/kill-switch
-          </code>{' '}
-          and{' '}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-            GET /api/v1/admin/kill-switch
-          </code>{' '}
-          are implemented. Current state is unknown.
-        </span>
-      </div>
+      {/* Live site-wide halted banner */}
+      {halted && (
+        <div className="flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-5 py-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-rose-500" />
+          <div>
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+              Platform Halted — no new copies are being placed
+            </p>
+            <p className="mt-0.5 text-xs text-rose-600 dark:text-rose-500">
+              Halted by {status.lastChangedBy} · {fmtTime(status.lastChangedAt)} · Reason: {status.reason || '—'}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Status + toggle card */}
         <GlassCard>
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100/60 text-slate-400 dark:bg-white/[0.04] dark:text-slate-600">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                halted ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+              }`}>
                 <Power className="h-6 w-6" />
               </div>
               <div>
@@ -63,61 +108,69 @@ const KillSwitch = () => {
                 </p>
               </div>
             </div>
-            <span className="rounded-full border border-slate-200/80 bg-slate-100/60 px-3 py-1 text-sm font-semibold text-slate-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-500">
-              Unknown
-            </span>
+            {loading ? (
+              <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : (
+              <span className={`rounded-full px-3 py-1 text-sm font-semibold text-white ${
+                halted ? 'bg-rose-500' : 'bg-emerald-500'
+              }`}>
+                {halted ? 'Halted' : 'Active'}
+              </span>
+            )}
           </div>
 
           <div className="mb-6 divide-y divide-slate-100/70 dark:divide-white/[0.05]">
             {[
-              ['Current Status', 'Unknown'],
-              ['Last Changed By', '—'],
-              ['Last Changed At', '—'],
-              ['Reason on Record', '—'],
+              ['Current Status', loading ? '…' : halted ? 'Halted' : 'Active'],
+              ['Last Changed By', status?.lastChangedBy || '—'],
+              ['Last Changed At', fmtTime(status?.lastChangedAt)],
+              ['Reason on Record', status?.reason || '—'],
             ].map(([label, value]) => (
               <div key={label} className="flex items-center justify-between gap-4 py-3 text-sm">
                 <span className="text-slate-500 dark:text-muted-foreground">{label}</span>
-                <span className="font-semibold text-slate-400 dark:text-slate-600">{value}</span>
+                <span className="max-w-[60%] text-right font-semibold text-slate-700 dark:text-foreground">{value}</span>
               </div>
             ))}
           </div>
 
-          <div className="space-y-3">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-muted-foreground">
-              Reason (required before toggling)
-            </label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Broker outage detected — halting all copying"
-              rows={3}
-              className="w-full resize-none rounded-xl border border-border bg-black/5 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-brand-purple dark:bg-white/5"
-            />
-          </div>
+          {!halted && (
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-muted-foreground">
+                Reason (required before halting)
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Broker outage detected — halting all copying"
+                rows={3}
+                className="w-full resize-none rounded-xl border border-border bg-black/5 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-brand-purple dark:bg-white/5"
+              />
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <button
               type="button"
-              disabled
-              title="Not yet connected to backend"
-              className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-100/60 px-4 py-3 text-sm font-semibold text-slate-400 dark:bg-white/[0.04] dark:text-slate-600"
+              onClick={() => setConfirmOpen(true)}
+              disabled={loading || halted || !canHalt}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-100/60 disabled:text-slate-400 dark:disabled:bg-white/[0.04] dark:disabled:text-slate-600"
             >
               <Power className="h-4 w-4" />
               Halt Copying
             </button>
             <button
               type="button"
-              disabled
-              title="Not yet connected to backend"
-              className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-100/60 px-4 py-3 text-sm font-semibold text-slate-400 dark:bg-white/[0.04] dark:text-slate-600"
+              onClick={() => setConfirmOpen(true)}
+              disabled={loading || !halted}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-100/60 disabled:text-slate-400 dark:disabled:bg-white/[0.04] dark:disabled:text-slate-600"
             >
               <Power className="h-4 w-4" />
               Resume Copying
             </button>
           </div>
-          <p className="mt-2 text-center text-xs text-slate-400 dark:text-muted-foreground">
-            Not yet connected to backend
-          </p>
+          {!halted && !canHalt && !loading && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">Enter a reason to enable the halt button</p>
+          )}
         </GlassCard>
 
         {/* Behaviour explanation */}
@@ -138,24 +191,43 @@ const KillSwitch = () => {
               </li>
             ))}
           </ul>
-
-          {/* Halted banner — rendered here as a preview; shown for real when GET returns enabled: true */}
-          <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/8 px-4 py-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-rose-500 dark:text-rose-400" />
-              <div>
-                <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">
-                  Platform Halted (banner preview)
-                </p>
-                <p className="mt-0.5 text-xs text-rose-600 dark:text-rose-500">
-                  This banner will be shown site-wide when the kill switch is active. Reason and
-                  who triggered it will appear here.
-                </p>
-              </div>
-            </div>
-          </div>
         </GlassCard>
       </div>
+
+      <Modal isOpen={confirmOpen} onClose={() => !submitting && setConfirmOpen(false)} title={halted ? 'Resume copy-trading?' : 'Halt copy-trading?'} size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {halted
+              ? 'This will resume copy-trading across the entire platform. New master orders will start being copied to child accounts again.'
+              : 'This will immediately stop all new copy orders on every child account platform-wide. Positions already open are not affected.'}
+          </p>
+          {!halted && (
+            <div className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5">
+              <span className="text-xs text-muted-foreground">Reason</span>
+              <p className="mt-0.5 font-medium">{reason.trim() || '—'}</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setConfirmOpen(false)}
+              disabled={submitting}
+              className="rounded-xl border border-border bg-black/5 px-4 py-2 text-sm font-medium hover:bg-black/10 disabled:opacity-50 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={apply}
+              disabled={submitting}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${
+                halted ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'
+              }`}
+            >
+              {submitting && <LoaderCircle className="h-4 w-4 animate-spin" />}
+              {halted ? 'Resume' : 'Halt now'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

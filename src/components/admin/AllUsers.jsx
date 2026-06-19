@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Eye, LoaderCircle, Search, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, LoaderCircle, Search, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SlideOver from '@/components/shared/SlideOver';
 import DivSelect from '@/components/shared/DivSelect';
+import DownloadButton from '@/components/shared/DownloadButton';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
 
 const RoleBadge = ({ role }) => (
   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold text-white ${
@@ -72,6 +74,12 @@ const AllUsers = ({ scope = 'all' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState(viewConfig.defaultRoleFilter);
   const [statusFilter, setStatusFilter] = useState('All');
+  // ADM-12: pagination. We always send page/limit to the backend so it can paginate
+  // server-side once it supports it. Until then we also slice client-side below, so
+  // the UI is correct either way — no behaviour change needed when the backend catches up.
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [totalFromServer, setTotalFromServer] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [suspendModal, setSuspendModal] = useState(false);
@@ -93,7 +101,7 @@ const AllUsers = ({ scope = 'all' }) => {
     }
 
     try {
-      const params = {};
+      const params = { page, limit: PAGE_SIZE };
 
       if (roleFilter !== 'All') {
         params.role = roleFilter.toUpperCase();
@@ -105,6 +113,12 @@ const AllUsers = ({ scope = 'all' }) => {
 
       const response = await adminService.getUsers(params);
       setUsers(response.users);
+      // adminService already parses total/page/limit from the response via extractMeta.
+      // If the backend doesn't yet honor page/limit, response.meta.total will be null/undefined
+      // and we fall back to client-side pagination below.
+      setTotalFromServer(
+        Number.isFinite(response.meta?.total) ? response.meta.total : null,
+      );
     } catch (error) {
       addToast(error.message || 'Unable to load users', 'error');
     } finally {
@@ -115,7 +129,12 @@ const AllUsers = ({ scope = 'all' }) => {
 
   useEffect(() => {
     loadUsers(true);
-  }, [roleFilter, statusFilter]);
+  }, [roleFilter, statusFilter, page]);
+
+  // Reset to page 1 whenever a filter changes (but not when page itself changes)
+  useEffect(() => {
+    setPage(1);
+  }, [roleFilter, statusFilter, searchQuery]);
 
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -131,6 +150,21 @@ const AllUsers = ({ scope = 'all' }) => {
         user.phone.toLowerCase().includes(query),
     );
   }, [searchQuery, users]);
+
+  // ADM-12: if the backend already paginated the response (totalFromServer is set and
+  // the page we received is <= PAGE_SIZE rows), trust it and show as-is. Otherwise slice
+  // client-side so the UI is still correct against an unpaginated backend.
+  const backendIsPaginating = totalFromServer !== null && users.length <= PAGE_SIZE;
+  const pagedUsers = useMemo(() => {
+    if (backendIsPaginating) return filteredUsers;
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredUsers.slice(start, start + PAGE_SIZE);
+  }, [filteredUsers, page, backendIsPaginating]);
+
+  const total = backendIsPaginating ? totalFromServer : filteredUsers.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const showingFrom = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, total);
 
   const masterOptions = useMemo(
     () => users.filter((user) => user.role === 'Master' && user.status === 'ACTIVE'),
@@ -249,6 +283,32 @@ const AllUsers = ({ scope = 'all' }) => {
     }
   };
 
+  // ADM-11: export currently loaded + filtered users to Excel. Exports respect the
+  // active role/status/search filters since it reads from filteredUsers, not the raw list.
+  const handleExportUsers = () => {
+    try {
+      const rows = filteredUsers.map((user) => ({
+        'User ID': user.userId,
+        Name: user.name,
+        Email: user.email,
+        Phone: user.phone || '',
+        Role: user.role,
+        Status: user.status,
+        'Broker Accounts': formatBrokerCount(user),
+        'Two-Factor Enabled': user.twoFactorEnabled ? 'Yes' : 'No',
+        'Joined Date': user.joinedDate,
+      }));
+      downloadExcelSheet({
+        rows,
+        sheetName: viewConfig.title,
+        fileName: buildExportFileName(viewConfig.title),
+      });
+      addToast('User list exported', 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to export user list', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -257,6 +317,7 @@ const AllUsers = ({ scope = 'all' }) => {
           <p className="text-sm text-muted-foreground">{viewConfig.subtitle}</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
+          <DownloadButton onClick={handleExportUsers} disabled={filteredUsers.length === 0} label="Export" />
           <button
             onClick={() => loadUsers(false)}
             className="flex-1 rounded-lg border border-white/10 bg-black/5 px-3 py-2 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:px-4 sm:text-sm"
@@ -348,8 +409,8 @@ const AllUsers = ({ scope = 'all' }) => {
                     </div>
                   </td>
                 </tr>
-              ) : filteredUsers.length ? (
-                filteredUsers.map((user, index) => (
+              ) : pagedUsers.length ? (
+                pagedUsers.map((user, index) => (
                   <motion.tr
                     key={user.userId}
                     initial={{ opacity: 0 }}
@@ -425,6 +486,32 @@ const AllUsers = ({ scope = 'all' }) => {
             </tbody>
           </table>
         </div>
+
+        {/* ADM-12: pagination footer — same pattern as AuditLog.jsx / FailedCopyMonitor.jsx */}
+        {!loading && total > 0 && (
+          <div className="flex items-center justify-between border-t border-border/40 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">
+              Showing {showingFrom}–{showingTo} of {total}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-xs font-medium hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              </button>
+              <span className="text-xs text-muted-foreground">Page {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-xs font-medium hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </GlassCard>
 
       <SlideOver isOpen={slideOverOpen} onClose={() => setSlideOverOpen(false)} title="User Details" size="md">

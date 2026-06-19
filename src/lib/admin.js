@@ -308,6 +308,8 @@ const normalizeAnalytics = (payload = {}) => {
 };
 
 export const adminService = {
+  // ADM-12: pass through page/limit from params. Backend should honor these and
+  // return total count (see extractMeta below) so the UI can stop client-side slicing.
   async getUsers(params = {}) {
     try {
       const response = await api.get('/api/v1/admin/users', { params });

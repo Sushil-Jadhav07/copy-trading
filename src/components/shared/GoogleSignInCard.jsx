@@ -22,7 +22,7 @@ const GoogleSignInCard = ({
   disabled = false,
 }) => (
   <div className="">
-    <div className={disabled ? 'pointer-events-none opacity-70' : ''}>
+    <div className={`flex justify-center ${disabled ? 'pointer-events-none opacity-70' : ''}`}>
       <GoogleLogin
         onSuccess={onSuccess}
         onError={onError}
@@ -30,7 +30,7 @@ const GoogleSignInCard = ({
         shape="pill"
         theme="outline"
         size="large"
-        width="100%"
+        width={400}
       />
     </div>
 

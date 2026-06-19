@@ -1,13 +1,12 @@
-import { useState } from 'react';
-import { AlertCircle, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, Search, LoaderCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
+import { getFailedCopies } from '@/lib/adminMock';
 
 // ADM-5: Failed Copy Monitor
-// Endpoint needed: GET /api/v1/admin/failed-copies
-//   params: status, masterId, childId, broker, dateFrom, dateTo, page, limit
-//   response: { copies: [{ id, masterName, childName, broker, symbol, status, reason, timestamp, latencyMs }], total }
-// Until that endpoint exists the table shows an empty state.
+// DATA: @/lib/adminMock → getFailedCopies(params). Backend swap: replace that
+// function's body with GET /api/v1/admin/failed-copies. Nothing here changes.
 
 const STATUS_OPTIONS = [
   { value: 'SKIPPED', label: 'Skipped' },
@@ -25,12 +24,20 @@ const BROKER_OPTIONS = [
   { value: 'FYERS', label: 'Fyers' },
 ];
 
-const STAT_CARDS = [
-  { label: 'Total Failed/Skipped', value: 0, color: 'text-rose-400' },
-  { label: 'Skipped', value: 0, color: 'text-amber-400' },
-  { label: 'Rejected', value: 0, color: 'text-orange-400' },
-  { label: 'Timeout', value: 0, color: 'text-slate-400' },
-];
+const STATUS_STYLES = {
+  SKIPPED: 'border-amber-500/15 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  FAILED: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  REJECTED: 'border-orange-500/15 bg-orange-500/10 text-orange-600 dark:text-orange-400',
+  TIMEOUT: 'border-slate-500/15 bg-slate-500/10 text-slate-500 dark:text-slate-400',
+};
+
+const LIMIT = 12;
+
+const fmtTime = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
 
 const FailedCopyMonitor = () => {
   const [search, setSearch] = useState('');
@@ -38,6 +45,47 @@ const FailedCopyMonitor = () => {
   const [brokerFilter, setBrokerFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+
+  const [copies, setCopies] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ total: 0, skipped: 0, rejected: 0, timeout: 0, failed: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { setPage(1); }, [search, statusFilter, brokerFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getFailedCopies({
+      page,
+      limit: LIMIT,
+      search: search || undefined,
+      status: statusFilter || undefined,
+      broker: brokerFilter || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    })
+      .then((res) => {
+        if (!active) return;
+        setCopies(res.copies);
+        setTotal(res.total);
+        setStats(res.stats);
+      })
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [page, search, statusFilter, brokerFilter, dateFrom, dateTo]);
+
+  const statCards = [
+    { label: 'Total Failed/Skipped', value: stats.total, color: 'text-rose-400' },
+    { label: 'Skipped', value: stats.skipped, color: 'text-amber-400' },
+    { label: 'Rejected', value: stats.rejected, color: 'text-orange-400' },
+    { label: 'Timeout', value: stats.timeout, color: 'text-slate-400' },
+  ];
+
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const showingFrom = total === 0 ? 0 : (page - 1) * LIMIT + 1;
+  const showingTo = Math.min(page * LIMIT, total);
 
   return (
     <div className="space-y-6">
@@ -50,19 +98,11 @@ const FailedCopyMonitor = () => {
         </p>
       </section>
 
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-600 dark:text-amber-400">
-        No data yet — awaiting{' '}
-        <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-          GET /api/v1/admin/failed-copies
-        </code>{' '}
-        backend integration.
-      </div>
-
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {STAT_CARDS.map((s) => (
+        {statCards.map((s) => (
           <GlassCard key={s.label}>
             <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{loading ? '…' : s.value}</p>
           </GlassCard>
         ))}
       </div>
@@ -111,7 +151,7 @@ const FailedCopyMonitor = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border/50 bg-black/[0.03] dark:bg-white/[0.03]">
-                {['Time', 'Status', 'Master', 'Child', 'Broker', 'Latency (ms)', 'Reason'].map((h) => (
+                {['Time', 'Status', 'Master', 'Child', 'Broker', 'Symbol', 'Latency (ms)', 'Reason'].map((h) => (
                   <th
                     key={h}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -122,24 +162,70 @@ const FailedCopyMonitor = () => {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={7} className="px-4 py-16">
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <AlertCircle className="h-10 w-10 text-muted-foreground/30" />
-                    <p className="text-sm font-medium text-muted-foreground">No data yet — awaiting backend integration</p>
-                    <p className="max-w-sm text-xs text-muted-foreground/60">
-                      Failed and skipped copies will appear here once{' '}
-                      <code className="rounded bg-black/5 px-1 py-0.5 font-mono dark:bg-white/5">
-                        GET /api/v1/admin/failed-copies
-                      </code>{' '}
-                      is available.
-                    </p>
-                  </div>
-                </td>
-              </tr>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-16">
+                    <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Loading failed copies…
+                    </div>
+                  </td>
+                </tr>
+              ) : copies.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-16">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <AlertCircle className="h-10 w-10 text-muted-foreground/30" />
+                      <p className="text-sm font-medium text-muted-foreground">No failed or skipped copies match these filters</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                copies.map((c) => (
+                  <tr key={c.id} className="border-b border-border/30 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{fmtTime(c.timestamp)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[c.status]}`}>
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{c.masterName}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm">{c.childName}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{c.broker}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold">{c.symbol}</td>
+                    <td className={`whitespace-nowrap px-4 py-3 text-sm font-medium ${c.latencyMs >= 5000 ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                      {c.latencyMs.toLocaleString('en-IN')}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground max-w-[260px]">{c.reason}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {!loading && total > 0 && (
+          <div className="flex items-center justify-between border-t border-border/40 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">Showing {showingFrom}–{showingTo} of {total}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-xs font-medium hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              </button>
+              <span className="text-xs text-muted-foreground">Page {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-xs font-medium hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </GlassCard>
     </div>
   );

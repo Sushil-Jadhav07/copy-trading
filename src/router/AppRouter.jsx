@@ -57,6 +57,9 @@ import ForceSquareOff from '@/components/admin/ForceSquareOff';
 import AuditLog from '@/components/admin/AuditLog';
 import FailedCopyMonitor from '@/components/admin/FailedCopyMonitor';
 import OrderTrace from '@/components/admin/OrderTrace';
+import RiskLimits from '@/components/admin/RiskLimits';
+import AdminAlerts from '@/components/admin/AdminAlerts';
+import ViewAsUser from '@/components/admin/ViewAsUser';
 
 const DematDetailWrapper = () => {
   const { accountId } = useParams();
@@ -179,6 +182,9 @@ const AppRouter = () => {
                 <Route path="admin/pnl" element={<AdminPnL />} />
                 <Route path="admin/trade-history" element={<TradeHistory />} />
                 <Route path="admin/order-trace" element={<OrderTrace />} />
+                <Route path="admin/risk-limits" element={<RiskLimits />} />
+                <Route path="admin/alerts" element={<AdminAlerts />} />
+                <Route path="admin/view-as-user" element={<ViewAsUser />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/login" replace />} />

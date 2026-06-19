@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Search, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Search, TrendingUp } from 'lucide-react';
 import { adminService } from '@/lib/admin';
 
 const buildStats = (trades) => {
@@ -77,6 +77,12 @@ const TradeHistory = () => {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // ADM-12: pagination. adminService.getTradeLogs() currently returns the full
+  // dataset, so this paginates client-side. Once GET /api/v1/admin/trade-logs
+  // accepts page/limit and returns a total, switch to passing those through
+  // and trust the server count instead of slicing here.
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   useEffect(() => {
     setLoading(true);
@@ -98,6 +104,18 @@ const TradeHistory = () => {
         row.master.toLowerCase().includes(query),
     );
   }, [search, trades]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, page]);
+  const showingFrom = filteredRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, filteredRows.length);
 
   return (
     <div className="space-y-5">
@@ -183,7 +201,7 @@ const TradeHistory = () => {
                 </tr>
               )}
 
-              {!loading && filteredRows.map((row) => {
+              {!loading && pagedRows.map((row) => {
                 const isBuy = String(row.action).toUpperCase() === 'BUY';
                 const isSell = String(row.action).toUpperCase() === 'SELL';
 
@@ -233,6 +251,31 @@ const TradeHistory = () => {
             </tbody>
           </table>
         </div>
+
+        {!loading && filteredRows.length > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200/70 px-4 py-3 text-sm dark:border-white/[0.06]">
+            <span className="text-slate-400 dark:text-muted-foreground">
+              Showing {showingFrom}–{showingTo} of {filteredRows.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:hover:bg-white/10"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              </button>
+              <span className="text-xs text-slate-400 dark:text-muted-foreground">Page {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:hover:bg-white/10"
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
     </div>

@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, LoaderCircle, Pause, Play, Search } from 'lucide-react';
+import { Eye, LoaderCircle, Search, Trash2, UserCheck, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
+import Modal from '@/components/shared/Modal';
 import SlideOver from '@/components/shared/SlideOver';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
-
-// ADM-2: Pause/Resume copying for a specific master
-// Endpoints needed (separate from activate/deactivate — master stays logged in):
-//   PATCH /api/v1/admin/masters/{id}/pause   → { copyingPaused: true }
-//   PATCH /api/v1/admin/masters/{id}/resume  → { copyingPaused: false }
-// Until those exist: the copyingPaused column shows — and Pause/Resume buttons are disabled.
 
 const StatusBadge = ({ status }) => {
   const upper = String(status || '').toUpperCase();
@@ -25,12 +20,6 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const CopyingBadge = () => (
-  <span className="inline-flex rounded-full border border-slate-200/80 bg-slate-100/60 px-2.5 py-0.5 text-xs font-semibold text-slate-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-600">
-    —
-  </span>
-);
-
 const MasterAccounts = () => {
   const { addToast } = useToast();
   const [masters, setMasters] = useState([]);
@@ -39,6 +28,9 @@ const MasterAccounts = () => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [statusModal, setStatusModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [actionTarget, setActionTarget] = useState(null);
 
   const load = async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -63,7 +55,7 @@ const MasterAccounts = () => {
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.email.toLowerCase().includes(q) ||
-        m.phone.toLowerCase().includes(q),
+        (m.phone || '').toLowerCase().includes(q),
     );
   }, [search, masters]);
 
@@ -72,10 +64,40 @@ const MasterAccounts = () => {
       { label: 'Total Masters', value: masters.length, color: 'text-foreground' },
       { label: 'Active', value: masters.filter((m) => m.status === 'ACTIVE').length, color: 'text-emerald-400' },
       { label: 'Inactive', value: masters.filter((m) => m.status !== 'ACTIVE').length, color: 'text-rose-400' },
-      { label: 'Copy-Paused', value: '—', color: 'text-amber-400' },
     ],
     [masters],
   );
+
+  const handleStatusToggle = async () => {
+    if (!actionTarget) return;
+    try {
+      if (actionTarget.status === 'ACTIVE') {
+        await adminService.deactivateUser(actionTarget.userId);
+        addToast(`${actionTarget.name} deactivated`, 'success');
+      } else {
+        await adminService.activateUser(actionTarget.userId);
+        addToast(`${actionTarget.name} activated`, 'success');
+      }
+      setStatusModal(false);
+      await load(true);
+    } catch (err) {
+      addToast(err.message || 'Unable to update status', 'error');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!actionTarget) return;
+    try {
+      await adminService.deleteUser(actionTarget.userId);
+      addToast(`${actionTarget.name} deleted`, 'success');
+      setDeleteModal(false);
+      setPanelOpen(false);
+      setSelected(null);
+      await load(true);
+    } catch (err) {
+      addToast(err.message || 'Unable to delete user', 'error');
+    }
+  };
 
   const openDetail = async (master) => {
     setSelected(master);
@@ -108,15 +130,7 @@ const MasterAccounts = () => {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-3 text-xs text-amber-600 dark:text-amber-400">
-        Pause/Resume buttons are disabled until{' '}
-        <code className="rounded bg-black/5 px-1 py-0.5 font-mono dark:bg-white/5">
-          PATCH /api/v1/admin/masters/{'{id}'}/pause|resume
-        </code>{' '}
-        endpoints are available. Pausing copying is separate from account deactivation.
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {stats.map((s) => (
           <GlassCard key={s.label}>
             <p className="text-xs text-muted-foreground">{s.label}</p>
@@ -140,7 +154,7 @@ const MasterAccounts = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border/50 bg-black/[0.03] dark:bg-white/[0.03]">
-                {['#', 'Master', 'Account Status', 'Copying', 'Phone', 'Brokers', 'Joined', 'Actions'].map((h) => (
+                {['#', 'Master', 'Status', 'Phone', 'Brokers', 'Joined', 'Actions'].map((h) => (
                   <th
                     key={h}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -153,7 +167,7 @@ const MasterAccounts = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16">
+                  <td colSpan={7} className="px-4 py-16">
                     <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
                       <LoaderCircle className="h-4 w-4 animate-spin" />
                       Loading masters…
@@ -162,7 +176,7 @@ const MasterAccounts = () => {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     {masters.length === 0 ? 'No master accounts yet.' : 'No masters match your search.'}
                   </td>
                 </tr>
@@ -190,9 +204,6 @@ const MasterAccounts = () => {
                     <td className="px-4 py-3">
                       <StatusBadge status={master.status} />
                     </td>
-                    <td className="px-4 py-3">
-                      <CopyingBadge />
-                    </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{master.phone || '—'}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       {Array.isArray(master.brokerAccounts) ? master.brokerAccounts.length : 0}
@@ -210,18 +221,26 @@ const MasterAccounts = () => {
                           <Eye className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          disabled
-                          title="Not yet connected to backend"
-                          className="flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-lg bg-amber-500/10 opacity-50"
+                          onClick={() => { setActionTarget(master); setStatusModal(true); }}
+                          title={master.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                            master.status === 'ACTIVE'
+                              ? 'bg-amber-500/15 hover:bg-amber-500/25'
+                              : 'bg-emerald-500/15 hover:bg-emerald-500/25'
+                          }`}
                         >
-                          <Pause className="h-3.5 w-3.5 text-amber-400" />
+                          {master.status === 'ACTIVE' ? (
+                            <UserX className="h-3.5 w-3.5 text-amber-400" />
+                          ) : (
+                            <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
+                          )}
                         </button>
                         <button
-                          disabled
-                          title="Not yet connected to backend"
-                          className="flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-lg bg-emerald-500/10 opacity-50"
+                          onClick={() => { setActionTarget(master); setDeleteModal(true); }}
+                          title="Delete"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/15 transition-colors hover:bg-red-500/25"
                         >
-                          <Play className="h-3.5 w-3.5 text-emerald-400" />
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
                         </button>
                       </div>
                     </td>
@@ -253,8 +272,7 @@ const MasterAccounts = () => {
               {[
                 ['User ID', selected.userId],
                 ['Phone', selected.phone || '—'],
-                ['Account Status', selected.status],
-                ['Copying Status', '—'],
+                ['Status', selected.status],
                 ['Joined', selected.joinedDate],
                 ['Broker Accounts', Array.isArray(selected.brokerAccounts) ? selected.brokerAccounts.length : 0],
                 ['Two-Factor Auth', selected.twoFactorEnabled ? 'Enabled' : 'Disabled'],
@@ -266,32 +284,78 @@ const MasterAccounts = () => {
               ))}
             </div>
 
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-600 dark:text-amber-400">
-              Pause/Resume requires{' '}
-              <code className="font-mono">PATCH /api/v1/admin/masters/{'{id}'}/pause|resume</code>. Currently disabled.
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <button
-                disabled
-                title="Not yet connected to backend"
-                className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-amber-500/10 py-3 text-sm font-medium text-amber-400 opacity-60"
+                onClick={() => { setActionTarget(selected); setStatusModal(true); }}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
+                  selected.status === 'ACTIVE'
+                    ? 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
+                    : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
+                }`}
               >
-                <Pause className="h-4 w-4" />
-                Pause Copying
+                {selected.status === 'ACTIVE' ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                {selected.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
               </button>
               <button
-                disabled
-                title="Not yet connected to backend"
-                className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-emerald-500/10 py-3 text-sm font-medium text-emerald-400 opacity-60"
+                onClick={() => { setActionTarget(selected); setDeleteModal(true); }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/15 py-3 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/25"
               >
-                <Play className="h-4 w-4" />
-                Resume Copying
+                <Trash2 className="h-4 w-4" />
+                Delete
               </button>
             </div>
           </div>
         )}
       </SlideOver>
+
+      <Modal
+        isOpen={statusModal}
+        onClose={() => setStatusModal(false)}
+        title={actionTarget?.status === 'ACTIVE' ? 'Deactivate Master' : 'Activate Master'}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {actionTarget?.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}{' '}
+            <span className="font-semibold text-foreground">{actionTarget?.name}</span>?
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setStatusModal(false)}
+              className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleStatusToggle}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium text-white ${
+                actionTarget?.status === 'ACTIVE' ? 'bg-amber-500 hover:bg-amber-500/90' : 'bg-emerald-500 hover:bg-emerald-500/90'
+              }`}
+            >
+              {actionTarget?.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={deleteModal} onClose={() => setDeleteModal(false)} title="Delete Master" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Permanently delete <span className="font-semibold text-foreground">{actionTarget?.name}</span>? This cannot be undone.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setDeleteModal(false)}
+              className="flex-1 rounded-lg bg-black/5 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button onClick={handleDelete} className="btn-danger flex-1 py-2 text-sm">
+              Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

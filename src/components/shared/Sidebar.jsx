@@ -26,6 +26,9 @@ import {
   Link2,
   History,
   Power,
+  SlidersHorizontal,
+  Bell,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -252,6 +255,9 @@ const childSidebarItems = [
         { to: '/admin/system-logs', icon: FileText, label: 'System Logs' },
         { to: '/admin/pnl', icon: BarChart2, label: 'Platform P&L' },
         { to: '/admin/audit-log', icon: FileText, label: 'Audit Log' },
+        { to: '/admin/risk-limits', icon: SlidersHorizontal, label: 'Risk Limits' },
+        { to: '/admin/alerts', icon: Bell, label: 'Alerting' },
+        { to: '/admin/view-as-user', icon: Eye, label: 'View as User' },
       ],
     },
   ];
