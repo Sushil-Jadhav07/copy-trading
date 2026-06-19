@@ -83,6 +83,10 @@ const shortId = (value) => {
   return text.length > 14 ? `${text.slice(0, 8)}...${text.slice(-4)}` : text;
 };
 
+const normalizeAccountId = (value) => String(value || '').trim();
+const normalizeAccountIds = (values) =>
+  Array.from(new Set((Array.isArray(values) ? values : [values]).map(normalizeAccountId).filter(Boolean)));
+
 const getModeBadgeClass = (mode = '') => {
   const normalized = String(mode).toLowerCase();
   if (normalized === 'manual')    return 'bg-blue-500 text-white';
@@ -208,7 +212,7 @@ const CopyTrading = () => {
   const brokerTriggerRef = useRef(null);
 
   const setAllActiveAccountIds = useCallback((ids) => {
-    const safeIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+    const safeIds = normalizeAccountIds(ids);
     setActiveAccountIds(safeIds);
     setMasterAccountId(safeIds[0] || '');
     setMasterConnected(safeIds.length > 0);
@@ -230,18 +234,25 @@ const CopyTrading = () => {
       setChildren(copyChildren);
       setUsingCopyTradingEndpoint(true);
 
-      const rawActiveAccounts = Array.isArray(data?.activeAccounts) ? data.activeAccounts : null;
-      if (rawActiveAccounts && rawActiveAccounts.length > 0) {
-        const ids = rawActiveAccounts.map((a) => a.brokerAccountId || a.accountId).filter(Boolean);
-        if (ids.length) setAllActiveAccountIds(ids);
-      } else {
-        const activeId = data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || '';
-        if (activeId) {
-          setAllActiveAccountIds([activeId]);
-        } else if (!window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY + '_connected')) {
-          setAllActiveAccountIds([]);
-        }
+      let resolvedActiveIds = normalizeAccountIds(
+        Array.isArray(data?.activeAccounts)
+          ? data.activeAccounts.map((account) => account?.brokerAccountId || account?.accountId || account?.id)
+          : [],
+      );
+
+      if (!resolvedActiveIds.length) {
+        resolvedActiveIds = normalizeAccountIds(
+          data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || data?.activeAccount?.id,
+        );
       }
+
+      if (resolvedActiveIds.length > 0) {
+        setAllActiveAccountIds(resolvedActiveIds);
+      } else if (!window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY + '_connected')) {
+        setAllActiveAccountIds([]);
+      }
+      // If _connected is set but the server returned no active accounts, preserve
+      // existing localStorage state — server response may simply omit activeAccounts.
 
       if (data?.pollingIntervalMs) {
         setPollingIntervalMs(Math.max(Number(data.pollingIntervalMs) || 3000, 500));
@@ -273,7 +284,7 @@ const CopyTrading = () => {
       setUsingCopyTradingEndpoint(false);
       return false;
     }
-  }, [accounts, setChildren, setAllActiveAccountIds]);
+  }, [setChildren, setAllActiveAccountIds]);
 
   // ── Load historical latency data ──────────────────────────────────────────
   useEffect(() => {
@@ -487,7 +498,7 @@ const CopyTrading = () => {
   const accountMap = useMemo(() => {
     const map = new Map();
     accounts.forEach((acc) => {
-      const id = acc.accountId || acc.id;
+      const id = normalizeAccountId(acc.accountId || acc.id);
       if (id) map.set(String(id), acc);
     });
     return map;
@@ -611,11 +622,13 @@ const CopyTrading = () => {
     };
   }, [connectedRows]);
 
+  const connectedAccountIds = useMemo(() => new Set(normalizeAccountIds(activeAccountIds)), [activeAccountIds]);
+
   const childOptions = useMemo(
     () =>
       accounts
         .map((account) => {
-          const accountId = String(account.accountId || account.id || '');
+          const accountId = normalizeAccountId(account.accountId || account.id);
           return {
             id: accountId,
             childId: accountId,
@@ -629,10 +642,17 @@ const CopyTrading = () => {
         })
         .filter(
           (child) =>
-            child.accountId && !activeAccountIds.includes(String(child.accountId)),
+            child.accountId && !connectedAccountIds.has(child.accountId),
         ),
-    [accounts, activeAccountIds],
+    [accounts, connectedAccountIds],
   );
+
+  useEffect(() => {
+    setSelectedBulkChildren((prev) => prev.filter((id) => childOptions.some((child) => child.id === id)));
+    if (brokerDropdownOpen && childOptions.length === 0) {
+      setBrokerDropdownOpen(false);
+    }
+  }, [childOptions, brokerDropdownOpen]);
 
   const ensureActiveSourceAccount = useCallback(async () => {
     if (!primarySourceAccountId) {
@@ -1054,7 +1074,13 @@ const CopyTrading = () => {
           <span className="text-[12px] font-black uppercase tracking-widest text-muted-foreground/60 shrink-0 w-16 pt-1.5">
             Connected
           </span>
-          {activeAccountIds.length === 0 ? (
+          {accountsLoading && activeAccountIds.length > 0 ? (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {activeAccountIds.map((id) => (
+                <div key={id} className="h-7 w-28 rounded-xl bg-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : activeAccountIds.length === 0 ? (
             <span className="text-[10px] text-muted-foreground/40 font-bold pt-1.5">
               No source brokers — select below and click Connect
             </span>
@@ -1062,7 +1088,6 @@ const CopyTrading = () => {
             <div className="flex flex-wrap gap-2">
               {activeAccountIds.map((sourceId) => {
                 const sourceAcc = accountMap.get(sourceId);
-                if (!sourceAcc) return null;
                 return (
                   <div
                     key={`src-${sourceId}`}
@@ -1070,10 +1095,10 @@ const CopyTrading = () => {
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                     <span className="text-[10px] font-black uppercase tracking-tight">
-                      {sourceAcc.broker || sourceAcc.brokerName || 'Broker'}
+                      {sourceAcc?.broker || sourceAcc?.brokerName || 'Broker'}
                     </span>
                     <span className="text-[12px] text-muted-foreground font-bold">
-                      {sourceAcc.nickname || sourceAcc.userId || sourceAcc.clientId || shortId(sourceAcc.accountId || sourceAcc.id)}
+                      {sourceAcc?.nickname || sourceAcc?.userId || sourceAcc?.clientId || shortId(sourceAcc?.accountId || sourceAcc?.id || sourceId)}
                     </span>
                     <button
                       type="button"
@@ -1095,7 +1120,9 @@ const CopyTrading = () => {
           <span className="text-[12px] font-black uppercase tracking-widest text-muted-foreground/60 shrink-0 w-16">
             Available
           </span>
-          {childOptions.length === 0 ? (
+          {accountsLoading ? (
+            <div className="h-8 w-44 rounded-xl bg-white/5 animate-pulse" />
+          ) : childOptions.length === 0 ? (
             <span className="text-[10px] text-muted-foreground/40 font-bold flex items-center gap-1.5">
               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
               All brokers are source accounts

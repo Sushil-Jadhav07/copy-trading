@@ -588,7 +588,7 @@ export const masterService = {
       const res = await api.get('/api/v1/master/active-account');
       return res.data?.data || res.data;
     } catch (error) {
-      if (error?.response?.status === 500) {
+      if (error?.response?.status === 405 || error?.response?.status === 500) {
         return { brokerAccountId: '' };
       }
       throw new Error(getErrorMessage(error, 'Unable to get active account'));
@@ -636,9 +636,14 @@ export const masterService = {
 
   async getActiveAccounts() {
     try {
-      const res = await api.get('/api/v1/master/active-accounts');
-      return res.data?.data || res.data;
+      const fallback = await api.get('/api/v1/master/active-account');
+      const data = fallback.data?.data || fallback.data || {};
+      const accountId = data?.brokerAccountId || data?.accountId || data?.id || '';
+      return accountId ? { activeAccounts: [{ brokerAccountId: accountId }] } : { activeAccounts: [] };
     } catch (error) {
+      if (error?.response?.status === 405 || error?.response?.status === 500) {
+        return { activeAccounts: [] };
+      }
       throw new Error(getErrorMessage(error, 'Unable to get active accounts'));
     }
   },
