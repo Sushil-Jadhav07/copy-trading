@@ -226,7 +226,7 @@ const TradeHistory = () => {
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900 dark:text-foreground">{row.qty || '—'}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900 dark:text-foreground">
-                      {row.price ? formatCurrency(row.price) : '—'}
+                      {row.price != null && row.price !== 0 ? formatCurrency(row.price) : (row.price === 0 ? formatCurrency(0) : '—')}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4">
                       <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeClass[row.status] || statusBadgeClass.success}`}>
