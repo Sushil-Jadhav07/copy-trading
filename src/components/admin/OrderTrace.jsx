@@ -31,16 +31,16 @@ const masterOrderFields = (traceId) => [
 
 const childColumns = [
   'Child',
-  'Child User ID',
   'Broker',
-  'Copy Status',
-  'Skip / Failure Reason',
-  'Child Order ID',
-  'Requested Qty',
-  'Executed Qty',
-  'Average Price',
+  'Scale Factor',
+  'Qty Copied',
+  'Order ID',
+  'Status',
+  'Executed At',
+  'Price',
   'Latency (ms)',
-  'Placed Time',
+  'Slippage (%)',
+  'Reason',
 ];
 
 const OrderTrace = () => {
@@ -151,6 +151,21 @@ const OrderTrace = () => {
           </div>
         </GlassCard>
       </div>
+
+      {/* Risk checks — spec section 6 */}
+      <GlassCard>
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Risk Checks
+        </h2>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {['Risk Check Passed', 'Sell-Guard Passed', 'Failed Rule'].map((f) => (
+            <div key={f} className="rounded-xl bg-black/5 p-3 dark:bg-white/5">
+              <p className="text-xs text-muted-foreground">{f}</p>
+              <p className="mt-0.5 text-sm font-semibold text-slate-400 dark:text-slate-600">—</p>
+            </div>
+          ))}
+        </div>
+      </GlassCard>
 
       <GlassCard noPadding>
         <div className="border-b border-border/40 px-4 py-3">
