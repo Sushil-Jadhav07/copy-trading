@@ -51,7 +51,7 @@ const FALLBACK_TRADE_BREAKDOWN = [
   { name: 'Sell Orders', value: 9, color: '#0c6b56' },
 ];
 
-const ASSET_MIX = [
+const DEFAULT_ASSET_MIX = [
   { name: 'Equity', value: 52, color: '#10d2a3' },
   { name: 'F&O', value: 48, color: '#13c6a0' },
 ];
@@ -116,6 +116,7 @@ const Overview = () => {
   const [equityCurveData, setEquityCurveData] = useState(FALLBACK_EQUITY_CURVE);
   const [childPerfData, setChildPerfData] = useState(FALLBACK_CHILD_PERF);
   const [tradeBreakdownData, setTradeBreakdownData] = useState(FALLBACK_TRADE_BREAKDOWN);
+  const [assetMixData, setAssetMixData] = useState(DEFAULT_ASSET_MIX);
 
   useEffect(() => {
     adminService.getAnalytics().then((data) => {
@@ -141,6 +142,13 @@ const Overview = () => {
         setTradeBreakdownData([
           { name: 'Buy Orders', value: data.buyOrders, color: '#13c6a0' },
           { name: 'Sell Orders', value: data.sellOrders, color: '#0c6b56' },
+        ]);
+      }
+
+      if (data.equityPercentage != null && data.foPercentage != null) {
+        setAssetMixData([
+          { name: 'Equity', value: data.equityPercentage, color: '#10d2a3' },
+          { name: 'F&O', value: data.foPercentage, color: '#13c6a0' },
         ]);
       }
     }).catch(() => {});
@@ -369,7 +377,7 @@ const Overview = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={ASSET_MIX}
+                      data={assetMixData}
                       dataKey="value"
                       innerRadius={0}
                       outerRadius={70}
@@ -377,7 +385,7 @@ const Overview = () => {
                       endAngle={0}
                       stroke="none"
                     >
-                      {ASSET_MIX.map((entry) => (
+                      {assetMixData.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
@@ -385,7 +393,7 @@ const Overview = () => {
                 </ResponsiveContainer>
               </div>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 dark:text-muted-foreground">
-                {ASSET_MIX.map((entry) => (
+                {assetMixData.map((entry) => (
                   <div key={entry.name} className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
                     <span>
