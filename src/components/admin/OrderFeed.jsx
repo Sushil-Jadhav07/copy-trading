@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { adminService } from '@/lib/admin';
 
 const FEED_FILTERS = ['All', 'Detected', 'Replicating', 'Completed', 'Failed'];
@@ -47,6 +48,7 @@ const mapLogToFeedRow = (log) => {
   return {
     id: log.id,
     orderId: log.reference || `LOG-${log.id}`,
+    traceId: log.reference || String(log.id),
     detectedAt: formatTime(log.timestamp),
     symbol: log.symbol,
     exchange: 'NSE',
@@ -287,7 +289,14 @@ const OrderFeed = () => {
                         selectedTrade && row.id === selectedTrade.id ? 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.04]' : ''
                       }`}
                     >
-                      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-brand-purple">{row.orderId}</td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-brand-purple">
+                        <Link
+                          to={`/admin/order-trace?id=${encodeURIComponent(row.traceId)}`}
+                          className="transition-opacity hover:opacity-75"
+                        >
+                          {row.orderId}
+                        </Link>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 dark:text-slate-300">{row.detectedAt}</td>
                       <td className="whitespace-nowrap px-4 py-4 font-semibold text-slate-900 dark:text-foreground">{row.symbol}</td>
                       <td className="whitespace-nowrap px-4 py-4">
@@ -356,7 +365,16 @@ const OrderFeed = () => {
               <section className="rounded-[20px] border border-slate-200/80 bg-white/60 p-5 backdrop-blur-xl dark:border-white/6 dark:bg-white/[0.035]">
                 <div className="space-y-4 text-sm">
                   {[
-                    ['Order ID', selectedTrade.detail?.orderId || selectedTrade.orderId],
+                    [
+                      'Order ID',
+                      <Link
+                        key="order-link"
+                        to={`/admin/order-trace?id=${encodeURIComponent(selectedTrade.traceId)}`}
+                        className="text-brand-purple transition-opacity hover:opacity-75"
+                      >
+                        {selectedTrade.detail?.orderId || selectedTrade.orderId}
+                      </Link>,
+                    ],
                     ['Symbol', selectedTrade.detail?.title || selectedTrade.symbol],
                     ['Type', selectedTrade.detail?.type || selectedTrade.type, 'pill'],
                     ['Side', selectedTrade.detail?.side || selectedTrade.side, 'side'],

@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
+import AppErrorBoundary from '@/components/shared/AppErrorBoundary';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
@@ -86,57 +87,58 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <CursorGlow position={position} isVisible={isVisible && isDark} />
-
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        setCollapsed={setSidebarCollapsed}
-        isMobile={isMobile}
-        isOpen={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
-      />
-
-      <div
-        className={`transition-all duration-300 ${
-          isMobile ? 'ml-0' : sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'
-        }`}
-      >
-        <Header
-          sidebarCollapsed={sidebarCollapsed}
+      <AppErrorBoundary>
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
           isMobile={isMobile}
-          onMenuClick={() => setMobileSidebarOpen(true)}
+          isOpen={mobileSidebarOpen}
+          onClose={() => setMobileSidebarOpen(false)}
         />
 
-        <main className="p-4 pt-20 sm:p-6 sm:pt-20">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            {showShellOverviewHeader && (
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
-                <div>
-                  <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
-                    {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
-                  </h1>
-                  <p className="text-slate-400 dark:text-muted-foreground font-medium mt-1">
-                    Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here&apos;s your performance summary.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="hidden sm:flex flex-col text-right">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
-                    <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
+        <div
+          className={`transition-all duration-300 ${
+            isMobile ? 'ml-0' : sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'
+          }`}
+        >
+          <Header
+            sidebarCollapsed={sidebarCollapsed}
+            isMobile={isMobile}
+            onMenuClick={() => setMobileSidebarOpen(true)}
+          />
+
+          <main className="p-4 pt-20 sm:p-6 sm:pt-20">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {showShellOverviewHeader && (
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
+                  <div>
+                    <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
+                      {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
+                    </h1>
+                    <p className="text-slate-400 dark:text-muted-foreground font-medium mt-1">
+                      Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here&apos;s your performance summary.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="hidden sm:flex flex-col text-right">
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
+                      <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <Outlet />
-          </motion.div>
-        </main>
-      </div>
+              )}
+              <Outlet />
+            </motion.div>
+          </main>
+        </div>
+      </AppErrorBoundary>
     </div>
   );
 };

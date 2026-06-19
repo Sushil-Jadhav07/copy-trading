@@ -127,21 +127,23 @@ const SystemLogs = () => {
           <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">No system health data</td></tr>
         )}
         {systemEntries.map((entry, index) => {
-          const statusUp = String(entry.status || '').toUpperCase() === 'UP';
+          const normalizedStatus = String(entry.status || '').toUpperCase();
+          const isHealthy = ['UP', 'OK', 'CONNECTED'].includes(normalizedStatus);
+          const isNeutral = ['DISABLED', 'UNKNOWN'].includes(normalizedStatus);
           return (
             <tr key={entry.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <td className="px-4 py-3 text-sm font-semibold">{entry.name || '-'}</td>
               <td className="px-4 py-3 text-sm">
                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
-                  statusUp ? 'bg-emerald-500' : 'bg-rose-500'
+                  isHealthy ? 'bg-emerald-500' : isNeutral ? 'bg-slate-500' : 'bg-rose-500'
                 }`}>
                   {entry.status || 'UNKNOWN'}
                 </span>
               </td>
               <td className="px-4 py-3 text-sm text-muted-foreground">{entry.uptime || '-'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.latency ?? '-'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.activeUsers ?? '-'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.ordersToday ?? '-'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.latency ?? '—'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.activeUsers ?? '—'}</td>
+              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.ordersToday ?? '—'}</td>
             </tr>
           );
         })}

@@ -8,6 +8,7 @@ import {
   BookOpen,
   BarChart2,
   Shield,
+  AlertTriangle,
   Users,
   UserPlus,
   Clock,
@@ -17,12 +18,14 @@ import {
   UserCheck,
   List,
   FileText,
+  CreditCard,
   ChevronLeft,
   ChevronRight,
   LogOut,
   LayoutGrid,
   Link2,
   History,
+  Power,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -229,11 +232,27 @@ const childSidebarItems = [
     },
     {
       section: 'Trade Monitor',
-        items: [
-          { to: '/admin/order-feed', icon: List, label: 'Trade Feed' },
-          { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
-          { to: '/admin/trade-history', icon: History, label: 'Trade History' },
-        ],
+      items: [
+        { to: '/admin/order-feed', icon: List, label: 'Trade Feed' },
+        { to: '/admin/open-positions', icon: Activity, label: 'Open Positions' },
+        { to: '/admin/live-trades', icon: Clock, label: 'Live Trades' },
+        { to: '/admin/failed-copy-monitor', icon: AlertTriangle, label: 'Failed Copy Monitor' },
+        { to: '/admin/trade-history', icon: History, label: 'Trade History' },
+        { to: '/admin/order-trace', icon: Search, label: 'Order Trace' },
+        { to: '/admin/master-child-map', icon: Link2, label: 'Master-Child Map' },
+      ],
+    },
+    {
+      section: 'Operations',
+      items: [
+        { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
+        { to: '/admin/broker-status', icon: Shield, label: 'Broker Status' },
+        { to: '/admin/kill-switch', icon: Power, label: 'Kill Switch' },
+        { to: '/admin/force-square-off', icon: Target, label: 'Force Square-Off' },
+        { to: '/admin/system-logs', icon: FileText, label: 'System Logs' },
+        { to: '/admin/pnl', icon: BarChart2, label: 'Platform P&L' },
+        { to: '/admin/audit-log', icon: FileText, label: 'Audit Log' },
+      ],
     },
   ];
 

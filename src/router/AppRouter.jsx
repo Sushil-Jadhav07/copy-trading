@@ -49,6 +49,14 @@ import OrderFeed from '@/components/admin/OrderFeed';
 import AdminPnL from '@/components/admin/AdminPnL';
 import AdminProfile from '@/components/admin/Profile';
 import TradeHistory from '@/components/admin/TradeHistory';
+import AdminOpenPositions from '@/components/admin/OpenPositions';
+import Subscriptions from '@/components/admin/Subscriptions';
+import BrokerStatus from '@/components/admin/BrokerStatus';
+import KillSwitch from '@/components/admin/KillSwitch';
+import ForceSquareOff from '@/components/admin/ForceSquareOff';
+import AuditLog from '@/components/admin/AuditLog';
+import FailedCopyMonitor from '@/components/admin/FailedCopyMonitor';
+import OrderTrace from '@/components/admin/OrderTrace';
 
 const DematDetailWrapper = () => {
   const { accountId } = useParams();
@@ -151,18 +159,26 @@ const AppRouter = () => {
 
                 <Route path="admin/overview" element={<AdminOverview />} />
                 <Route path="admin/users" element={<AllUsers scope="all" />} />
-                <Route path="admin/masters" element={<AllUsers scope="masters" />} />
+                <Route path="admin/masters" element={<MasterAccounts />} />
                 <Route path="admin/children" element={<AllUsers scope="children" />} />
                 <Route path="admin/child-accounts" element={<ChildAccounts />} />
-                <Route path="admin/master-accounts" element={<MasterAccounts />} />
+                <Route path="admin/master-accounts" element={<Navigate to="/admin/masters" replace />} />
                 <Route path="admin/verification" element={<PendingVerification />} />
                 <Route path="admin/profile" element={<AdminProfile />} />
+                <Route path="admin/open-positions" element={<AdminOpenPositions />} />
+                <Route path="admin/subscriptions" element={<Subscriptions />} />
                 <Route path="admin/live-trades" element={<LiveTrades />} />
                 <Route path="admin/order-feed" element={<OrderFeed />} />
                 <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />
+                <Route path="admin/broker-status" element={<BrokerStatus />} />
+                <Route path="admin/kill-switch" element={<KillSwitch />} />
+                <Route path="admin/force-square-off" element={<ForceSquareOff />} />
+                <Route path="admin/audit-log" element={<AuditLog />} />
+                <Route path="admin/failed-copy-monitor" element={<FailedCopyMonitor />} />
                 <Route path="admin/pnl" element={<AdminPnL />} />
                 <Route path="admin/trade-history" element={<TradeHistory />} />
+                <Route path="admin/order-trace" element={<OrderTrace />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/login" replace />} />

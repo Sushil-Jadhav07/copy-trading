@@ -63,6 +63,7 @@ export const SkeletonText = ({ lines = 3 }) => {
 const SkeletonLoader = ({ type = 'card', count = 1, ...props }) => {
   const components = {
     card: SkeletonCard,
+    stat: SkeletonCard,
     table: SkeletonTable,
     chart: SkeletonChart,
     text: SkeletonText,

@@ -15,6 +15,21 @@ const asArray = (value) => {
   return [];
 };
 
+const toFiniteNumberOrNull = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') {
+      continue;
+    }
+
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
 const toDateLabel = (value) => {
   if (!value) {
     return 'N/A';
@@ -206,16 +221,21 @@ const normalizeSystemHealthEntries = (payload = {}) => {
     // Convert flat health response into display-friendly rows
     const { uptime, status: overallStatus, ...services } = source;
     return Object.entries(services).map(([key, value], index) => {
-      const serviceStatus = String(value || 'UNKNOWN').toUpperCase();
+      const isObjectValue = value && typeof value === 'object' && !Array.isArray(value);
+      const serviceStatus = String(
+        isObjectValue ? value.status || overallStatus || 'UNKNOWN' : value || 'UNKNOWN',
+      ).toUpperCase();
       return {
         id: key || `service-${index}`,
         name: key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, (c) => c.toUpperCase()),
         status: serviceStatus,
-        latency: 0,
+        latency: null,
         uptime: uptime || 'N/A',
-        activeUsers: 0,
-        ordersToday: 0,
-        metric: serviceStatus,
+        activeUsers: null,
+        ordersToday: null,
+        metric: isObjectValue
+          ? [value.used, value.max].filter(Boolean).join(' / ') || serviceStatus
+          : serviceStatus,
         raw: { key, value },
       };
     });
@@ -228,16 +248,16 @@ const normalizeSystemHealthEntries = (payload = {}) => {
       id: entry.id || entry.name || `system-${index}`,
       name: entry.name || entry.service || entry.broker || `Service ${index + 1}`,
       status: entry.status || entry.health || 'UNKNOWN',
-      latency: Number(entry.latency || entry.responseTime || 0),
+      latency: toFiniteNumberOrNull(entry.latency, entry.responseTime, entry.latencyMs),
       uptime: entry.uptime || entry.availability || 'N/A',
-      activeUsers: Number(entry.activeUsers || entry.connectedUsers || 0),
-      ordersToday: Number(entry.ordersToday || entry.requestsToday || 0),
+      activeUsers: toFiniteNumberOrNull(entry.activeUsers, entry.connectedUsers),
+      ordersToday: toFiniteNumberOrNull(entry.ordersToday, entry.requestsToday, entry.todayTrades),
       metric:
         entry.metric ||
         entry.value ||
         entry.currentValue ||
-        (entry.latency || entry.responseTime
-          ? `${Number(entry.latency || entry.responseTime)}ms`
+        (toFiniteNumberOrNull(entry.latency, entry.responseTime, entry.latencyMs) != null
+          ? `${toFiniteNumberOrNull(entry.latency, entry.responseTime, entry.latencyMs)}ms`
           : entry.uptime || entry.availability || 'N/A'),
       raw: entry,
     }));

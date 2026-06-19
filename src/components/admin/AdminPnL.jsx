@@ -1,15 +1,22 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
 import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { adminService } from '@/lib/admin';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
-import { TrendingUp, Users, Activity, CreditCard } from 'lucide-react';
+import { TrendingUp, Users, Activity, CreditCard, BarChart2, Trophy } from 'lucide-react';
+
+// Breakdown sections (per-master, per-child, top gainers/losers) await:
+//   GET /api/v1/admin/pnl?dateFrom=&dateTo=
+// Until that endpoint exists all breakdown tables show empty states.
 
 // FIX: Was calling pnlService.getAllPnl() → POST /api/v1/admin/pnl/all — not in spec.
 // Now uses adminService.getAnalytics() (spec 6.9: GET /admin/analytics) which returns
 // totalTrades, activeSubscriptions, totalMasters, totalChildren, revenueMtd.
+
+const placeholderCellClass = 'px-4 py-3 text-sm text-muted-foreground';
+const placeholderRowClass = 'border-b border-border/30';
 
 const AdminPnL = () => {
   const { addToast } = useToast();
@@ -148,6 +155,137 @@ const AdminPnL = () => {
           </p>
         </GlassCard>
       )}
+
+      {/* ── Breakdown sections — await GET /api/v1/admin/pnl ── */}
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-3 text-xs text-amber-600 dark:text-amber-400">
+        Per-master, per-child, and date-filtered P&L tables below are disabled until{' '}
+        <code className="rounded bg-black/5 px-1 py-0.5 font-mono dark:bg-white/5">GET /api/v1/admin/pnl</code>{' '}
+        is implemented.
+      </div>
+
+      {/* Date-range filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-muted-foreground">Date range:</span>
+        <input
+          type="date"
+          disabled
+          className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm opacity-50 cursor-not-allowed focus:outline-none dark:bg-white/5"
+        />
+        <span className="text-sm text-muted-foreground">to</span>
+        <input
+          type="date"
+          disabled
+          className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm opacity-50 cursor-not-allowed focus:outline-none dark:bg-white/5"
+        />
+        <button
+          disabled
+          title="Not yet connected to backend"
+          className="rounded-xl bg-brand-purple/20 px-4 py-2 text-sm font-medium text-brand-purple opacity-50 cursor-not-allowed"
+        >
+          Apply
+        </button>
+        <span className="text-xs text-muted-foreground">No data — endpoint not yet available</span>
+      </div>
+
+      {/* Per-master breakdown */}
+      <GlassCard noPadding>
+        <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+          <BarChart2 className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Per-Master P&L Breakdown</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                {['Master', 'Total Trades', 'Volume', 'Realised P&L', 'Children', 'Subscription Revenue'].map((h) => (
+                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className={placeholderRowClass}>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <td key={index} className={placeholderCellClass}>—</td>
+                ))}
+              </tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-4 text-sm text-muted-foreground">
+                  No data yet — awaiting <code className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1 py-0.5 rounded">GET /api/v1/admin/pnl</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </GlassCard>
+
+      {/* Per-child breakdown */}
+      <GlassCard noPadding>
+        <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Per-Child P&L Breakdown</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                {['Child', 'Master', 'Copies Executed', 'Copies Failed', 'Realised P&L', 'Avg Slippage (%)'].map((h) => (
+                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className={placeholderRowClass}>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <td key={index} className={placeholderCellClass}>—</td>
+                ))}
+              </tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-4 text-sm text-muted-foreground">
+                  No data yet — awaiting <code className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1 py-0.5 rounded">GET /api/v1/admin/pnl</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </GlassCard>
+
+      {/* Top gainers / losers */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {[
+          { label: 'Top Gainers', color: 'text-emerald-400' },
+          { label: 'Top Losers', color: 'text-rose-400' },
+        ].map(({ label, color }) => (
+          <GlassCard key={label} noPadding>
+            <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+              <Trophy className={`h-4 w-4 ${color}`} />
+              <h2 className="text-sm font-semibold">{label}</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                    {['#', 'Master', 'P&L'].map((h) => (
+                      <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className={placeholderRowClass}>
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <td key={index} className={placeholderCellClass}>—</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="px-4 py-4 text-sm text-muted-foreground">
+                      No data yet — awaiting <code className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1 py-0.5 rounded">GET /api/v1/admin/pnl</code>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        ))}
+      </div>
     </div>
   );
 };
