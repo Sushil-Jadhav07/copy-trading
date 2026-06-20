@@ -17,31 +17,29 @@ const statusClass = {
 const Subscriptions = () => {
   const { addToast } = useToast();
   const [subscriptions, setSubscriptions] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
   const [statusFilter, setStatusFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // ADM-12: pagination. adminService.getSubscriptions() currently returns the full
-  // dataset with no total/page metadata, so this paginates client-side for now.
-  // Once GET /api/v1/admin/subscriptions accepts page/limit and returns a total,
-  // swap this to send those params and trust the server count instead.
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
   const loadSubscriptions = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await adminService.getSubscriptions();
       const status = statusFilter !== 'All' ? statusFilter.toUpperCase() : '';
-      setSubscriptions(
-        status ? response.filter((item) => String(item.status || '').toUpperCase() === status) : response
-      );
+      const params = { page, limit: PAGE_SIZE };
+      if (status) params.status = status;
+      const data = await adminService.getSubscriptions(params);
+      setSubscriptions(data.subscriptions || []);
+      setTotalItems(data.meta?.total || 0);
     } catch (error) {
       addToast(error.message || 'Unable to load subscriptions', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [addToast, statusFilter]);
+  }, [addToast, statusFilter, page]);
 
   useEffect(() => {
     loadSubscriptions();
@@ -68,14 +66,11 @@ const Subscriptions = () => {
     ];
   }, [subscriptions]);
 
-  // ADM-12: table is paginated client-side; stat cards above still reflect the full set.
-  const totalPages = Math.max(1, Math.ceil(subscriptions.length / PAGE_SIZE));
-  const pagedSubscriptions = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return subscriptions.slice(start, start + PAGE_SIZE);
-  }, [subscriptions, page]);
-  const showingFrom = subscriptions.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const showingTo = Math.min(page * PAGE_SIZE, subscriptions.length);
+  // ADM-12: server-side pagination integrated
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const pagedSubscriptions = subscriptions;
+  const showingFrom = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, totalItems);
 
   return (
     <div className="space-y-6">
@@ -179,7 +174,7 @@ const Subscriptions = () => {
         {!loading && subscriptions.length > 0 && (
           <div className="flex items-center justify-between border-t border-border/40 px-4 py-3 text-sm">
             <span className="text-muted-foreground">
-              Showing {showingFrom}–{showingTo} of {subscriptions.length}
+              Showing {showingFrom}–{showingTo} of {totalItems}
             </span>
             <div className="flex items-center gap-2">
               <button

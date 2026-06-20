@@ -60,8 +60,8 @@ const RiskLimits = () => {
 
   useEffect(() => {
     setLoadingGlobals(true);
-    riskService
-      .getRules()
+    adminService
+      .getGlobalRiskSettings()
       .then((data) => {
         setGlobals({
           maxCapitalExposure: Number(data?.maxCapitalExposure ?? DEFAULTS.maxCapitalExposure),
@@ -122,10 +122,10 @@ const RiskLimits = () => {
     if (!payload) return;
     setSavingGlobals(true);
     try {
-      await riskService.updateRules(payload);
-      addToast('Global risk limits saved', 'success');
-    } catch (err) {
-      addToast(err.message || 'Failed to save global limits', 'error');
+      await adminService.saveGlobalRiskSettings(payload);
+      addToast('Global limits updated successfully', 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to update globals', 'error');
     } finally {
       setSavingGlobals(false);
     }

@@ -14,7 +14,7 @@ const LiveTrades = () => {
     setLoading(true);
     try {
       const response = await adminService.getTradeLogs({ status: 'EXECUTED' });
-      setLogs(response.filter((log) => {
+      setLogs((response.logs || []).filter((log) => {
         const type = String(log.type || '').toUpperCase();
         return type === 'EXECUTED' || type === 'REPLICATED';
       }));

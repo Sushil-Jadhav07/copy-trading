@@ -140,8 +140,8 @@ const OrderFeed = () => {
     const load = () => {
       adminService
         .getTradeLogs()
-        .then((logs) => {
-          const mapped = logs.map(mapLogToFeedRow);
+        .then((res) => {
+          const mapped = (res.logs || []).map(mapLogToFeedRow);
           setFeedRows(mapped);
           setSelectedTradeId((prev) => prev ?? (mapped[0]?.id ?? null));
         })

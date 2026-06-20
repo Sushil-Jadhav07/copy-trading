@@ -27,7 +27,7 @@ const SystemLogs = () => {
   const loadTradeLogs = async () => {
     try {
       const data = await adminService.getTradeLogs();
-      setTradeLogs(sortByMostRecent(Array.isArray(data) ? data : [], ['timestamp', 'createdAt', 'updatedAt']));
+      setTradeLogs(sortByMostRecent(Array.isArray(data.logs) ? data.logs : [], ['timestamp', 'createdAt', 'updatedAt']));
     } catch (error) {
       addToast(`Trade logs: ${error.message}`, 'error');
     }

@@ -383,7 +383,10 @@ export const adminService = {
   async getTradeLogs(params = {}) {
     try {
       const response = await api.get('/api/v1/admin/trade-logs', { params });
-      return extractCollection(response.data).map(normalizeTradeLog);
+      return {
+        logs: extractCollection(response.data).map(normalizeTradeLog),
+        meta: extractMeta(response.data),
+      };
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load trade logs'));
     }
@@ -401,7 +404,10 @@ export const adminService = {
   async getSubscriptions(params = {}) {
     try {
       const response = await api.get('/api/v1/admin/subscriptions', { params });
-      return extractCollection(response.data).map(normalizeSubscription);
+      return {
+        subscriptions: extractCollection(response.data).map(normalizeSubscription),
+        meta: extractMeta(response.data),
+      };
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load subscriptions'));
     }
@@ -436,6 +442,31 @@ export const adminService = {
       };
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to load master-child map'));
+    }
+  },
+
+  async getGlobalRiskSettings() {
+    try {
+      const response = await api.get('/api/v1/admin/settings/risk');
+      // The backend returns a JSON string, which Axios parses if it's JSON.
+      // If the backend returns empty string, we default to empty object.
+      let data = response.data?.data || response.data || {};
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch (e) { data = {}; }
+      }
+      return data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load global risk settings'));
+    }
+  },
+
+  async saveGlobalRiskSettings(settings) {
+    try {
+      await api.post('/api/v1/admin/settings/risk', JSON.stringify(settings), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to save global risk settings'));
     }
   },
 };

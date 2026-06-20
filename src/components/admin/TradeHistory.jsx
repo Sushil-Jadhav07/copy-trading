@@ -75,23 +75,23 @@ const exportCSV = (rows) => {
 
 const TradeHistory = () => {
   const [trades, setTrades] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  // ADM-12: pagination. adminService.getTradeLogs() currently returns the full
-  // dataset, so this paginates client-side. Once GET /api/v1/admin/trade-logs
-  // accepts page/limit and returns a total, switch to passing those through
-  // and trust the server count instead of slicing here.
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
 
   useEffect(() => {
     setLoading(true);
     adminService
-      .getTradeLogs()
-      .then(setTrades)
+      .getTradeLogs({ page, limit: PAGE_SIZE })
+      .then((res) => {
+        setTrades(res.logs || []);
+        setTotalItems(res.meta?.total || 0);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [page]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -109,13 +109,10 @@ const TradeHistory = () => {
     setPage(1);
   }, [search]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRows, page]);
-  const showingFrom = filteredRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const showingTo = Math.min(page * PAGE_SIZE, filteredRows.length);
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const pagedRows = filteredRows;
+  const showingFrom = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, totalItems);
 
   return (
     <div className="space-y-5">
