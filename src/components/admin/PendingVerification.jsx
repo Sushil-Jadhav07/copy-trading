@@ -195,7 +195,7 @@ const PendingVerification = () => {
             <button
               onClick={closeModal}
               disabled={submitting}
-              className="flex-1 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors"
+              className="flex-1 py-2 bg-black/5 hover:bg-black/10 dark:bg-white/10 rounded-lg text-sm transition-colors"
             >
               Cancel
             </button>
