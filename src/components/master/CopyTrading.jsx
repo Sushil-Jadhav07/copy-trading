@@ -30,6 +30,7 @@ import { useMasterChildren, useMasterSubscriptions } from '@/hooks/useMaster';
 import { masterService } from '@/lib/master';
 import { engineService } from '@/lib/engine';
 import { brokerService } from '@/lib/broker';
+import { adminService } from '@/lib/admin';
 import { connectChannel } from '@/lib/websocket';
 import { formatCurrency, safeMul, safeAdd, roundTo } from '@/lib/utils';
 import TradeLatencyCard from '@/components/master/TradeLatencyCard';
@@ -208,6 +209,7 @@ const CopyTrading = () => {
   const [pollingIntervalMs, setPollingIntervalMs] = useState(3000);
   const [usingCopyTradingEndpoint, setUsingCopyTradingEndpoint] = useState(false);
   const [togglingCopyEnable, setTogglingCopyEnable] = useState({});
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
   const [brokerDropdownOpen, setBrokerDropdownOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 240 });
   const brokerTriggerRef = useRef(null);
@@ -446,6 +448,18 @@ const CopyTrading = () => {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    adminService.getGlobalRiskSettings()
+      .then((settings) => {
+        if (active) setKillSwitchActive(Boolean(settings?.kill_switch_active));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -988,6 +1002,11 @@ const CopyTrading = () => {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
+      {killSwitchActive && (
+        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-5 py-4 text-sm font-semibold text-rose-600 dark:text-rose-400">
+          Copy Trading is currently Halted by Administrators
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">Copy Trading</h1>

@@ -113,6 +113,7 @@ const SummaryCard = ({ card }) => {
 const Overview = () => {
   const [selectedRange, setSelectedRange] = useState('1M');
   const [analytics, setAnalytics] = useState(null);
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
   const [equityCurveData, setEquityCurveData] = useState(FALLBACK_EQUITY_CURVE);
   const [childPerfData, setChildPerfData] = useState(FALLBACK_CHILD_PERF);
   const [tradeBreakdownData, setTradeBreakdownData] = useState(FALLBACK_TRADE_BREAKDOWN);
@@ -152,6 +153,12 @@ const Overview = () => {
         ]);
       }
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    adminService.getGlobalRiskSettings()
+      .then((settings) => setKillSwitchActive(Boolean(settings?.kill_switch_active)))
+      .catch(() => {});
   }, []);
 
   const summaryCards = useMemo(() => [
@@ -212,6 +219,11 @@ const Overview = () => {
 
   return (
     <div className="space-y-5">
+      {killSwitchActive && (
+        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-5 py-4 text-sm font-semibold text-rose-600 dark:text-rose-400">
+          Copy Trading is currently Halted by Administrators
+        </div>
+      )}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[2rem] font-semibold tracking-[-0.05em] text-slate-900 dark:text-foreground">Dashboard</h1>

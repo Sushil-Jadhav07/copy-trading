@@ -67,8 +67,7 @@ const SystemLogs = () => {
 
   const loadBrokerStatus = async () => {
     try {
-      const { brokerService } = await import('@/lib/broker');
-      const data = await brokerService.getAdminBrokerStatus();
+      const data = await adminService.getBrokerStatus();
       setBrokerStatuses(sortByMostRecent(Array.isArray(data) ? data : [], ['lastChecked', 'updatedAt', 'createdAt']));
     } catch (error) {
       addToast(`Broker status: ${error.message}`, 'error');

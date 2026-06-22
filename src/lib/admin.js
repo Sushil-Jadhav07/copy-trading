@@ -266,6 +266,153 @@ const normalizeSystemHealthEntries = (payload = {}) => {
   return [];
 };
 
+const normalizeFailedCopy = (entry = {}, index = 0) => ({
+  id: entry.id || entry.copyId || `failed-copy-${index}`,
+  masterName: entry.masterName || entry.master || entry.masterId || 'Unknown',
+  childName: entry.childName || entry.child || entry.childId || 'Unknown',
+  broker: entry.broker || entry.brokerName || 'N/A',
+  symbol: entry.symbol || entry.instrument || entry.reference || 'N/A',
+  status: String(entry.status || entry.copyStatus || 'FAILED').toUpperCase(),
+  reason: entry.reason || entry.message || entry.error || entry.failureReason || 'N/A',
+  latencyMs: Number(entry.latencyMs ?? entry.latency ?? entry.totalExecutionMs ?? 0),
+  timestamp: entry.timestamp || entry.createdAt || entry.time || null,
+  raw: entry,
+});
+
+const normalizeAuditEntry = (entry = {}, index = 0) => ({
+  id: entry.id || `audit-${index}`,
+  adminName: entry.adminName || entry.admin || entry.actorName || entry.userName || 'Admin',
+  action: String(entry.action || entry.eventType || 'UNKNOWN').toUpperCase(),
+  entityType: String(entry.entityType || entry.targetType || 'SYSTEM').toUpperCase(),
+  entityId: entry.entityId || entry.targetId || entry.reference || 'N/A',
+  before: entry.before || entry.oldValue || entry.previous || {},
+  after: entry.after || entry.newValue || entry.current || {},
+  reason: entry.reason || entry.message || '',
+  timestamp: entry.timestamp || entry.createdAt || entry.time || null,
+  raw: entry,
+});
+
+const normalizeTraceChild = (entry = {}, index = 0) => ({
+  id: entry.id || entry.childId || `trace-child-${index}`,
+  child: entry.child || entry.childName || entry.childId || 'Unknown',
+  broker: entry.broker || entry.brokerName || 'N/A',
+  scaleFactor: Number(entry.scaleFactor ?? entry.scalingFactor ?? entry.multiplier ?? 1),
+  qtyCopied: Number(entry.qtyCopied ?? entry.childQty ?? entry.qty ?? entry.quantity ?? 0),
+  orderId: entry.orderId || entry.childOrderId || entry.reference || '—',
+  status: String(entry.status || entry.childStatus || 'UNKNOWN').toUpperCase(),
+  executedAt: entry.executedAt || entry.childPlacedAt || entry.completedAt || entry.timestamp || null,
+  price: Number(entry.price ?? entry.avgPrice ?? entry.averagePrice ?? entry.executedPrice ?? 0),
+  latencyMs: Number(entry.latencyMs ?? entry.childLatencyMs ?? entry.totalLatencyMs ?? 0),
+  slippagePct: Number(entry.slippagePct ?? entry.slippagePercent ?? entry.slippage ?? 0),
+  reason: entry.reason || entry.message || entry.errorMessage || entry.skipReason || '',
+  raw: entry,
+});
+
+const normalizeOrderTrace = (payload = {}) => {
+  const source = payload?.data || payload || {};
+  const childCopies = asArray(source.childCopies || source.children || source.results || source.replications).map(normalizeTraceChild);
+  const succeeded = childCopies.filter((entry) => ['SUCCESS', 'EXECUTED', 'COMPLETED'].includes(entry.status)).length;
+  const failedOrSkipped = childCopies.filter((entry) => !['SUCCESS', 'EXECUTED', 'COMPLETED'].includes(entry.status)).length;
+  const latencies = childCopies.map((entry) => entry.latencyMs).filter((value) => Number.isFinite(value) && value > 0);
+
+  return {
+    traceId: source.traceId || source.id || source.copyGroupId || source.reference || '',
+    masterOrder: {
+      traceId: source.traceId || source.id || source.copyGroupId || source.reference || '',
+      masterOrderId: source.masterOrderId || source.orderId || source.reference || '',
+      masterUser: source.masterUser || source.masterName || source.masterId || 'Unknown',
+      masterBroker: source.masterBroker || source.broker || source.brokerName || 'N/A',
+      symbol: source.symbol || source.instrument || 'N/A',
+      side: String(source.side || source.action || source.type || '—').toUpperCase(),
+      quantity: Number(source.quantity ?? source.qty ?? source.masterQty ?? 0),
+      orderType: source.orderType || '—',
+      product: source.product || '—',
+      exchange: source.exchange || '—',
+      triggerTime: source.triggerTime || source.masterTriggeredAt || source.createdAt || null,
+      placedTime: source.placedTime || source.masterPlacedAt || source.updatedAt || null,
+      averagePrice: Number(source.averagePrice ?? source.avgPrice ?? source.price ?? 0),
+      executionStatus: String(source.executionStatus || source.status || 'UNKNOWN').toUpperCase(),
+    },
+    summary: {
+      childCopies: Number(source.childCopies ?? source.childrenTotal ?? childCopies.length),
+      succeeded: Number(source.succeeded ?? source.success ?? succeeded),
+      failedOrSkipped: Number(source.failedOrSkipped ?? source.failed ?? source.skipped ?? failedOrSkipped),
+      averageLatencyMs: latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : null,
+      fastestLatencyMs: latencies.length ? Math.min(...latencies) : null,
+      slowestLatencyMs: latencies.length ? Math.max(...latencies) : null,
+      failureRate:
+        childCopies.length > 0
+          ? `${Math.round((failedOrSkipped / childCopies.length) * 100)}%`
+          : '0%',
+      lastBackendSync: source.lastBackendSync || source.updatedAt || source.timestamp || null,
+      lookupStatus: childCopies.length > 0 ? 'Available' : 'Partial',
+    },
+    riskChecks: {
+      riskCheckPassed: source.riskCheckPassed ?? source.riskPassed ?? null,
+      sellGuardPassed: source.sellGuardPassed ?? source.sellGuard ?? null,
+      failedRule: source.failedRule || source.ruleFailure || '',
+    },
+    childCopies,
+    raw: source,
+  };
+};
+
+const normalizeBrokerStatusEntry = (entry = {}, index = 0) => ({
+  id: entry.id || entry.brokerId || entry.name || `broker-status-${index}`,
+  name: entry.name || entry.brokerName || entry.brokerId || 'Broker',
+  account: entry.account || entry.clientId || entry.nickname || '—',
+  tokenExpiry: entry.tokenExpiry || entry.tokenExpiresAt || entry.expiresAt || null,
+  lastSync: entry.lastSync || entry.lastSyncedAt || entry.lastChecked || null,
+  ping: toFiniteNumberOrNull(entry.ping, entry.latency, entry.latencyMs),
+  status: String(entry.status || entry.apiStatus || entry.health || 'UNKNOWN').toUpperCase(),
+  raw: entry,
+});
+
+const normalizePlatformPnl = (payload = {}) => {
+  const source = payload?.data || payload || {};
+  return {
+    summary: {
+      totalPnl: Number(source.totalPnl ?? source.pnl ?? 0),
+      totalTrades: Number(source.totalTrades ?? 0),
+      totalVolume: Number(source.totalVolume ?? source.volume ?? 0),
+      revenue: Number(source.revenue ?? source.totalRevenue ?? 0),
+    },
+    perMaster: asArray(source.perMaster || source.masters || source.masterBreakdown).map((entry, index) => ({
+      id: entry.id || entry.masterId || `master-pnl-${index}`,
+      master: entry.master || entry.masterName || entry.name || 'Unknown',
+      totalTrades: Number(entry.totalTrades ?? entry.tradeCount ?? 0),
+      volume: Number(entry.volume ?? entry.totalVolume ?? 0),
+      realisedPnl: Number(entry.realisedPnl ?? entry.realizedPnl ?? entry.pnl ?? 0),
+      children: Number(entry.children ?? entry.childCount ?? 0),
+      subscriptionRevenue: Number(entry.subscriptionRevenue ?? entry.revenue ?? 0),
+      raw: entry,
+    })),
+    perChild: asArray(source.perChild || source.children || source.childBreakdown).map((entry, index) => ({
+      id: entry.id || entry.childId || `child-pnl-${index}`,
+      child: entry.child || entry.childName || entry.name || 'Unknown',
+      master: entry.master || entry.masterName || 'Unknown',
+      copiesExecuted: Number(entry.copiesExecuted ?? entry.executed ?? entry.success ?? 0),
+      copiesFailed: Number(entry.copiesFailed ?? entry.failed ?? entry.errors ?? 0),
+      realisedPnl: Number(entry.realisedPnl ?? entry.realizedPnl ?? entry.pnl ?? 0),
+      avgSlippagePct: Number(entry.avgSlippagePct ?? entry.slippagePct ?? entry.avgSlippage ?? 0),
+      raw: entry,
+    })),
+    topGainers: asArray(source.topGainers || source.gainers).map((entry, index) => ({
+      id: entry.id || entry.masterId || `gainer-${index}`,
+      master: entry.master || entry.masterName || entry.name || 'Unknown',
+      pnl: Number(entry.pnl ?? entry.realisedPnl ?? entry.value ?? 0),
+      raw: entry,
+    })),
+    topLosers: asArray(source.topLosers || source.losers).map((entry, index) => ({
+      id: entry.id || entry.masterId || `loser-${index}`,
+      master: entry.master || entry.masterName || entry.name || 'Unknown',
+      pnl: Number(entry.pnl ?? entry.realisedPnl ?? entry.value ?? 0),
+      raw: entry,
+    })),
+    raw: source,
+  };
+};
+
 const normalizeAnalytics = (payload = {}) => {
   const source = payload?.data && !Array.isArray(payload.data) ? payload.data : payload;
 
@@ -467,6 +614,106 @@ export const adminService = {
       });
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to save global risk settings'));
+    }
+  },
+
+  async getFailedCopies(params = {}) {
+    try {
+      const response = await api.get('/api/v1/admin/failed-copies', { params });
+      const source = response.data?.data || response.data || {};
+      const copies = extractCollection(source.copies ? source : source).map(normalizeFailedCopy);
+      const stats = source.stats || response.data?.stats || {};
+      return {
+        copies,
+        total: Number(source.total ?? copies.length),
+        page: Number(source.page ?? params.page ?? 1),
+        limit: Number(source.limit ?? params.limit ?? 20),
+        stats: {
+          total: Number(stats.total ?? source.total ?? copies.length),
+          skipped: Number(stats.skipped ?? 0),
+          rejected: Number(stats.rejected ?? 0),
+          timeout: Number(stats.timeout ?? 0),
+          failed: Number(stats.failed ?? 0),
+        },
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load failed copies'));
+    }
+  },
+
+  async getAuditLog(params = {}) {
+    try {
+      const response = await api.get('/api/v1/admin/audit-log', { params });
+      const source = response.data?.data || response.data || {};
+      const logs = extractCollection(source.logs ? source : source).map(normalizeAuditEntry);
+      return {
+        logs,
+        total: Number(source.total ?? logs.length),
+        page: Number(source.page ?? params.page ?? 1),
+        limit: Number(source.limit ?? params.limit ?? 20),
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load audit log'));
+    }
+  },
+
+  async getOrderTrace(id) {
+    try {
+      const response = await api.get(`/api/v1/admin/trace/${id}`);
+      return normalizeOrderTrace(response.data);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load order trace'));
+    }
+  },
+
+  async getBrokerStatus() {
+    const endpoints = ['/api/v1/admin/broker-status', '/api/v1/admin/brokers/status'];
+    let lastError = null;
+    for (const endpoint of endpoints) {
+      try {
+        const response = await api.get(endpoint);
+        const source = response.data?.data || response.data || {};
+        const items = extractCollection(source).map(normalizeBrokerStatusEntry);
+        return items;
+      } catch (error) {
+        lastError = error;
+        const status = Number(error?.response?.status);
+        if (status !== 404 && status !== 405) {
+          throw new Error(getErrorMessage(error, 'Unable to load broker status'));
+        }
+      }
+    }
+    throw new Error(getErrorMessage(lastError, 'Unable to load broker status'));
+  },
+
+  async forceSquareOff(body) {
+    try {
+      const response = await api.post('/api/v1/admin/force-square-off', body);
+      return response.data?.data || response.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to force square-off'));
+    }
+  },
+
+  async getPlatformPnl(params = {}) {
+    try {
+      const response = await api.get('/api/v1/admin/pnl', { params });
+      return normalizePlatformPnl(response.data);
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load platform P&L'));
+    }
+  },
+
+  async impersonateUser(userId) {
+    try {
+      const response = await api.post(`/api/v1/admin/impersonate/${userId}`);
+      const source = response.data?.data || response.data || {};
+      return {
+        token: source.token || source.jwt || source.accessToken || source.sessionToken || null,
+        raw: source,
+      };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to impersonate user'));
     }
   },
 };

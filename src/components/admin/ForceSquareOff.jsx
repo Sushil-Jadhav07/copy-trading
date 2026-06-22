@@ -32,6 +32,7 @@ const ForceSquareOff = () => {
   const [loadingPositions, setLoadingPositions] = useState(false);
 
   const [confirmText, setConfirmText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Load master and user lists once
   useEffect(() => {
@@ -93,18 +94,6 @@ const ForceSquareOff = () => {
           Emergency close of open copied positions for a user or an entire master-group.
         </p>
       </section>
-
-      <div className="flex items-start gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-5 py-4 text-sm text-rose-600 dark:text-rose-400">
-        <AlertOctagon className="mt-0.5 h-4 w-4 flex-shrink-0" />
-        <span>
-          The close action is disabled until{' '}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-            POST /api/v1/admin/force-square-off
-          </code>{' '}
-          is implemented. The positions preview below uses the real positions API — it may be empty
-          if the backend does not yet support filtering by target.
-        </span>
-      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
         {/* ── Controls panel ── */}
@@ -177,18 +166,32 @@ const ForceSquareOff = () => {
             {/* Submit — always disabled; confirmed state wired for when endpoint arrives */}
             <button
               type="button"
-              disabled
-              title="Not yet connected to backend"
-              className={`w-full inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
-                confirmed && targetId
-                  ? 'bg-rose-500/30 text-rose-400'
-                  : 'bg-slate-100/60 text-slate-400 dark:bg-white/[0.04] dark:text-slate-600'
+              disabled={!confirmed || !targetId || submitting}
+              onClick={async () => {
+                try {
+                  setSubmitting(true);
+                  await adminService.forceSquareOff({
+                    targetId,
+                    scope,
+                    confirmationText: CONFIRM_PHRASE,
+                  });
+                  addToast('Square-off initiated', 'success');
+                  setConfirmText('');
+                } catch (error) {
+                  addToast(error.message || 'Unable to force square-off', 'error');
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
+                confirmed && targetId && !submitting
+                  ? 'bg-rose-500 text-white hover:bg-rose-500/90'
+                  : 'cursor-not-allowed bg-slate-100/60 text-slate-400 dark:bg-white/[0.04] dark:text-slate-600'
               }`}
             >
               <AlertOctagon className="h-4 w-4" />
-              Initiate Square-Off
+              {submitting ? 'Initiating…' : 'Initiate Square-Off'}
             </button>
-            <p className="text-center text-xs text-muted-foreground">Not yet connected to backend</p>
           </div>
         </GlassCard>
 

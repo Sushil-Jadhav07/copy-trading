@@ -11,6 +11,7 @@ import { useMasterAnalytics, useMasterTradeHistory, useMasterChildren, useMaster
 import { useAuth } from '@/context/AuthContext';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
+import { adminService } from '@/lib/admin';
 
 const formatBrokerName = (value) => {
   const broker = String(value || '').trim();
@@ -30,6 +31,7 @@ const Overview = () => {
   const { children, refetch: refetchChildren } = useMasterChildren();
   const pnlSummary = tradePnl?.summary || {};
   const [refreshing, setRefreshing] = useState(false);
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
 
   useEffect(() => {
     if (analyticsError) addToast(analyticsError, 'error');
@@ -70,6 +72,18 @@ const Overview = () => {
       mountedRef.current = false;
     };
   }, [loadOpenPositions]);
+
+  useEffect(() => {
+    let active = true;
+    adminService.getGlobalRiskSettings()
+      .then((settings) => {
+        if (active) setKillSwitchActive(Boolean(settings?.kill_switch_active));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -120,6 +134,11 @@ const Overview = () => {
 
   return (
     <div className="space-y-6">
+      {killSwitchActive && (
+        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-5 py-4 text-sm font-semibold text-rose-600 dark:text-rose-400">
+          Copy Trading is currently Halted by Administrators
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Overview</h1>

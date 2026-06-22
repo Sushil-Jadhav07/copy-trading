@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap, Server } from 'lucide-react';
+import { RefreshCw, Eye, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap, Server, MoreHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -1326,26 +1326,38 @@ const UserManagement = ({
                         {syncedAt || '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {/* Refresh */}
-                          <ActionBtn title="Refresh" color="purple" onClick={() => handleRefresh(acc)} spin={refreshing[id]}>
-                            <RefreshCw className="w-3.5 h-3.5" />
-                          </ActionBtn>
-                          {!isChildScope && (
-                            <ActionBtn title="View Details" color="blue" onClick={() => navigate(`${detailBasePath}/${id}`)}>
-                              <Eye className="w-3.5 h-3.5" />
-                            </ActionBtn>
-                          )}
-                          {/* Connect/Disconnect */}
-                          <ActionBtn title={active ? 'Disconnect' : 'Connect'} color={active ? 'warning' : 'success'}
-                            onClick={() => handleToggleConnect(acc)}>
-                            {active ? <Link2Off className="w-3.5 h-3.5" /> : <Link className="w-3.5 h-3.5" />}
-                          </ActionBtn>
-                          {/* Delete */}
-                          <ActionBtn title="Delete" color="danger" onClick={() => { setSelectedAcc(acc); setDeleteModal(true); }}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </ActionBtn>
-                        </div>
+                        <RowActionMenu
+                          items={[
+                            {
+                              label: 'Refresh',
+                              icon: RefreshCw,
+                              color: 'purple',
+                              onClick: () => handleRefresh(acc),
+                              spin: refreshing[id],
+                            },
+                            ...(!isChildScope ? [{
+                              label: 'View Details',
+                              icon: Eye,
+                              color: 'blue',
+                              onClick: () => navigate(`${detailBasePath}/${id}`),
+                            }] : []),
+                            {
+                              label: active ? 'Disconnect' : 'Connect',
+                              icon: active ? Link2Off : Link,
+                              color: active ? 'warning' : 'success',
+                              onClick: () => handleToggleConnect(acc),
+                            },
+                            {
+                              label: 'Delete',
+                              icon: Trash2,
+                              color: 'danger',
+                              onClick: () => {
+                                setSelectedAcc(acc);
+                                setDeleteModal(true);
+                              },
+                            },
+                          ]}
+                        />
                       </td>
                     </motion.tr>
                   );
@@ -1635,6 +1647,40 @@ const ActionBtn = ({ title, color = 'purple', onClick, spin, children }) => (
     className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors text-white ${COLOR_MAP[color] || COLOR_MAP.purple}`}>
     <span className={spin ? 'animate-spin' : ''}>{children}</span>
   </button>
+);
+
+const RowActionMenu = ({ items = [] }) => (
+  <details className="group relative">
+    <summary className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-border/60 bg-black/5 text-muted-foreground transition-colors hover:bg-black/10 hover:text-foreground dark:bg-white/5 dark:hover:bg-white/10">
+      <MoreHorizontal className="h-4 w-4" />
+    </summary>
+    <div className="absolute right-0 top-10 z-20 min-w-[168px] overflow-hidden rounded-xl border border-border/70 bg-background/95 shadow-xl backdrop-blur">
+      <div className="flex flex-col p-1.5">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              disabled={item.disabled}
+              onClick={(event) => {
+                event.preventDefault();
+                item.onClick?.();
+                const details = event.currentTarget.closest('details');
+                if (details) details.open = false;
+              }}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
+            >
+              <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-white ${COLOR_MAP[item.color] || COLOR_MAP.purple}`}>
+                <Icon className={`h-3.5 w-3.5 ${item.spin ? 'animate-spin' : ''}`} />
+              </span>
+              <span className="font-medium">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </details>
 );
 
 export default UserManagement;

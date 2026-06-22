@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Search, LoaderCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
-import { getFailedCopies } from '@/lib/adminMock';
+import { adminService } from '@/lib/admin';
 
 // ADM-5: Failed Copy Monitor
 // DATA: @/lib/adminMock → getFailedCopies(params). Backend swap: replace that
@@ -57,7 +57,7 @@ const FailedCopyMonitor = () => {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getFailedCopies({
+    adminService.getFailedCopies({
       page,
       limit: LIMIT,
       search: search || undefined,

@@ -3,7 +3,7 @@ import { AlertTriangle, Power, LoaderCircle } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
-import { getKillSwitch, setKillSwitch } from '@/lib/adminMock';
+import { adminService } from '@/lib/admin';
 
 // ADM-1: Global Kill Switch
 // DATA: @/lib/adminMock → getKillSwitch() / setKillSwitch().
@@ -35,8 +35,13 @@ const KillSwitch = () => {
 
   const load = () => {
     setLoading(true);
-    getKillSwitch()
-      .then(setStatus)
+    adminService.getGlobalRiskSettings()
+      .then((settings) => setStatus({
+        enabled: Boolean(settings?.kill_switch_active),
+        lastChangedBy: settings?.lastChangedBy || settings?.updatedBy || '—',
+        lastChangedAt: settings?.lastChangedAt || settings?.updatedAt || null,
+        reason: settings?.kill_switch_reason || settings?.reason || '',
+      }))
       .catch(() => addToast('Unable to load kill-switch status', 'error'))
       .finally(() => setLoading(false));
   };
@@ -48,12 +53,22 @@ const KillSwitch = () => {
   const apply = async () => {
     setSubmitting(true);
     try {
-      // toggling to the opposite of current state
-      const next = await setKillSwitch({ enable: !halted, reason: reason.trim() });
-      setStatus(next);
+      const current = await adminService.getGlobalRiskSettings().catch(() => ({}));
+      const nextSettings = {
+        ...current,
+        kill_switch_active: !halted,
+        kill_switch_reason: reason.trim(),
+      };
+      await adminService.saveGlobalRiskSettings(nextSettings);
+      setStatus({
+        enabled: Boolean(nextSettings.kill_switch_active),
+        lastChangedBy: current?.lastChangedBy || current?.updatedBy || '—',
+        lastChangedAt: current?.lastChangedAt || current?.updatedAt || new Date().toISOString(),
+        reason: nextSettings.kill_switch_reason,
+      });
       setReason('');
       setConfirmOpen(false);
-      addToast(next.enabled ? 'Copy-trading halted platform-wide' : 'Copy-trading resumed', 'success');
+      addToast(nextSettings.kill_switch_active ? 'Copy-trading halted platform-wide' : 'Copy-trading resumed', 'success');
     } catch {
       addToast('Action failed', 'error');
     } finally {

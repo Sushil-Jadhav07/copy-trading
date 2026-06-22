@@ -5,7 +5,7 @@ import DivSelect from '@/components/shared/DivSelect';
 import DownloadButton from '@/components/shared/DownloadButton';
 import { useToast } from '@/components/shared/Toast';
 import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
-import { getAuditLog } from '@/lib/adminMock';
+import { adminService } from '@/lib/admin';
 
 // ADM-4: Admin Audit Log (read-only)
 // DATA: @/lib/adminMock → getAuditLog(params). Backend swap: replace that function's
@@ -78,7 +78,7 @@ const AuditLog = () => {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getAuditLog({
+    adminService.getAuditLog({
       page,
       limit: LIMIT,
       search: search || undefined,

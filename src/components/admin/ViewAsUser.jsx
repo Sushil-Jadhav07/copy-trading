@@ -3,6 +3,8 @@ import { AlertTriangle, Eye, LoaderCircle, ShieldAlert } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
+import { setAccessToken, clearRefreshToken } from '@/lib/api';
+import { authStorage } from '@/lib/auth';
 
 // ADM-16: "View as user" (read-only impersonation)
 // Endpoint needed: POST /api/v1/admin/impersonate/{userId}
@@ -61,18 +63,6 @@ const ViewAsUser = () => {
           Open a user's dashboard in read-only mode for support — no actions can be taken on their behalf.
         </p>
       </section>
-
-      <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-600 dark:text-amber-400">
-        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-        <span>
-          Starting a read-only session is disabled until{' '}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-            POST /api/v1/admin/impersonate/{'{userId}'}
-          </code>{' '}
-          is implemented. The user list below is real — selecting a target is just not yet wired
-          to an active session.
-        </span>
-      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
         {/* ── User list ── */}
@@ -195,14 +185,23 @@ const ViewAsUser = () => {
 
               <button
                 type="button"
-                disabled
-                title="Not yet connected to backend"
-                className="w-full inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-100/60 px-4 py-3 text-sm font-semibold text-slate-400 dark:bg-white/[0.04] dark:text-slate-600"
+                onClick={async () => {
+                  try {
+                    const result = await adminService.impersonateUser(targetId);
+                    if (!result.token) throw new Error('No impersonation token returned');
+                    clearRefreshToken();
+                    authStorage.clearImpersonatedRole();
+                    setAccessToken(result.token);
+                    window.location.href = '/';
+                  } catch (error) {
+                    addToast(error.message || 'Unable to impersonate user', 'error');
+                  }
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-purple px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-purple/90"
               >
                 <Eye className="h-4 w-4" />
                 Start Read-Only Session
               </button>
-              <p className="text-center text-xs text-muted-foreground">Not yet connected to backend</p>
             </div>
           )}
         </GlassCard>
