@@ -167,7 +167,7 @@ const StatusLabel = ({ status }) => {
 const CopyTrading = () => {
   const { addToast } = useToast();
   const navigate = useNavigate();
-  const { accounts, loading: accountsLoading } = useBrokerAccounts();
+  const { accounts, loading: accountsLoading, refetch: refetchAccounts } = useBrokerAccounts();
   const { children, loading, refetch, setChildren } = useMasterChildren();
   const { subscriptions, setSubscriptions, loading: subscriptionsLoading, refetch: refetchSubscriptions } = useMasterSubscriptions();
 
@@ -207,6 +207,7 @@ const CopyTrading = () => {
   const [liveChildMetrics, setLiveChildMetrics] = useState({});
   const [pollingIntervalMs, setPollingIntervalMs] = useState(3000);
   const [usingCopyTradingEndpoint, setUsingCopyTradingEndpoint] = useState(false);
+  const [togglingCopyEnable, setTogglingCopyEnable] = useState({});
   const [brokerDropdownOpen, setBrokerDropdownOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 240 });
   const brokerTriggerRef = useRef(null);
@@ -235,6 +236,11 @@ const CopyTrading = () => {
       setUsingCopyTradingEndpoint(true);
 
       const serverHasMultiAccountField = Array.isArray(data?.activeAccounts);
+      const sessionActiveAccountIds = normalizeAccountIds(
+        accounts
+          .filter((account) => Boolean(account?.sessionActive) && Boolean(account?.isCopyEnable))
+          .map((account) => account?.accountId || account?.id),
+      );
       let resolvedActiveIds = normalizeAccountIds(
         serverHasMultiAccountField
           ? data.activeAccounts.map((account) => account?.brokerAccountId || account?.accountId || account?.id)
@@ -242,23 +248,9 @@ const CopyTrading = () => {
       );
 
       if (!resolvedActiveIds.length && !serverHasMultiAccountField) {
-        // Server didn't return an activeAccounts array — try singular fallback,
-        // but only if we don't already have multiple accounts stored locally.
-        // This prevents a singular-account server response from silently
-        // overwriting a multi-broker selection on every poll cycle.
-        const localIds = (() => {
-          try {
-            const stored = window.localStorage.getItem(ACTIVE_MASTER_IDS_KEY);
-            const parsed = JSON.parse(stored);
-            return Array.isArray(parsed) ? parsed : [];
-          } catch { return []; }
-        })();
-        if (localIds.length <= 1) {
-          resolvedActiveIds = normalizeAccountIds(
-            data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || data?.activeAccount?.id,
-          );
-        }
-        // If localIds.length > 1, server only sent us a singular account — preserve local multi-broker state.
+        // Multi-broker masters should treat every session-active broker as a source
+        // when the copy-trading payload omits the explicit activeAccounts array.
+        resolvedActiveIds = sessionActiveAccountIds;
       }
 
       if (resolvedActiveIds.length > 0) {
@@ -300,7 +292,7 @@ const CopyTrading = () => {
       setUsingCopyTradingEndpoint(false);
       return false;
     }
-  }, [setChildren, setAllActiveAccountIds]);
+  }, [accounts, setChildren, setAllActiveAccountIds]);
 
   // ── Load historical latency data ──────────────────────────────────────────
   useEffect(() => {
@@ -671,18 +663,16 @@ const CopyTrading = () => {
   }, [childOptions, brokerDropdownOpen]);
 
   const ensureActiveSourceAccount = useCallback(async () => {
-    if (!primarySourceAccountId) {
-      throw new Error('Please connect at least one broker account first');
+    const activeSessionId = normalizeAccountIds(
+      accounts
+        .filter((account) => Boolean(account?.sessionActive) && Boolean(account?.isCopyEnable))
+        .map((account) => account?.accountId || account?.id),
+    )[0];
+    if (!activeSessionId) {
+      throw new Error('Please enable copy on at least one active broker session first');
     }
-
-    if (String(masterAccountId) === String(primarySourceAccountId) && masterConnected) {
-      return primarySourceAccountId;
-    }
-
-    await masterService.setActiveAccounts([primarySourceAccountId]);
-    setAllActiveAccountIds([primarySourceAccountId]);
-    return primarySourceAccountId;
-  }, [masterAccountId, masterConnected, primarySourceAccountId, setAllActiveAccountIds]);
+    return activeSessionId;
+  }, [accounts]);
 
   const handleConnectMaster = async () => {
     if (!masterAccountId && !masterConnected) {
@@ -751,44 +741,51 @@ const CopyTrading = () => {
     if (!accountId) return;
     setSettingActive(true);
     try {
-      const merged = normalizeAccountIds([...activeAccountIds, accountId]);
-      await masterService.setActiveAccounts(merged);
-      setAllActiveAccountIds(merged);
-      addToast('Account connected as source', 'success');
-      await loadCopyTradingData();
-    } catch (error) {
-      addToast(error.message || 'Failed to connect account', 'error');
+      navigate('/master/user-management');
+      addToast('Open the broker login flow in User Management to activate this broker session', 'info');
     } finally {
       setSettingActive(false);
     }
-  }, [activeAccountIds, setAllActiveAccountIds, addToast, loadCopyTradingData]);
+  }, [addToast, navigate]);
+
+  const handleToggleBrokerCopyEnable = useCallback(async (accountId, nextValue) => {
+    if (!accountId) return;
+    setTogglingCopyEnable((prev) => ({ ...prev, [accountId]: true }));
+    try {
+      await brokerService.toggleCopyEnable(accountId, nextValue);
+      await refetchAccounts();
+      await loadCopyTradingData();
+      addToast('Broker copy state updated', 'success');
+    } catch (error) {
+      addToast(error.message || 'Failed to update broker state', 'error');
+    } finally {
+      setTogglingCopyEnable((prev) => ({ ...prev, [accountId]: false }));
+    }
+  }, [addToast, loadCopyTradingData, refetchAccounts]);
 
   const handleDisconnectAllActive = async () => {
     if (!activeAccountIds.length) return;
     if (
       !window.confirm(
-        'Disconnecting all source brokers will stop copy trading until you reconnect. Continue?',
+        'Disconnecting all active broker sessions will stop copy trading until you log in again. Continue?',
       )
     ) return;
     try {
-      await masterService.clearActiveAccounts();
-      setAllActiveAccountIds([]);
-      addToast('All source accounts disconnected', 'warning');
+      await Promise.all(activeAccountIds.map((accountId) => brokerService.disconnectAccount(accountId)));
+      await refetchAccounts();
+      await loadCopyTradingData();
+      addToast('All active broker sessions disconnected', 'warning');
     } catch (error) {
       addToast(error.message || 'Failed to disconnect', 'error');
     }
   };
 
   const handleRemoveActiveAccount = async (sourceId) => {
-    if (activeAccountIds.length <= 1) {
-      addToast('At least one broker must remain connected as the copy-trading source', 'error');
-      return;
-    }
     try {
-      const remaining = activeAccountIds.filter((id) => id !== sourceId);
-      await masterService.setActiveAccounts(remaining);
-      setAllActiveAccountIds(remaining);
-      addToast('Source account disconnected', 'warning');
+      await brokerService.disconnectAccount(sourceId);
+      await refetchAccounts();
+      await loadCopyTradingData();
+      addToast('Broker session disconnected', 'warning');
     } catch (error) {
       addToast(error.message || 'Failed to remove account', 'error');
     }
@@ -1088,7 +1085,7 @@ const CopyTrading = () => {
             {activeAccountIds.length > 0 && (
               <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {activeAccountIds.length} source{activeAccountIds.length > 1 ? 's' : ''} active
+                {activeAccountIds.length} broker{activeAccountIds.length > 1 ? 's' : ''} enabled for copy
               </span>
             )}
           </div>
@@ -1128,6 +1125,8 @@ const CopyTrading = () => {
             {accounts.map((account) => {
               const accountId = normalizeAccountId(account.accountId || account.id);
               const isSource = connectedAccountIds.has(accountId);
+              const isSessionActive = Boolean(account.sessionActive);
+              const isCopyEnabled = Boolean(account.isCopyEnable);
               return (
                 <div
                   key={accountId}
@@ -1143,16 +1142,26 @@ const CopyTrading = () => {
                     <p className="text-[10px] text-muted-foreground font-bold mt-0.5 truncate">
                       {account.nickname || account.clientId || account.userId || shortId(accountId)}
                     </p>
+                    <p className={`text-[9px] font-bold uppercase mt-1 ${isSessionActive ? (isCopyEnabled ? 'text-emerald-500' : 'text-amber-500') : 'text-muted-foreground/60'}`}>
+                      {isSessionActive ? (isCopyEnabled ? 'Copying Enabled' : 'Copying Paused') : 'Session Inactive'}
+                    </p>
                   </div>
-                  {isSource ? (
+                  {isSessionActive ? (
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        Source
+                      <ToggleSwitch
+                        checked={isCopyEnabled}
+                        disabled={Boolean(togglingCopyEnable[accountId])}
+                        onChange={() => handleToggleBrokerCopyEnable(accountId, !isCopyEnabled)}
+                        className="scale-75 origin-right"
+                        activeClassName="bg-emerald-500"
+                      />
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${isCopyEnabled ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
+                        {isCopyEnabled ? 'Active' : 'Paused'}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveActiveAccount(accountId)}
-                        title="Remove as source"
+                        title="Disconnect broker session"
                         className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
                       >
                         <X className="w-3 h-3" />
@@ -1166,7 +1175,7 @@ const CopyTrading = () => {
                       className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/50 text-[10px] font-black uppercase tracking-tight text-muted-foreground hover:border-brand-purple/50 hover:text-brand-purple hover:bg-brand-purple/5 transition-all disabled:opacity-40"
                     >
                       <Link className="w-3 h-3" />
-                      Connect
+                      Login
                     </button>
                   )}
                 </div>
@@ -1178,7 +1187,7 @@ const CopyTrading = () => {
         {!accountsLoading && accounts.length > 0 && activeAccountIds.length === 0 && (
           <div className="px-5 py-3 border-t border-border/20">
             <p className="text-[10px] text-muted-foreground/40 font-bold">
-              Click Connect on an account above to start copy trading
+              Activate a broker session and enable copy to start copy trading
             </p>
           </div>
         )}

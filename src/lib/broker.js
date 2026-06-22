@@ -77,6 +77,11 @@ const deriveSessionActive = (raw = {}) => {
 
 const normalizeBrokerAccount = (raw = {}) => {
   const sessionActive = deriveSessionActive(raw);
+  const isCopyEnable = Boolean(
+    parseBooleanLike(raw.isCopyEnable) ??
+    parseBooleanLike(raw.copyEnabled) ??
+    true
+  );
   const status = String(raw.status || (sessionActive ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
   const proxyHost = String(raw.proxyHost || '').trim();
   const proxyPort = Number(raw.proxyPort ?? 0);
@@ -96,6 +101,7 @@ const normalizeBrokerAccount = (raw = {}) => {
     nickname: raw.nickname || raw.accountNickname || '',
     status,
     sessionActive,
+    isCopyEnable,
     linkedAt: raw.linkedAt || null,
     margin: Number(raw.margin || raw.availableMargin || raw.available || raw.net || 0),
     pnl: Number(raw.pnl || raw.totalPnL || raw.dayPnL || 0),
@@ -417,6 +423,31 @@ export const brokerService = {
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to disconnect broker account'));
     }
+  },
+
+  async toggleCopyEnable(accountId, isCopyEnable) {
+    const requestBody = { isCopyEnable: Boolean(isCopyEnable) };
+    const endpointCandidates = [
+      `/api/v1/brokers/${accountId}/copy-enable`,
+      `/api/v1/brokers/accounts/${accountId}/copy-enable`,
+      `/api/v1/broker/accounts/${accountId}/copy-enable`,
+    ];
+
+    let lastError = null;
+    for (const endpoint of endpointCandidates) {
+      try {
+        const res = await api.patch(endpoint, requestBody);
+        return normalizeBrokerAccount(res.data?.data || res.data || {});
+      } catch (error) {
+        lastError = error;
+        const status = Number(error?.response?.status);
+        if (status !== 404 && status !== 405) {
+          throw new Error(getErrorMessage(error, 'Unable to update broker copy state'));
+        }
+      }
+    }
+
+    throw new Error(getErrorMessage(lastError, 'Unable to update broker copy state'));
   },
 
   async saveAccessToken(accountId, accessToken, clientId) {

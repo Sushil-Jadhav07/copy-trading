@@ -6,6 +6,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
+import ToggleSwitch from '@/components/shared/ToggleSwitch';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { childService } from '@/lib/child';
@@ -173,6 +174,7 @@ const UserManagement = ({
   const [liveBalances, setLiveBalances] = useState({});
   const [liveMetrics, setLiveMetrics] = useState({});
   const [loginFormErrors, setLoginFormErrors] = useState({});
+  const [togglingCopyEnable, setTogglingCopyEnable] = useState({});
   const isChildScope = String(detailBasePath || '').startsWith('/child');
   const isMasterScope = String(detailBasePath || '').startsWith('/master');
 
@@ -878,6 +880,22 @@ const UserManagement = ({
     openLoginModal(id, normalizeBrokerKey(acc.brokerId || acc.broker || acc.brokerName || ''));
   };
 
+  const handleToggleCopyEnable = async (acc) => {
+    const id = acc.accountId || acc.id;
+    if (!id) return;
+
+    setTogglingCopyEnable((prev) => ({ ...prev, [id]: true }));
+    try {
+      await brokerService.toggleCopyEnable(id, !Boolean(acc.isCopyEnable));
+      await refetch();
+      addToast('Broker copy state updated', 'success');
+    } catch (e) {
+      addToast(e.message || 'Failed to update broker state', 'error');
+    } finally {
+      setTogglingCopyEnable((prev) => ({ ...prev, [id]: false }));
+    }
+  };
+
   const confirmDelete = async () => {
     const accountId = selectedAcc?.accountId || selectedAcc?.id;
     if (!accountId) {
@@ -1228,7 +1246,7 @@ const UserManagement = ({
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Account', 'Broker', 'Client ID', 'Routing', 'Balance', 'Positions', 'Signal', 'Latency', 'Status', 'Last Synced', 'Actions'].map((h) => (
+                  {['#', 'Account', 'Broker', 'Client ID', 'Routing', 'Balance', 'Positions', 'Signal', 'Latency', 'Copy', 'Status', 'Last Synced', 'Actions'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -1282,6 +1300,24 @@ const UserManagement = ({
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap">
                         {latencyMs != null ? `${latencyMs}ms` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isMasterScope ? (
+                          <div className="flex items-center gap-2">
+                            <ToggleSwitch
+                              checked={Boolean(acc.isCopyEnable)}
+                              disabled={Boolean(togglingCopyEnable[id])}
+                              onChange={() => handleToggleCopyEnable(acc)}
+                              className="scale-75 origin-left"
+                              activeClassName="bg-emerald-500"
+                            />
+                            <span className={`text-xs font-semibold whitespace-nowrap ${acc.isCopyEnable ? 'text-emerald-500' : 'text-amber-500'}`}>
+                              {acc.isCopyEnable ? 'Copying Enabled' : 'Copying Paused'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge acc={acc} />
