@@ -234,25 +234,41 @@ const CopyTrading = () => {
       setChildren(copyChildren);
       setUsingCopyTradingEndpoint(true);
 
+      const serverHasMultiAccountField = Array.isArray(data?.activeAccounts);
       let resolvedActiveIds = normalizeAccountIds(
-        Array.isArray(data?.activeAccounts)
+        serverHasMultiAccountField
           ? data.activeAccounts.map((account) => account?.brokerAccountId || account?.accountId || account?.id)
           : [],
       );
 
-      if (!resolvedActiveIds.length) {
-        resolvedActiveIds = normalizeAccountIds(
-          data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || data?.activeAccount?.id,
-        );
+      if (!resolvedActiveIds.length && !serverHasMultiAccountField) {
+        // Server didn't return an activeAccounts array — try singular fallback,
+        // but only if we don't already have multiple accounts stored locally.
+        // This prevents a singular-account server response from silently
+        // overwriting a multi-broker selection on every poll cycle.
+        const localIds = (() => {
+          try {
+            const stored = window.localStorage.getItem(ACTIVE_MASTER_IDS_KEY);
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch { return []; }
+        })();
+        if (localIds.length <= 1) {
+          resolvedActiveIds = normalizeAccountIds(
+            data?.activeAccount?.brokerAccountId || data?.activeAccount?.accountId || data?.activeAccount?.id,
+          );
+        }
+        // If localIds.length > 1, server only sent us a singular account — preserve local multi-broker state.
       }
 
       if (resolvedActiveIds.length > 0) {
         setAllActiveAccountIds(resolvedActiveIds);
-      } else if (!window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY + '_connected')) {
+      } else if (serverHasMultiAccountField || !window.localStorage.getItem(ACTIVE_MASTER_STORAGE_KEY + '_connected')) {
+        // Clear only when the server explicitly returned an empty activeAccounts array,
+        // or when no connected flag is set in localStorage.
         setAllActiveAccountIds([]);
       }
-      // If _connected is set but the server returned no active accounts, preserve
-      // existing localStorage state — server response may simply omit activeAccounts.
+      // Otherwise preserve existing localStorage state — server response may simply omit activeAccounts.
 
       if (data?.pollingIntervalMs) {
         setPollingIntervalMs(Math.max(Number(data.pollingIntervalMs) || 3000, 500));
@@ -731,6 +747,22 @@ const CopyTrading = () => {
     }
   };
 
+  const handleConnectSingleSource = useCallback(async (accountId) => {
+    if (!accountId) return;
+    setSettingActive(true);
+    try {
+      const merged = normalizeAccountIds([...activeAccountIds, accountId]);
+      await masterService.setActiveAccounts(merged);
+      setAllActiveAccountIds(merged);
+      addToast('Account connected as source', 'success');
+      await loadCopyTradingData();
+    } catch (error) {
+      addToast(error.message || 'Failed to connect account', 'error');
+    } finally {
+      setSettingActive(false);
+    }
+  }, [activeAccountIds, setAllActiveAccountIds, addToast, loadCopyTradingData]);
+
   const handleDisconnectAllActive = async () => {
     if (!activeAccountIds.length) return;
     if (
@@ -1047,8 +1079,8 @@ const CopyTrading = () => {
           <TradeLatencyCard copyResults={copyResultHistory} />
         </div>
 
-      {/* ── Broker Connections (dropdown design) ─────────────────────────────── */}
-      <GlassCard noPadding className={`relative h-full overflow-visible ${brokerDropdownOpen ? 'z-[80]' : 'z-10'}`}>
+      {/* ── Broker Connections ───────────────────────────────────────────────── */}
+      <GlassCard noPadding className="relative h-full">
         {/* Header */}
         <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-border/40">
           <div className="flex items-center gap-3">
@@ -1056,192 +1088,100 @@ const CopyTrading = () => {
             {activeAccountIds.length > 0 && (
               <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {activeAccountIds.length} Active
+                {activeAccountIds.length} source{activeAccountIds.length > 1 ? 's' : ''} active
               </span>
             )}
           </div>
           <button
             onClick={handleDisconnectAllActive}
             disabled={activeAccountIds.length === 0}
-            className="text-[12px] font-black text-rose-500/70 hover:text-rose-500 disabled:opacity-30 transition-colors"
+            className="text-[11px] font-black text-rose-500/60 hover:text-rose-500 disabled:opacity-20 transition-colors"
           >
             Disconnect All
           </button>
         </div>
 
-        {/* Connected brokers — shown first so the Available dropdown opens into empty space below */}
-        <div className="flex items-start gap-6 px-5 py-3 border-b border-border/40 min-h-[56px]">
-          <span className="text-[12px] font-black uppercase tracking-widest text-muted-foreground/60 shrink-0 w-16 pt-1.5">
-            Connected
-          </span>
-          {accountsLoading && activeAccountIds.length > 0 ? (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {activeAccountIds.map((id) => (
-                <div key={id} className="h-7 w-28 rounded-xl bg-white/5 animate-pulse" />
-              ))}
+        {/* Account rows */}
+        {accountsLoading ? (
+          <div className="divide-y divide-border/20">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+                <div className="w-2 h-2 rounded-full bg-white/10 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-20 rounded bg-white/10 animate-pulse" />
+                  <div className="h-2.5 w-14 rounded bg-white/5 animate-pulse" />
+                </div>
+                <div className="h-7 w-20 rounded-xl bg-white/10 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-5">
+            <div className="w-12 h-12 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center mb-3">
+              <Wifi className="w-6 h-6 text-muted-foreground/25" />
             </div>
-          ) : activeAccountIds.length === 0 ? (
-            <span className="text-[10px] text-muted-foreground/40 font-bold pt-1.5">
-              No source brokers — select below and click Connect
-            </span>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {activeAccountIds.map((sourceId) => {
-                const sourceAcc = accountMap.get(sourceId);
-                return (
-                  <div
-                    key={`src-${sourceId}`}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/8 whitespace-nowrap"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-[10px] font-black uppercase tracking-tight">
-                      {sourceAcc?.broker || sourceAcc?.brokerName || 'Broker'}
-                    </span>
-                    <span className="text-[12px] text-muted-foreground font-bold">
-                      {sourceAcc?.nickname || sourceAcc?.userId || sourceAcc?.clientId || shortId(sourceAcc?.accountId || sourceAcc?.id || sourceId)}
-                    </span>
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/40">No broker accounts linked</p>
+            <p className="text-[10px] text-muted-foreground/30 mt-1.5 font-bold">Add a broker in User Management first</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/20">
+            {accounts.map((account) => {
+              const accountId = normalizeAccountId(account.accountId || account.id);
+              const isSource = connectedAccountIds.has(accountId);
+              return (
+                <div
+                  key={accountId}
+                  className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${
+                    isSource ? 'bg-emerald-500/[0.04]' : 'hover:bg-black/3 dark:hover:bg-white/[0.02]'
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isSource ? 'bg-emerald-500' : 'bg-border'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-tight leading-none">
+                      {account.broker || account.brokerName || 'Broker'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-bold mt-0.5 truncate">
+                      {account.nickname || account.clientId || account.userId || shortId(accountId)}
+                    </p>
+                  </div>
+                  {isSource ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                        Source
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveActiveAccount(accountId)}
+                        title="Remove as source"
+                        className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => handleRemoveActiveAccount(sourceId)}
-                      className="w-3.5 h-3.5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-rose-500 transition-colors"
-                      title="Disconnect"
+                      disabled={settingActive}
+                      onClick={() => handleConnectSingleSource(accountId)}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/50 text-[10px] font-black uppercase tracking-tight text-muted-foreground hover:border-brand-purple/50 hover:text-brand-purple hover:bg-brand-purple/5 transition-all disabled:opacity-40"
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <Link className="w-3 h-3" />
+                      Connect
                     </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Available — inline expandable (no absolute positioning to avoid card overflow:hidden clipping) */}
-        <div className="flex items-center gap-6 px-5 py-3 min-h-[56px]">
-          <span className="text-[12px] font-black uppercase tracking-widest text-muted-foreground/60 shrink-0 w-16">
-            Available
-          </span>
-          {accountsLoading ? (
-            <div className="h-8 w-44 rounded-xl bg-white/5 animate-pulse" />
-          ) : childOptions.length === 0 ? (
-            <span className="text-[10px] text-muted-foreground/40 font-bold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-              All brokers are source accounts
-            </span>
-          ) : (
-            <div className="relative flex flex-1 items-center gap-3">
-              <button
-                ref={brokerTriggerRef}
-                type="button"
-                onClick={() => {
-                  if (brokerDropdownOpen) {
-                    setBrokerDropdownOpen(false);
-                  } else {
-                    setBrokerDropdownOpen(true);
-                  }
-                }}
-                className="flex flex-1 max-w-xs items-center gap-2 rounded-xl border border-border/50 bg-black/5 dark:bg-white/5 px-3 py-2.5 text-[12px] font-bold transition-all hover:border-brand-purple/40 focus:outline-none"
-              >
-                <span className="flex-1 truncate text-left text-muted-foreground">
-                  {selectedBulkChildren.length > 0
-                    ? `${selectedBulkChildren.length} account${selectedBulkChildren.length > 1 ? 's' : ''} selected`
-                    : 'Select broker account…'}
-                </span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${
-                    brokerDropdownOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {selectedBulkChildren.length < childOptions.length ? (
-                <button
-                  type="button"
-                  onClick={() => setSelectedBulkChildren(childOptions.map((c) => c.id))}
-                  className="text-[10px] font-black text-brand-purple hover:underline transition-colors shrink-0"
-                >
-                  All
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setSelectedBulkChildren([])}
-                  className="text-[10px] font-black text-muted-foreground hover:text-rose-500 transition-colors shrink-0"
-                >
-                  Clear
-                </button>
-              )}
-
-              {/* Anchored dropdown */}
-              {brokerDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setBrokerDropdownOpen(false)} />
-                  <div
-                    className="absolute left-0 top-full z-50 mt-2 w-full max-w-xs overflow-hidden rounded-xl border border-border/50 bg-popover shadow-2xl shadow-black/30"
-                  >
-                    <div className="p-1 max-h-52 overflow-y-auto scrollbar-hide">
-                      {childOptions.map((child) => {
-                        const isSelected = selectedBulkChildren.includes(child.id);
-                        return (
-                          <div
-                            key={child.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() =>
-                              setSelectedBulkChildren((prev) =>
-                                isSelected
-                                  ? prev.filter((id) => id !== child.id)
-                                  : [...prev, child.id],
-                              )
-                            }
-                            onKeyDown={(e) => e.key === 'Enter' && setSelectedBulkChildren((prev) =>
-                              isSelected ? prev.filter((id) => id !== child.id) : [...prev, child.id]
-                            )}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all select-none ${
-                              isSelected
-                                ? 'bg-brand-purple/10 text-brand-purple'
-                                : 'hover:bg-black/5 dark:hover:bg-white/5 text-foreground'
-                            }`}
-                          >
-                            <div
-                              className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
-                                isSelected
-                                  ? 'bg-brand-purple border-brand-purple'
-                                  : 'border-border/60'
-                              }`}
-                            >
-                              {isSelected && <Check className="w-2 h-2 text-white" />}
-                            </div>
-                            <span className="text-[12px] font-black uppercase tracking-tight flex-1 truncate">
-                              {child.nickname || child.userId || 'Account'}
-                            </span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full border bg-black/5 dark:bg-white/5 border-border/30 text-muted-foreground font-black shrink-0">
-                              {child.broker}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {selectedBulkChildren.length > 0 && (
-                      <div className="border-t border-border/30 p-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddActiveAccounts();
-                            setBrokerDropdownOpen(false);
-                          }}
-                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-purple px-3 py-2 text-[10px] font-black uppercase tracking-tight text-white transition-all hover:bg-brand-purple/90"
-                        >
-                          <Link className="w-3 h-3" />
-                          Connect {selectedBulkChildren.length} account{selectedBulkChildren.length > 1 ? 's' : ''}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        {!accountsLoading && accounts.length > 0 && activeAccountIds.length === 0 && (
+          <div className="px-5 py-3 border-t border-border/20">
+            <p className="text-[10px] text-muted-foreground/40 font-bold">
+              Click Connect on an account above to start copy trading
+            </p>
+          </div>
+        )}
       </GlassCard>
       </div>{/* end latency + broker connections grid */}
 
