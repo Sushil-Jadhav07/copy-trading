@@ -372,8 +372,26 @@ const Logs = () => {
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[10px] font-bold text-muted-foreground max-w-[120px] truncate" title={log.skipReason || '-'}>
-                    {log.skipReason || '—'}
+                  <td className="px-4 py-3">
+                    {log.skipReason ? (
+                      <div className="flex items-center gap-1.5 max-w-[120px]">
+                        <span className="text-[10px] font-bold text-muted-foreground truncate">{log.skipReason}</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button type="button" className="shrink-0 text-muted-foreground/40 hover:text-foreground transition-colors">
+                                <Info className="h-3 w-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-sm text-xs leading-relaxed break-words whitespace-normal">
+                              {log.skipReason}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-[10px] font-bold text-muted-foreground whitespace-nowrap">
                     {formatDate(log.createdAt || log.timestamp || log.time)}

@@ -1,6 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Search, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, Search, TrendingUp } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
+
+const MsgCell = ({ msg }) => {
+  if (!msg || msg === '—' || msg === '-') return <span className="text-sm text-slate-400">—</span>;
+  return (
+    <div className="flex items-center gap-1.5 min-w-0 max-w-[220px]">
+      <span className="text-sm text-slate-400 dark:text-slate-400 truncate">{msg}</span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="shrink-0 text-slate-400/50 hover:text-slate-600 dark:hover:text-foreground transition-colors">
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-sm text-xs leading-relaxed break-words whitespace-normal">
+            {msg}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+};
 
 const buildStats = (trades) => {
   const total = trades.length;
@@ -233,7 +255,7 @@ const TradeHistory = () => {
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 dark:text-slate-300">{row.broker}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 dark:text-slate-300">{row.master}</td>
-                    <td className="max-w-[200px] truncate px-4 py-4 text-sm text-slate-400 dark:text-slate-400">{row.message || '—'}</td>
+                    <td className="px-4 py-4"><MsgCell msg={row.message || '—'} /></td>
                   </tr>
                 );
               })}

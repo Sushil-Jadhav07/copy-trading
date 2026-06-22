@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, Search, Activity, Zap, History } from 'lucide-react';
+import { Clock, Info, Search, Activity, Zap, History } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
@@ -402,11 +403,23 @@ const CopiedTrades = () => {
                                 {childLabel}
                               </span>
                               {(isFailed || isSkipped) && whyNotCopied && whyNotCopied !== '-' && (
-                                <div className="flex max-w-[220px] items-start gap-1.5">
+                                <div className="flex items-center gap-1.5 max-w-[200px]">
                                   <span className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${isFailed ? 'bg-rose-500' : 'bg-amber-500'}`} />
-                                  <span className={`text-xs font-semibold leading-snug ${isFailed ? 'text-rose-400' : 'text-amber-400'}`}>
+                                  <span className={`text-xs font-semibold truncate ${isFailed ? 'text-rose-400' : 'text-amber-400'}`}>
                                     {whyNotCopied}
                                   </span>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button type="button" className={`shrink-0 transition-colors ${isFailed ? 'text-rose-400/50 hover:text-rose-400' : 'text-amber-400/50 hover:text-amber-400'}`}>
+                                          <Info className="h-3 w-3" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left" className="max-w-sm text-xs leading-relaxed break-words whitespace-normal">
+                                        {whyNotCopied}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </div>
                               )}
                               {showReloginCta && (

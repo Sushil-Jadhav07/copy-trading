@@ -1,10 +1,33 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Info } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
 import { formatRelativeTime, sortByMostRecent } from '@/lib/utils';
+
+const MsgCell = ({ msg }) => {
+  if (!msg || msg === '-') return <span className="text-xs text-muted-foreground">-</span>;
+  return (
+    <div className="flex items-center gap-1.5 min-w-0 max-w-[220px]">
+      <span className="text-xs text-muted-foreground truncate">{msg}</span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="shrink-0 text-muted-foreground/40 hover:text-foreground transition-colors">
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-sm text-xs leading-relaxed break-words whitespace-normal">
+            {msg}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+};
 
 const TABS = [
   { key: 'trade', label: 'Trade Logs' },
@@ -106,7 +129,7 @@ const SystemLogs = () => {
                 {log.status || '-'}
               </span>
             </td>
-            <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">{log.message || log.error || '-'}</td>
+            <td className="px-4 py-3"><MsgCell msg={log.message || log.error || '-'} /></td>
           </tr>
         ))}
       </tbody>
