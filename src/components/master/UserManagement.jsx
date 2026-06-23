@@ -1250,8 +1250,8 @@ const UserManagement = ({
         {loading ? (
           <div className="p-4"><SkeletonLoader type="table" rows={4} columns={8} /></div>
         ) : (
-          <div>
-            <table className="w-full table-fixed">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] table-fixed">
               <thead>
                 <tr className="border-b border-border/50">
                   <th className="w-[22%] px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>

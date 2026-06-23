@@ -18,6 +18,8 @@ import DivSelect from '@/components/shared/DivSelect';
 import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 import { safeSum, safeDiv, safeMul, roundTo } from '@/lib/utils';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 
 const RANGE_OPTIONS = [
   { key: 'today',     label: 'Today' },
@@ -157,7 +159,7 @@ const LatencyHistory = () => {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState({ content: [], totalElements: 0 });
   const [page, setPage] = useState(0);
-  const [rangeKey, setRangeKey] = useState('today');
+  const [rangeKey, setRangeKey] = useState('all');
   const [sideFilter, setSideFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [query, setQuery] = useState('');
@@ -309,14 +311,40 @@ const LatencyHistory = () => {
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Latency & Trade History</h1>
           <p className="mt-1 text-sm text-muted-foreground">Filter copy events by day, side, status, symbol, or event ID.</p>
         </div>
-        <button
-          onClick={() => loadAll(selectedRange)}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-black/5 px-4 py-2 text-xs font-black uppercase tracking-widest transition-colors duration-200 hover:bg-black/10 disabled:opacity-50 dark:bg-white/5 dark:hover:bg-white/10"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <DownloadButton
+            onClick={() => {
+              try {
+                downloadExcelSheet({
+                  rows: filteredEvents.map((event) => ({
+                    Symbol: event.symbol || '-',
+                    Side: event.side || '-',
+                    'Master Qty': event.masterQty ?? '-',
+                    Triggered: fmtDate(event.masterTriggeredAt),
+                    'Avg Latency (ms)': event.avgChildLatencyMs ?? '-',
+                    'Min Latency (ms)': event.minChildLatencyMs ?? '-',
+                    'Max Latency (ms)': event.maxChildLatencyMs ?? '-',
+                    'Children Total': event.childrenTotal ?? '-',
+                    'Children Succeeded': event.childrenSucceeded ?? '-',
+                    'Children Failed': event.childrenFailed ?? '-',
+                  })),
+                  sheetName: 'Latency History',
+                  fileName: buildExportFileName('Master Latency History'),
+                });
+              } catch {}
+            }}
+            disabled={filteredEvents.length === 0}
+            label="Export XLS"
+          />
+          <button
+            onClick={() => loadAll(selectedRange)}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-black/5 px-4 py-2 text-xs font-black uppercase tracking-widest transition-colors duration-200 hover:bg-black/10 disabled:opacity-50 dark:bg-white/5 dark:hover:bg-white/10"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <GlassCard hover={false} className="border-border/60 bg-black/[0.02] dark:bg-white/[0.02]">
@@ -424,7 +452,7 @@ const LatencyHistory = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border/40 bg-black/3 dark:bg-white/3">
                   {['Symbol', 'Side', 'Master Qty', 'Triggered', 'Avg Latency', 'Children', 'Actions'].map((heading) => (

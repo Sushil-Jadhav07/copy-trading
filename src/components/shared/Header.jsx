@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu, Bell, Sun, Moon, LogOut, ChevronDown, User,
-  Clock, Users, CheckCheck,
+  Clock, Users, CheckCheck, ShieldAlert, X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useNotifications } from '@/hooks/useNotifications';
+import { getImpersonation, endImpersonation } from '@/lib/api';
 
 const NOTIF_META = {
   SESSION_REMINDER:    { icon: Clock,         iconCls: 'text-amber-500',   bgCls: 'bg-amber-500/12',   borderCls: 'border-l-amber-500' },
@@ -40,11 +41,32 @@ const Header = ({ sidebarCollapsed, isMobile = false, onMenuClick }) => {
     try { await logout(); } finally { setShowUserMenu(false); navigate('/login', { replace: true }); }
   };
 
+  const impersonation = getImpersonation();
+
+  const handleEndSession = () => {
+    endImpersonation();
+    window.location.href = '/admin/view-as-user';
+  };
+
   return (
     <>
+      {impersonation && (
+        <div className={`fixed right-0 z-40 transition-all duration-300 ${sideOffset}`} style={{ top: 0 }}>
+          <div className="flex items-center justify-between gap-3 bg-amber-500 px-4 py-1.5 text-xs font-semibold text-black">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              <span>Read-only session — Viewing as <strong>{impersonation.name}</strong> ({impersonation.email})</span>
+            </div>
+            <button onClick={handleEndSession} className="flex items-center gap-1 rounded-md bg-black/15 px-2 py-0.5 text-[11px] font-bold hover:bg-black/25 transition-colors">
+              <X className="h-3 w-3" />
+              End Session
+            </button>
+          </div>
+        </div>
+      )}
       <header
         className={`fixed right-0 h-16 glass-header z-30 transition-all duration-300 ${sideOffset}`}
-        style={{ top: 0 }}
+        style={{ top: impersonation ? 28 : 0 }}
       >
         <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">

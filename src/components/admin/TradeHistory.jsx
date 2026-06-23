@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Info, Search, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Search, TrendingUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 
 const MsgCell = ({ msg }) => {
   if (!msg || msg === '—' || msg === '-') return <span className="text-sm text-slate-400">—</span>;
@@ -71,28 +73,23 @@ const formatTimestamp = (ts) => {
   });
 };
 
-const exportCSV = (rows) => {
-  const headers = ['Timestamp', 'Symbol', 'Type', 'B/S', 'Qty', 'Price', 'Status', 'Broker', 'Master', 'Message'];
-  const data = rows.map((row) => [
-    formatTimestamp(row.timestamp),
-    row.symbol,
-    row.type,
-    row.action,
-    row.qty,
-    row.price,
-    statusLabel[row.status] || row.status,
-    row.broker,
-    row.master,
-    `"${(row.message || '').replace(/"/g, '""')}"`,
-  ].join(','));
-
-  const blob = new Blob([[headers.join(','), ...data].join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = 'admin-trade-history.csv';
-  anchor.click();
-  URL.revokeObjectURL(url);
+const exportexcel = (rows) => {
+  downloadExcelSheet({
+    rows: rows.map((row) => ({
+      Timestamp: formatTimestamp(row.timestamp),
+      Symbol: row.symbol,
+      Type: row.type,
+      'B/S': row.action,
+      Qty: row.qty,
+      Price: row.price,
+      Status: statusLabel[row.status] || row.status,
+      Broker: row.broker,
+      Master: row.master,
+      Message: row.message || '',
+    })),
+    sheetName: 'Trade History',
+    fileName: buildExportFileName('Admin Trade History'),
+  });
 };
 
 const TradeHistory = () => {
@@ -145,22 +142,7 @@ const TradeHistory = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => exportCSV(filteredRows)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground"
-          >
-            <Download className="h-4 w-4" />
-            CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => exportCSV(filteredRows)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground"
-          >
-            <Download className="h-4 w-4" />
-            Excel
-          </button>
+          <DownloadButton onClick={() => exportexcel(filteredRows)} disabled={filteredRows.length === 0} label="Export excel" />
         </div>
       </section>
 

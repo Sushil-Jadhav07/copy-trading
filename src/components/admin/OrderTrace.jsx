@@ -158,7 +158,7 @@ const OrderTrace = () => {
       )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {summaryCards(traceId).map((card) => (
+        {summaryCards.map((card) => (
           <GlassCard key={card.label}>
             <p className="text-xs text-muted-foreground">{card.label}</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{card.value}</p>
@@ -173,7 +173,7 @@ const OrderTrace = () => {
             <h2 className="text-base font-semibold">Master Order</h2>
           </div>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {masterOrderFields(traceId).map(([label, value]) => (
+            {masterOrderFields.map(([label, value]) => (
               <div key={label} className="rounded-xl bg-black/5 p-3 dark:bg-white/5">
                 <p className="text-xs text-muted-foreground">{label}</p>
                 <p className="mt-1 break-all text-sm font-semibold text-foreground">{value}</p>

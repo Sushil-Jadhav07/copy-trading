@@ -78,6 +78,49 @@ export const clearRefreshToken = () => {
   });
 };
 
+const IMPERSONATION_KEY = 'Ascentra Capital_impersonation';
+const ADMIN_TOKEN_KEY = 'Ascentra Capital_admin_token';
+const ADMIN_REFRESH_KEY = 'Ascentra Capital_admin_refresh';
+
+export const startImpersonation = (token, targetUser) => {
+  const adminToken = getAccessToken();
+  const adminRefresh = getRefreshToken();
+  if (adminToken) localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+  if (adminRefresh) localStorage.setItem(ADMIN_REFRESH_KEY, adminRefresh);
+  localStorage.setItem(IMPERSONATION_KEY, JSON.stringify({
+    userId: targetUser.userId || targetUser.id,
+    name: targetUser.name,
+    email: targetUser.email,
+    role: targetUser.role,
+    startedAt: new Date().toISOString(),
+  }));
+  setAccessToken(token);
+  clearRefreshToken();
+};
+
+export const endImpersonation = () => {
+  const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const adminRefresh = localStorage.getItem(ADMIN_REFRESH_KEY);
+  localStorage.removeItem(IMPERSONATION_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_REFRESH_KEY);
+  if (adminToken) {
+    setAccessToken(adminToken);
+  }
+  if (adminRefresh) {
+    setRefreshToken(adminRefresh);
+  }
+};
+
+export const getImpersonation = () => {
+  try {
+    const raw = localStorage.getItem(IMPERSONATION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+
+export const isImpersonating = () => Boolean(localStorage.getItem(IMPERSONATION_KEY));
+
 const redirectToLogin = () => {
   if (typeof window === 'undefined') {
     return;
@@ -193,6 +236,12 @@ const refreshClient = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  if (isImpersonating()) {
+    const method = String(config.method || '').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      return Promise.reject(new Error('Read-only session — this action is not allowed while viewing as another user.'));
+    }
+  }
   const nextConfig = { ...config };
   nextConfig.headers = nextConfig.headers || {};
   const url = String(nextConfig.url || '');

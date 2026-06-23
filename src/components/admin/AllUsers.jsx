@@ -343,8 +343,8 @@ const AllUsers = ({ scope = 'all' }) => {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative sm:flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <label htmlFor="allusers-search" className="sr-only">Search users</label>
           <input
@@ -355,36 +355,40 @@ const AllUsers = ({ scope = 'all' }) => {
             className="w-full rounded-lg border border-border bg-black/5 py-2 pl-9 pr-4 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500 dark:bg-white/5"
           />
         </div>
-        {scope === 'all' ? (
+        <div className="flex gap-3">
+          {scope === 'all' ? (
+            <DivSelect
+              className="flex-1"
+              value={roleFilter}
+              onChange={setRoleFilter}
+              includeEmptyOption={false}
+              options={[
+                { value: 'All', label: 'All Roles' },
+                { value: 'Master', label: 'Master' },
+                { value: 'Child', label: 'Child' },
+                { value: 'Admin', label: 'Admin' },
+              ]}
+              triggerClassName="w-full rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
+            />
+          ) : (
+            <div className="flex-1 flex items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-400">
+              Showing: {viewConfig.defaultRoleFilter}
+            </div>
+          )}
           <DivSelect
-            value={roleFilter}
-            onChange={setRoleFilter}
+            className="flex-1"
+            value={statusFilter}
+            onChange={setStatusFilter}
             includeEmptyOption={false}
             options={[
-              { value: 'All', label: 'All Roles' },
-              { value: 'Master', label: 'Master' },
-              { value: 'Child', label: 'Child' },
-              { value: 'Admin', label: 'Admin' },
+              { value: 'All', label: 'All Status' },
+              { value: 'ACTIVE', label: 'Active' },
+              { value: 'INACTIVE', label: 'Inactive' },
+              { value: 'SUSPENDED', label: 'Suspended' },
             ]}
-            triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
+            triggerClassName="w-full rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
           />
-        ) : (
-          <div className="flex items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-400">
-            Showing: {viewConfig.defaultRoleFilter}
-          </div>
-        )}
-        <DivSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
-          includeEmptyOption={false}
-          options={[
-            { value: 'All', label: 'All Status' },
-            { value: 'ACTIVE', label: 'Active' },
-            { value: 'INACTIVE', label: 'Inactive' },
-            { value: 'SUSPENDED', label: 'Suspended' },
-          ]}
-          triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-emerald-500 dark:bg-white/5"
-        />
+        </div>
       </div>
 
       <GlassCard noPadding>

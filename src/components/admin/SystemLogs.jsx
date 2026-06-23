@@ -6,6 +6,8 @@ import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 import { formatRelativeTime, sortByMostRecent } from '@/lib/utils';
 
 const MsgCell = ({ msg }) => {
@@ -92,10 +94,10 @@ const SystemLogs = () => {
 
   const filteredBrokers = brokerFilter === 'ALL'
     ? brokerStatuses
-    : brokerStatuses.filter((b) => (b.brokerId || b.name || '').toUpperCase() === brokerFilter);
+    : brokerStatuses.filter((b) => (b.brokerId || b.name || b.broker || '').toUpperCase() === brokerFilter);
 
   const renderTradeLogs = () => (
-    <table className="w-full">
+    <table className="w-full min-w-[700px]">
       <thead>
         <tr className="border-b border-border/50 bg-black/5 dark:bg-white/5">
           {['Time', 'Type', 'Symbol', 'Action', 'Qty', 'Broker', 'Status', 'Message'].map((header) => (
@@ -139,36 +141,21 @@ const SystemLogs = () => {
     <table className="w-full">
       <thead>
         <tr className="border-b border-border/50 bg-black/5 dark:bg-white/5">
-          {['Service', 'Status', 'Uptime', 'Latency (ms)', 'Active Users', 'Orders Today'].map((header) => (
+          {['Metric', 'Value'].map((header) => (
             <th key={header} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{header}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {systemEntries.length === 0 && (
-          <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">No system health data</td></tr>
+          <tr><td colSpan={2} className="px-4 py-10 text-center text-sm text-muted-foreground">No system health data</td></tr>
         )}
-        {systemEntries.map((entry, index) => {
-          const normalizedStatus = String(entry.status || '').toUpperCase();
-          const isHealthy = ['UP', 'OK', 'CONNECTED'].includes(normalizedStatus);
-          const isNeutral = ['DISABLED', 'UNKNOWN'].includes(normalizedStatus);
-          return (
-            <tr key={entry.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-              <td className="px-4 py-3 text-sm font-semibold">{entry.name || '-'}</td>
-              <td className="px-4 py-3 text-sm">
-                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
-                  isHealthy ? 'bg-emerald-500' : isNeutral ? 'bg-slate-500' : 'bg-rose-500'
-                }`}>
-                  {entry.status || 'UNKNOWN'}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.uptime || '-'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.latency ?? '—'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.activeUsers ?? '—'}</td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">{entry.ordersToday ?? '—'}</td>
-            </tr>
-          );
-        })}
+        {systemEntries.map((entry, index) => (
+          <tr key={entry.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <td className="px-4 py-3 text-sm font-semibold">{entry.name || '-'}</td>
+            <td className="px-4 py-3 text-sm font-medium">{entry.metric ?? '—'}</td>
+          </tr>
+        ))}
       </tbody>
     </table>
   );
@@ -184,7 +171,7 @@ const SystemLogs = () => {
           triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
         />
       </div>
-      <table className="w-full">
+      <table className="w-full min-w-[480px]">
         <thead>
           <tr className="border-b border-border/50 bg-black/5 dark:bg-white/5">
             {['Broker', 'API Status', 'Latency (ms)', 'Last Checked'].map((header) => (
@@ -197,20 +184,21 @@ const SystemLogs = () => {
             <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">No broker status data</td></tr>
           )}
           {filteredBrokers.map((broker, index) => {
-            const apiOk = String(broker.apiStatus || broker.status || '').toUpperCase() === 'UP' ||
-              String(broker.apiStatus || broker.status || '').toUpperCase() === 'OK';
+            const st = String(broker.status || '').toUpperCase();
+            const isActive = st === 'ACTIVE' || st === 'UP' || st === 'OK';
+            const isAuth = st === 'AUTH_REQUIRED';
             return (
-              <tr key={broker.brokerId || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3 text-sm font-semibold">{broker.name || broker.brokerId || '-'}</td>
+              <tr key={broker.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <td className="px-4 py-3 text-sm font-semibold">{broker.name || '-'}</td>
                 <td className="px-4 py-3 text-sm">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
-                    apiOk ? 'bg-emerald-500' : 'bg-rose-500'
+                    isActive ? 'bg-emerald-500' : isAuth ? 'bg-amber-500' : 'bg-rose-500'
                   }`}>
-                    {broker.apiStatus || broker.status || 'UNKNOWN'}
+                    {broker.status || 'UNKNOWN'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground">{broker.latencyMs ?? '-'}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(broker.lastChecked)}</td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{broker.ping ?? broker.latencyMs ?? '-'}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(broker.lastSync || broker.lastChecked)}</td>
               </tr>
             );
           })}
@@ -226,7 +214,28 @@ const SystemLogs = () => {
           <h1 className="text-xl font-bold sm:text-2xl">System Logs</h1>
           <p className="text-sm text-muted-foreground">Trade activity, system health status, and broker connectivity.</p>
         </div>
-        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        <div className="flex items-center gap-3">
+          <DownloadButton
+            onClick={() => {
+              try {
+                const rows = tradeLogs.map((log) => ({
+                  Time: formatRelativeTime(log.timestamp || log.createdAt),
+                  Type: log.type || '-',
+                  Symbol: log.symbol || log.instrument || '-',
+                  Action: log.action || log.side || '-',
+                  Qty: log.qty || log.quantity || 0,
+                  Broker: log.broker || '-',
+                  Status: log.status || '-',
+                  Message: log.message || log.error || '-',
+                }));
+                downloadExcelSheet({ rows, sheetName: 'System Trade Logs', fileName: buildExportFileName('System Logs') });
+              } catch {}
+            }}
+            disabled={tradeLogs.length === 0}
+            label="Export XLS"
+          />
+          <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

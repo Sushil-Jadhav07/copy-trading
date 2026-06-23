@@ -35,6 +35,8 @@ import { connectChannel } from '@/lib/websocket';
 import { formatCurrency, safeMul, safeAdd, roundTo } from '@/lib/utils';
 import TradeLatencyCard from '@/components/master/TradeLatencyCard';
 import TradeTimeline from '@/components/master/TradeTimeline';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 
 const ACTIVE_MASTER_STORAGE_KEY = 'ascentra_active_master_account';
 const ACTIVE_MASTER_IDS_KEY = 'ascentra_active_master_ids';
@@ -1220,16 +1222,40 @@ const CopyTrading = () => {
             <h3 className="text-lg font-black tracking-tight uppercase">Follower Management</h3>
             <p className="text-xs text-muted-foreground mt-0.5">{linkedRows.length} active child subscriptions</p>
           </div>
-          <div className="relative">
-            <label htmlFor="follower-search" className="sr-only">Filter followers</label>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              id="follower-search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Filter followers..."
-              className="w-full sm:w-64 rounded-xl border border-border bg-black/5 pl-9 pr-4 py-2 text-xs font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+          <div className="flex items-center gap-3">
+            <DownloadButton
+              onClick={() => {
+                try {
+                  downloadExcelSheet({
+                    rows: filtered.map((child) => ({
+                      Follower: child.nickname || child.userId || 'Child',
+                      'User ID': child.userId,
+                      Broker: child.broker,
+                      Status: child.status,
+                      Margin: child.margin || 0,
+                      'P&L Today': child.pnlToday || 0,
+                      Positions: child.positions || 0,
+                      Multiplier: child.multiplier || 1,
+                    })),
+                    sheetName: 'Followers',
+                    fileName: buildExportFileName('Master Followers'),
+                  });
+                } catch {}
+              }}
+              disabled={filtered.length === 0}
+              label="Export XLS"
             />
+            <div className="relative">
+              <label htmlFor="follower-search" className="sr-only">Filter followers</label>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                id="follower-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Filter followers..."
+                className="w-full sm:w-64 rounded-xl border border-border bg-black/5 pl-9 pr-4 py-2 text-xs font-bold focus:outline-none focus:border-brand-purple dark:bg-white/5"
+              />
+            </div>
           </div>
         </div>
 
@@ -1239,7 +1265,7 @@ const CopyTrading = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border/40 bg-black/3 dark:bg-white/3">
                   {['#', 'Follower / Account', 'Margin', 'P&L Today', 'Pos', 'Multiplier', 'Status', 'Actions'].map((header) => (

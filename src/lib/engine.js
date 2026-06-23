@@ -82,7 +82,21 @@ export const engineService = {
   async getTradeHistory(params = {}) {
     try {
       const res = await api.get('/api/v1/engine/trade-history', { params });
-      return res.data?.data || res.data || { content: [], totalElements: 0, page: 0, size: 20 };
+      const raw = res.data?.data || res.data || {};
+      if (Array.isArray(raw)) return { content: raw, totalElements: raw.length, page: 0, size: params.size || 20 };
+      const content =
+        Array.isArray(raw.content) ? raw.content :
+        Array.isArray(raw.events) ? raw.events :
+        Array.isArray(raw.trades) ? raw.trades :
+        Array.isArray(raw.data) ? raw.data :
+        Array.isArray(raw.logs) ? raw.logs :
+        [];
+      return {
+        content,
+        totalElements: Number(raw.totalElements ?? raw.total ?? raw.totalCount ?? content.length),
+        page: Number(raw.page ?? raw.number ?? params.page ?? 0),
+        size: Number(raw.size ?? params.size ?? 20),
+      };
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Failed to fetch trade history'));
     }

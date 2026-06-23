@@ -506,31 +506,29 @@ export const masterService = {
   },
 
   async getTradeHistory() {
+    const extractTrades = (d) => {
+      if (Array.isArray(d)) return d;
+      if (Array.isArray(d?.logs)) return d.logs;
+      if (Array.isArray(d?.trades)) return d.trades;
+      if (Array.isArray(d?.masterTrades)) return d.masterTrades;
+      const nested = d?.tradeLogs || d?.copyLogs;
+      if (nested && typeof nested === 'object') {
+        if (Array.isArray(nested.trades)) return nested.trades;
+        if (Array.isArray(nested.data)) return nested.data;
+        if (Array.isArray(nested.logs)) return nested.logs;
+        if (Array.isArray(nested)) return nested;
+      }
+      if (Array.isArray(d?.data?.logs)) return d.data.logs;
+      if (Array.isArray(d?.data?.trades)) return d.data.trades;
+      return extractList(d);
+    };
     try {
       const res = await api.get('/api/v1/master/trade-logs');
-      const list =
-        Array.isArray(res.data?.logs) ? res.data.logs :
-        Array.isArray(res.data?.trades) ? res.data.trades :
-        Array.isArray(res.data?.tradeLogs) ? res.data.tradeLogs :
-        Array.isArray(res.data?.copyLogs) ? res.data.copyLogs :
-        Array.isArray(res.data?.masterTrades) ? res.data.masterTrades :
-        Array.isArray(res.data?.data?.logs) ? res.data.data.logs :
-        Array.isArray(res.data?.data?.trades) ? res.data.data.trades :
-        extractList(res.data);
-      return list.map(normalizeTrade);
+      return extractTrades(res.data).map(normalizeTrade);
     } catch (error) {
       try {
         const fallback = await api.get('/api/v1/master/trade-history');
-        const list =
-          Array.isArray(fallback.data?.logs) ? fallback.data.logs :
-          Array.isArray(fallback.data?.trades) ? fallback.data.trades :
-          Array.isArray(fallback.data?.tradeLogs) ? fallback.data.tradeLogs :
-          Array.isArray(fallback.data?.copyLogs) ? fallback.data.copyLogs :
-          Array.isArray(fallback.data?.masterTrades) ? fallback.data.masterTrades :
-          Array.isArray(fallback.data?.data?.logs) ? fallback.data.data.logs :
-          Array.isArray(fallback.data?.data?.trades) ? fallback.data.data.trades :
-          extractList(fallback.data);
-        return list.map(normalizeTrade);
+        return extractTrades(fallback.data).map(normalizeTrade);
       } catch (fallbackError) {
         throw new Error(getErrorMessage(fallbackError, 'Unable to load trade history'));
       }
@@ -687,15 +685,28 @@ export const masterService = {
   },
 
   async getCopyLogs() {
+    const extractCopyLogs = (d) => {
+      if (Array.isArray(d)) return d;
+      if (Array.isArray(d?.logs)) return d.logs;
+      if (Array.isArray(d?.copyLogs)) return d.copyLogs;
+      const nested = d?.copyLogs || d?.tradeLogs;
+      if (nested && typeof nested === 'object') {
+        if (Array.isArray(nested.data)) return nested.data;
+        if (Array.isArray(nested.logs)) return nested.logs;
+        if (Array.isArray(nested)) return nested;
+      }
+      if (Array.isArray(d?.tradeLogs)) return d.tradeLogs;
+      if (Array.isArray(d?.trades)) return d.trades;
+      if (Array.isArray(d?.data)) return d.data;
+      return extractList(d);
+    };
     try {
       const res = await api.get('/api/v1/master/trade-logs');
-      const raw = res.data?.logs || res.data?.tradeLogs || res.data?.copyLogs || res.data?.trades || res.data || [];
-      return Array.isArray(raw) ? raw.map(normalizeCopyLog) : [];
+      return extractCopyLogs(res.data).map(normalizeCopyLog);
     } catch (error) {
       try {
         const fallback = await api.get('/api/v1/master/copy/logs');
-        const raw = fallback.data?.logs || fallback.data?.tradeLogs || fallback.data?.copyLogs || fallback.data || [];
-        return Array.isArray(raw) ? raw.map(normalizeCopyLog) : [];
+        return extractCopyLogs(fallback.data).map(normalizeCopyLog);
       } catch (fallbackError) {
         throw new Error(getErrorMessage(fallbackError, 'Unable to load copy logs'));
       }

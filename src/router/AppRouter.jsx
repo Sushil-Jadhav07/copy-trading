@@ -42,15 +42,11 @@ import MasterChildMap from '@/components/admin/MasterChildMap';
 import AllUsers from '@/components/admin/AllUsers';
 import ChildAccounts from '@/components/admin/ChildAccounts';
 import MasterAccounts from '@/components/admin/MasterAccounts';
-import PendingVerification from '@/components/admin/PendingVerification';
 import SystemLogs from '@/components/admin/SystemLogs';
-import LiveTrades from '@/components/admin/LiveTrades';
 import OrderFeed from '@/components/admin/OrderFeed';
 import AdminPnL from '@/components/admin/AdminPnL';
 import AdminProfile from '@/components/admin/Profile';
 import TradeHistory from '@/components/admin/TradeHistory';
-import AdminOpenPositions from '@/components/admin/OpenPositions';
-import Subscriptions from '@/components/admin/Subscriptions';
 import BrokerStatus from '@/components/admin/BrokerStatus';
 import KillSwitch from '@/components/admin/KillSwitch';
 import ForceSquareOff from '@/components/admin/ForceSquareOff';
@@ -166,11 +162,7 @@ const AppRouter = () => {
                 <Route path="admin/children" element={<AllUsers scope="children" />} />
                 <Route path="admin/child-accounts" element={<ChildAccounts />} />
                 <Route path="admin/master-accounts" element={<Navigate to="/admin/masters" replace />} />
-                <Route path="admin/verification" element={<PendingVerification />} />
                 <Route path="admin/profile" element={<AdminProfile />} />
-                <Route path="admin/open-positions" element={<AdminOpenPositions />} />
-                <Route path="admin/subscriptions" element={<Subscriptions />} />
-                <Route path="admin/live-trades" element={<LiveTrades />} />
                 <Route path="admin/order-feed" element={<OrderFeed />} />
                 <Route path="admin/master-child-map" element={<MasterChildMap />} />
                 <Route path="admin/system-logs" element={<SystemLogs />} />

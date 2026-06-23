@@ -1,16 +1,50 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Check,
+  ChevronLeft,
   ChevronRight,
-  Download,
   Search,
   ShieldCheck,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { adminService } from '@/lib/admin';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 
 const FEED_FILTERS = ['All', 'Detected', 'Replicating', 'Completed', 'Failed'];
+
+const TIME_FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'all', label: 'All' },
+];
+
+const PAGE_SIZE = 10;
+
+const getTimeRange = (key) => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (key === 'today') return { from: todayStart, to: null };
+  if (key === 'yesterday') {
+    const from = new Date(todayStart);
+    from.setDate(from.getDate() - 1);
+    return { from, to: todayStart };
+  }
+  if (key === 'week') {
+    const from = new Date(todayStart);
+    from.setDate(from.getDate() - 7);
+    return { from, to: null };
+  }
+  if (key === 'month') {
+    const from = new Date(todayStart);
+    from.setDate(from.getDate() - 30);
+    return { from, to: null };
+  }
+  return { from: null, to: null };
+};
 
 const CONNECTED_BROKERS = [
   { name: 'Zerodha', state: 'live' },
@@ -49,6 +83,7 @@ const mapLogToFeedRow = (log) => {
     id: log.id,
     orderId: log.reference || `LOG-${log.id}`,
     traceId: log.reference || String(log.id),
+    timestamp: log.timestamp,
     detectedAt: formatTime(log.timestamp),
     symbol: log.symbol,
     exchange: 'NSE',
@@ -76,29 +111,24 @@ const mapLogToFeedRow = (log) => {
   };
 };
 
-const exportCSV = (rows) => {
-  const headers = ['#', 'Detected At', 'Symbol', 'Exchange', 'Side', 'Qty', 'Exec Price', 'Type', 'Broker', 'Children', 'Status'];
-  const data = rows.map((row) => [
-    row.orderId,
-    row.detectedAt,
-    row.symbol,
-    row.exchange,
-    row.side,
-    row.qty,
-    row.execPrice,
-    row.type,
-    row.broker,
-    row.children,
-    row.status,
-  ].join(','));
-
-  const blob = new Blob([[headers.join(','), ...data].join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = 'trade-feed.csv';
-  anchor.click();
-  URL.revokeObjectURL(url);
+const exportexcel = (rows) => {
+  downloadExcelSheet({
+    rows: rows.map((row) => ({
+      'Order ID': row.orderId,
+      'Detected At': row.detectedAt,
+      Symbol: row.symbol,
+      Exchange: row.exchange,
+      Side: row.side,
+      Qty: row.qty,
+      'Exec Price': row.execPrice,
+      Type: row.type,
+      Broker: row.broker,
+      Children: row.children,
+      Status: row.status,
+    })),
+    sheetName: 'Trade Feed',
+    fileName: buildExportFileName('Trade Feed'),
+  });
 };
 
 const stateMap = {
@@ -130,7 +160,9 @@ const detailStatusClass = {
 
 const OrderFeed = () => {
   const [activeFilter, setActiveFilter] = useState('All');
+  const [timeFilter, setTimeFilter] = useState('today');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [feedRows, setFeedRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTradeId, setSelectedTradeId] = useState(null);
@@ -157,6 +189,7 @@ const OrderFeed = () => {
   const filteredRows = useMemo(() => {
     const state = stateMap[activeFilter];
     const query = search.trim().toLowerCase();
+    const { from, to } = getTimeRange(timeFilter);
 
     return feedRows.filter((row) => {
       if (state && row.state !== state) return false;
@@ -165,12 +198,20 @@ const OrderFeed = () => {
         !row.symbol.toLowerCase().includes(query) &&
         !row.broker.toLowerCase().includes(query) &&
         !row.exchange.toLowerCase().includes(query)
-      ) {
-        return false;
+      ) return false;
+      if (from || to) {
+        const d = new Date(row.timestamp || 0);
+        if (from && d < from) return false;
+        if (to && d >= to) return false;
       }
       return true;
     });
-  }, [activeFilter, search, feedRows]);
+  }, [activeFilter, search, timeFilter, feedRows]);
+
+  useEffect(() => { setPage(1); }, [activeFilter, search, timeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const selectedTrade = useMemo(
     () => feedRows.find((row) => row.id === selectedTradeId) || feedRows[0] || null,
@@ -196,32 +237,43 @@ const OrderFeed = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => exportCSV(filteredRows)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </button>
+          <DownloadButton onClick={() => exportexcel(filteredRows)} disabled={filteredRows.length === 0} label="Export excel" />
         </div>
       </section>
 
-      <section className="flex flex-wrap items-center gap-2">
-        {FEED_FILTERS.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => setActiveFilter(filter)}
-            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-              activeFilter === filter
-                ? 'border-brand-purple bg-brand-purple text-white'
-                : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
-            }`}
-          >
-            {filter}
-          </button>
-        ))}
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {FEED_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => setActiveFilter(filter)}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                activeFilter === filter
+                  ? 'border-brand-purple bg-brand-purple text-white'
+                  : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {TIME_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setTimeFilter(f.key)}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                timeFilter === f.key
+                  ? 'border-emerald-500 bg-emerald-500 text-white'
+                  : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -238,19 +290,9 @@ const OrderFeed = () => {
               />
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => exportCSV(filteredRows)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground"
-              >
-                <Download className="h-4 w-4" />
-                Export CSV
-              </button>
-              <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground">
-                10 / page
-              </div>
-            </div>
+            <p className="text-sm text-slate-400 dark:text-muted-foreground whitespace-nowrap">
+              {filteredRows.length} result{filteredRows.length !== 1 ? 's' : ''}
+            </p>
           </div>
 
           <section className={`${panelClass} p-0`}>
@@ -282,7 +324,7 @@ const OrderFeed = () => {
                       </td>
                     </tr>
                   ) : null}
-                  {!loading && filteredRows.map((row) => (
+                  {!loading && pagedRows.map((row) => (
                     <tr
                       key={row.id}
                       className={`border-b border-slate-100/80 transition-colors hover:bg-black/[0.02] dark:border-white/[0.04] dark:hover:bg-white/[0.03] ${
@@ -335,6 +377,34 @@ const OrderFeed = () => {
                 </tbody>
               </table>
             </div>
+            {!loading && filteredRows.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between gap-4 border-t border-slate-200/70 px-4 py-3 dark:border-white/[0.06]">
+                <p className="text-sm text-slate-400 dark:text-muted-foreground">
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRows.length)} of {filteredRows.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="inline-flex items-center justify-center rounded-lg border border-slate-200/80 bg-white/80 p-1.5 text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground dark:hover:bg-white/[0.08]"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="min-w-[60px] text-center text-sm font-semibold text-slate-700 dark:text-foreground">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="inline-flex items-center justify-center rounded-lg border border-slate-200/80 bg-white/80 p-1.5 text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground dark:hover:bg-white/[0.08]"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </section>

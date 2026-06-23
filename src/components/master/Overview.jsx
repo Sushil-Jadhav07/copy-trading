@@ -161,8 +161,8 @@ const Overview = () => {
         </GlassCard>
 
         <GlassCard title="Children Performance">
-          <div className="">
-            <table className="w-full table-fixed">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] table-fixed">
               <thead>
                 <tr className="border-b border-border/50">
                   {['Name', 'Broker', 'Scaling', 'P&L Today', 'Status'].map((h) => (
@@ -213,7 +213,7 @@ const Overview = () => {
         ) : positionsLoading ? (
           <SkeletonLoader type="table" rows={4} columns={9} />
         ) : (
-          <div className="">
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[920px]">
               <thead>
                 <tr className="border-b border-border/50">

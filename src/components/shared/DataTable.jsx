@@ -106,7 +106,7 @@ const DataTable = ({
               {columns.map((col) => (
                 <th
                   key={col.key || col.accessor}
-                  className={`px-4 py-3 text-left text-sm font-medium text-muted-foreground ${
+                  className={`px-2 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground ${
                     col.sortable ? 'cursor-pointer hover:text-foreground' : ''
                   }`}
                   onClick={() => col.sortable && handleSort(col.accessor)}
@@ -135,7 +135,7 @@ const DataTable = ({
                   } ${rowClassName ? rowClassName(row) : ''}`}
                 >
                   {columns.map((col) => (
-                    <td key={col.key || col.accessor} className="px-4 py-3 text-sm">
+                    <td key={col.key || col.accessor} className="px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm">
                       {col.cell ? (
                         col.cell(row)
                       ) : col.accessor ? (

@@ -67,7 +67,7 @@ const PnLSummary = () => {
         <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <GlassCard>
           <p className="text-sm text-muted-foreground">Total Net P&L</p>
           <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-success' : 'text-danger'}`}>

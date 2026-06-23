@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,7 +10,6 @@ import {
   Shield,
   AlertTriangle,
   Users,
-  UserPlus,
   Clock,
   Target,
   Search,
@@ -18,7 +17,6 @@ import {
   UserCheck,
   List,
   FileText,
-  CreditCard,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -32,7 +30,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { adminService } from '@/lib/admin';
 const whitelogo = '/asset/whitelogo.png';
 const singlelogo = '/asset/singlelogo.png';
 const logomain = '/asset/logomain.png';
@@ -113,40 +110,7 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile = false, isOpen = false, on
   const { getEffectiveRole, logout } = useAuth();
   const { isDark } = useTheme();
   const role = getEffectiveRole();
-  const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
   const normalizedRole = String(role || '').toUpperCase();
-  const pendingVerificationBadge =
-    normalizedRole === 'ADMIN' && pendingVerificationCount > 0 ? String(pendingVerificationCount) : undefined;
-
-  useEffect(() => {
-    if (role !== 'Admin') {
-      setPendingVerificationCount(0);
-      return undefined;
-    }
-
-    let active = true;
-
-    const fetchPendingCount = async () => {
-      try {
-        const response = await adminService.getUsers({ status: 'PENDING' });
-        if (active) {
-          setPendingVerificationCount(response.meta?.total ?? response.users.length);
-        }
-      } catch {
-        if (active) {
-          setPendingVerificationCount(0);
-        }
-      }
-    };
-
-    fetchPendingCount();
-    const interval = setInterval(fetchPendingCount, 60000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [role]);
 
   const handleLogout = async () => {
     try {
@@ -230,15 +194,12 @@ const childSidebarItems = [
         { to: '/admin/users', icon: Users, label: 'All Users' },
         { to: '/admin/masters', icon: TrendingUp, label: 'Masters' },
         { to: '/admin/children', icon: UserCheck, label: 'Children' },
-        { to: '/admin/verification', icon: UserPlus, label: 'Pending Verification', badge: pendingVerificationBadge },
       ],
     },
     {
       section: 'Trade Monitor',
       items: [
         { to: '/admin/order-feed', icon: List, label: 'Trade Feed' },
-        { to: '/admin/open-positions', icon: Activity, label: 'Open Positions' },
-        { to: '/admin/live-trades', icon: Clock, label: 'Live Trades' },
         { to: '/admin/failed-copy-monitor', icon: AlertTriangle, label: 'Failed Copy Monitor' },
         { to: '/admin/trade-history', icon: History, label: 'Trade History' },
         { to: '/admin/order-trace', icon: Search, label: 'Order Trace' },
@@ -248,7 +209,6 @@ const childSidebarItems = [
     {
       section: 'Operations',
       items: [
-        { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
         { to: '/admin/broker-status', icon: Shield, label: 'Broker Status' },
         { to: '/admin/kill-switch', icon: Power, label: 'Kill Switch' },
         { to: '/admin/force-square-off', icon: Target, label: 'Force Square-Off' },

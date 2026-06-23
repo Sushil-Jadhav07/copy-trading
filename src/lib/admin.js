@@ -210,35 +210,42 @@ const normalizeSystemHealthEntries = (payload = {}) => {
   // NOT an array — handle the flat shape first, then fall back to array shape
   const source = payload?.data || payload;
 
-  // Detect flat object shape (has a top-level "status" key that is a string like "UP")
   const isFlatObject =
     typeof source === 'object' &&
     !Array.isArray(source) &&
-    typeof source.status === 'string' &&
-    ['UP', 'DOWN', 'DISABLED', 'UNKNOWN'].includes(String(source.status).toUpperCase());
+    !Array.isArray(source.data) &&
+    !Array.isArray(source.content);
 
   if (isFlatObject) {
-    // Convert flat health response into display-friendly rows
-    const { uptime, status: overallStatus, ...services } = source;
-    return Object.entries(services).map(([key, value], index) => {
-      const isObjectValue = value && typeof value === 'object' && !Array.isArray(value);
-      const serviceStatus = String(
-        isObjectValue ? value.status || overallStatus || 'UNKNOWN' : value || 'UNKNOWN',
-      ).toUpperCase();
-      return {
-        id: key || `service-${index}`,
-        name: key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, (c) => c.toUpperCase()),
-        status: serviceStatus,
-        latency: null,
-        uptime: uptime || 'N/A',
-        activeUsers: null,
-        ordersToday: null,
-        metric: isObjectValue
-          ? [value.used, value.max].filter(Boolean).join(' / ') || serviceStatus
-          : serviceStatus,
-        raw: { key, value },
-      };
+    const { uptime, status: overallStatus, ...rest } = source;
+    const metricKeys = Object.keys(rest).filter((k) => {
+      const v = rest[k];
+      return typeof v === 'number' || typeof v === 'string' || (typeof v === 'object' && v !== null && !Array.isArray(v));
     });
+    if (metricKeys.length > 0) {
+      return metricKeys.map((key, index) => {
+        const value = rest[key];
+        const isObjectValue = value && typeof value === 'object' && !Array.isArray(value);
+        const displayName = key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, (c) => c.toUpperCase());
+        const isLatency = /latency/i.test(key);
+        const isUsers = /user|connection|socket/i.test(key);
+        const isOrders = /order|trade/i.test(key);
+        const numericValue = typeof value === 'number' ? value : null;
+        return {
+          id: key || `service-${index}`,
+          name: displayName,
+          status: overallStatus || 'UP',
+          latency: isLatency ? numericValue : (isObjectValue ? toFiniteNumberOrNull(value.latency) : null),
+          uptime: uptime || 'N/A',
+          activeUsers: isUsers ? numericValue : null,
+          ordersToday: isOrders ? numericValue : null,
+          metric: isObjectValue
+            ? [value.used, value.max].filter(Boolean).join(' / ') || String(value.status || 'N/A')
+            : String(value ?? 'N/A'),
+          raw: { key, value },
+        };
+      });
+    }
   }
 
   // Array shape fallback
@@ -268,9 +275,9 @@ const normalizeSystemHealthEntries = (payload = {}) => {
 
 const normalizeFailedCopy = (entry = {}, index = 0) => ({
   id: entry.id || entry.copyId || `failed-copy-${index}`,
-  masterName: entry.masterName || entry.master || entry.masterId || 'Unknown',
-  childName: entry.childName || entry.child || entry.childId || 'Unknown',
-  broker: entry.broker || entry.brokerName || 'N/A',
+  masterName: entry.masterName || entry.mastername || entry.master || entry.masterId || 'Unknown',
+  childName: entry.childName || entry.childname || entry.child || entry.childId || 'Unknown',
+  broker: entry.broker || entry.brokerName || entry.brokername || 'N/A',
   symbol: entry.symbol || entry.instrument || entry.reference || 'N/A',
   status: String(entry.status || entry.copyStatus || 'FAILED').toUpperCase(),
   reason: entry.reason || entry.message || entry.error || entry.failureReason || 'N/A',
@@ -279,18 +286,28 @@ const normalizeFailedCopy = (entry = {}, index = 0) => ({
   raw: entry,
 });
 
-const normalizeAuditEntry = (entry = {}, index = 0) => ({
-  id: entry.id || `audit-${index}`,
-  adminName: entry.adminName || entry.admin || entry.actorName || entry.userName || 'Admin',
-  action: String(entry.action || entry.eventType || 'UNKNOWN').toUpperCase(),
-  entityType: String(entry.entityType || entry.targetType || 'SYSTEM').toUpperCase(),
-  entityId: entry.entityId || entry.targetId || entry.reference || 'N/A',
-  before: entry.before || entry.oldValue || entry.previous || {},
-  after: entry.after || entry.newValue || entry.current || {},
-  reason: entry.reason || entry.message || '',
-  timestamp: entry.timestamp || entry.createdAt || entry.time || null,
-  raw: entry,
-});
+const parseParams = (raw) => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return {}; }
+};
+
+const normalizeAuditEntry = (entry = {}, index = 0) => {
+  const params = parseParams(entry.parameters || entry.params);
+  return {
+    id: entry.id || `audit-${index}`,
+    adminName: entry.adminName || entry.admin || entry.actorName || entry.userName || entry.userEmail || 'Admin',
+    action: String(entry.action || entry.eventType || 'UNKNOWN').toUpperCase(),
+    entityType: String(entry.entityType || entry.targetType || 'SYSTEM').toUpperCase(),
+    entityId: entry.entityId || entry.targetId || entry.reference || params.userId || params.targetId || 'N/A',
+    before: entry.before || entry.oldValue || entry.previous || {},
+    after: entry.after || entry.newValue || entry.current || {},
+    reason: entry.reason || entry.message || entry.description || '',
+    parameters: params,
+    timestamp: entry.timestamp || entry.createdAt || entry.time || null,
+    raw: entry,
+  };
+};
 
 const normalizeTraceChild = (entry = {}, index = 0) => ({
   id: entry.id || entry.childId || `trace-child-${index}`,
@@ -358,9 +375,11 @@ const normalizeOrderTrace = (payload = {}) => {
 };
 
 const normalizeBrokerStatusEntry = (entry = {}, index = 0) => ({
-  id: entry.id || entry.brokerId || entry.name || `broker-status-${index}`,
-  name: entry.name || entry.brokerName || entry.brokerId || 'Broker',
-  account: entry.account || entry.clientId || entry.nickname || '—',
+  id: entry.id || entry.brokerId || entry.broker || entry.name || `broker-status-${index}`,
+  name: entry.name || entry.brokerName || entry.broker || entry.brokerId || 'Broker',
+  brokerId: entry.brokerId || entry.broker || entry.name || '',
+  account: entry.account || entry.clientId || entry.nickname || entry.userId || '—',
+  active: entry.active ?? null,
   tokenExpiry: entry.tokenExpiry || entry.tokenExpiresAt || entry.expiresAt || null,
   lastSync: entry.lastSync || entry.lastSyncedAt || entry.lastChecked || null,
   ping: toFiniteNumberOrNull(entry.ping, entry.latency, entry.latencyMs),
@@ -621,19 +640,24 @@ export const adminService = {
     try {
       const response = await api.get('/api/v1/admin/failed-copies', { params });
       const source = response.data?.data || response.data || {};
-      const copies = extractCollection(source.copies ? source : source).map(normalizeFailedCopy);
+      const copies = (Array.isArray(source.copies) ? source.copies : extractCollection(source)).map(normalizeFailedCopy);
       const stats = source.stats || response.data?.stats || {};
+      const totalCount = Number(source.total ?? copies.length);
+      const skippedCount = Number(stats.skipped ?? copies.filter((c) => c.status === 'SKIPPED').length);
+      const rejectedCount = Number(stats.rejected ?? copies.filter((c) => c.status === 'REJECTED').length);
+      const timeoutCount = Number(stats.timeout ?? copies.filter((c) => c.status === 'TIMEOUT').length);
+      const failedCount = Number(stats.failed ?? copies.filter((c) => c.status === 'FAILED').length);
       return {
         copies,
-        total: Number(source.total ?? copies.length),
+        total: totalCount,
         page: Number(source.page ?? params.page ?? 1),
         limit: Number(source.limit ?? params.limit ?? 20),
         stats: {
-          total: Number(stats.total ?? source.total ?? copies.length),
-          skipped: Number(stats.skipped ?? 0),
-          rejected: Number(stats.rejected ?? 0),
-          timeout: Number(stats.timeout ?? 0),
-          failed: Number(stats.failed ?? 0),
+          total: totalCount,
+          skipped: skippedCount,
+          rejected: rejectedCount,
+          timeout: timeoutCount,
+          failed: failedCount,
         },
       };
     } catch (error) {
@@ -645,7 +669,7 @@ export const adminService = {
     try {
       const response = await api.get('/api/v1/admin/audit-log', { params });
       const source = response.data?.data || response.data || {};
-      const logs = extractCollection(source.logs ? source : source).map(normalizeAuditEntry);
+      const logs = (Array.isArray(source.logs) ? source.logs : extractCollection(source)).map(normalizeAuditEntry);
       return {
         logs,
         total: Number(source.total ?? logs.length),

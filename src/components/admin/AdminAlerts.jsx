@@ -65,7 +65,7 @@ const AdminAlerts = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* ── Channels ── */}
         <GlassCard>
           <div className="mb-5 flex items-center gap-3">
@@ -143,7 +143,7 @@ const AdminAlerts = () => {
 
           <div className="space-y-4">
             {EVENT_DEFINITIONS.map((event) => (
-              <div key={event.key} className="flex items-start justify-between gap-4 rounded-xl bg-black/5 p-3 dark:bg-white/5">
+              <div key={event.key} className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-black/[0.04] p-3 dark:bg-white/[0.08]">
                 <div>
                   <p className="text-sm font-medium">{event.label}</p>
                   <p className="text-xs text-muted-foreground">{event.description}</p>
@@ -177,7 +177,7 @@ const AdminAlerts = () => {
             </thead>
             <tbody>
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-8 sm:py-12 text-center text-sm text-muted-foreground">
                   No data yet — awaiting backend integration
                 </td>
               </tr>

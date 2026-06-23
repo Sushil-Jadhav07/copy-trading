@@ -523,7 +523,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
 
         <div className="overflow-x-auto">
           {activeTab === 'Positions' && (
-            <table className="w-full">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border/50">
                   {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Trans'].map((h) => (
@@ -579,7 +579,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           )}
 
           {activeTab === 'Orders' && (
-            <table className="w-full">
+            <table className="w-full min-w-[880px]">
               <thead>
                 <tr className="border-b border-border/50">
                   {['Id', 'Symbol', 'Trans', 'Product', 'Type', 'Qty', 'Price', 'Time', 'Order Id', 'Status', 'Action'].map((h) => (
@@ -644,7 +644,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
           )}
 
           {activeTab === 'Options' && (
-            <table className="w-full">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border/50">
                   {['Id', 'Symbol', 'Type', 'Qty', 'P&L', 'LTP', 'Avg Price', 'Status'].map((h) => (

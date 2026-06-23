@@ -395,7 +395,7 @@ const OpenPositions = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-border/50">
                   {['#', 'Instrument', 'Type', 'Qty', 'Price', 'Unrealized P&L', 'Change %', 'Children Copying'].map((h) => (

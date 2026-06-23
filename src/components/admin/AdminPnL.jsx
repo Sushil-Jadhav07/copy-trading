@@ -7,8 +7,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { TrendingUp, Users, Activity, CreditCard, BarChart2, Trophy } from 'lucide-react';
 
-const rowClass = 'border-b border-border/30';
-const emptyCellClass = 'px-4 py-4 text-sm text-muted-foreground';
+const cellCls = 'px-4 py-3 text-sm text-muted-foreground';
 
 const AdminPnL = () => {
   const { addToast } = useToast();
@@ -17,17 +16,12 @@ const AdminPnL = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   const load = useCallback(async () => {
     try {
       const [analyticsData, platformPnl] = await Promise.all([
         adminService.getAnalytics(),
-        adminService.getPlatformPnl({
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-        }),
+        adminService.getPlatformPnl(),
       ]);
       setAnalytics(analyticsData);
       setPnlData(platformPnl);
@@ -35,73 +29,28 @@ const AdminPnL = () => {
     } catch (error) {
       const message = error.message || 'Unable to load platform P&L';
       setLoadError(message);
-      setAnalytics({
-        totalTrades: 0,
-        activeSubscriptions: 0,
-        activeMasters: 0,
-        totalChildren: 0,
-        revenueMtd: 0,
-        totalUsers: 0,
-        totalAdmins: 0,
-      });
+      setAnalytics({ totalTrades: 0, activeSubscriptions: 0, activeMasters: 0, totalChildren: 0, revenueMtd: 0, totalUsers: 0, totalAdmins: 0 });
       setPnlData({ perMaster: [], perChild: [], topGainers: [], topLosers: [] });
       addToast(message, 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [addToast, dateFrom, dateTo]);
+  }, [addToast]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await load();
-  };
+  const handleRefresh = async () => { setRefreshing(true); await load(); };
 
-  const stats = analytics
-    ? [
-        {
-          label: 'Total Trades',
-          value: formatNumber(analytics.totalTrades ?? analytics.volumeToday ?? 0),
-          icon: Activity,
-          color: 'text-brand-purple',
-          bg: 'bg-brand-purple/10',
-        },
-        {
-          label: 'Active Subscriptions',
-          value: formatNumber(analytics.activeSubscriptions ?? 0),
-          icon: CreditCard,
-          color: 'text-brand-blue',
-          bg: 'bg-brand-blue/10',
-        },
-        {
-          label: 'Active Masters',
-          value: formatNumber(analytics.activeMasters ?? analytics.totalMasters ?? 0),
-          icon: TrendingUp,
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-500/10',
-        },
-        {
-          label: 'Total Children',
-          value: formatNumber(analytics.totalChildren ?? 0),
-          icon: Users,
-          color: 'text-amber-500',
-          bg: 'bg-amber-500/10',
-        },
-      ]
-    : [];
+  const stats = analytics ? [
+    { label: 'Total Trades', value: formatNumber(analytics.totalTrades ?? analytics.volumeToday ?? 0), icon: Activity, color: 'text-brand-purple', bg: 'bg-brand-purple/10' },
+    { label: 'Active Subscriptions', value: formatNumber(analytics.activeSubscriptions ?? 0), icon: CreditCard, color: 'text-brand-blue', bg: 'bg-brand-blue/10' },
+    { label: 'Active Masters', value: formatNumber(analytics.activeMasters ?? analytics.totalMasters ?? 0), icon: TrendingUp, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Total Children', value: formatNumber(analytics.totalChildren ?? 0), icon: Users, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  ] : [];
 
-  const renderRows = (rows, columns, rowRenderer, colSpan) => (
-    rows.length === 0 ? (
-      <tr>
-        <td colSpan={colSpan} className={emptyCellClass}>No data returned for this range.</td>
-      </tr>
-    ) : (
-      rows.map(rowRenderer)
-    )
+  const EmptyRow = ({ cols }) => (
+    <tr><td colSpan={cols} className={cellCls}>No data available.</td></tr>
   );
 
   return (
@@ -109,30 +58,26 @@ const AdminPnL = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Platform P&L</h1>
-          <p className="text-sm text-muted-foreground">
-            Platform-wide analytics and detailed master/child P&L breakdowns.
-          </p>
+          <p className="text-sm text-muted-foreground">Platform-wide analytics and detailed master/child P&L breakdowns.</p>
         </div>
         <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <GlassCard key={i}><SkeletonLoader type="stat" /></GlassCard>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => <GlassCard key={i}><SkeletonLoader type="stat" /></GlassCard>)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <GlassCard key={stat.label}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((s) => (
+            <GlassCard key={s.label}>
               <div className="flex items-start gap-3">
-                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${stat.bg}`}>
-                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.bg}`}>
+                  <s.icon className={`h-5 w-5 ${s.color}`} />
                 </div>
                 <div>
-                  <p className="mb-0.5 text-xs text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  <p className="mb-0.5 text-xs text-muted-foreground">{s.label}</p>
+                  <p className="text-2xl font-bold text-foreground">{s.value}</p>
                 </div>
               </div>
             </GlassCard>
@@ -142,9 +87,7 @@ const AdminPnL = () => {
 
       {!loading && analytics && (
         <GlassCard title="Revenue Overview">
-          {loadError ? (
-            <p className="mb-4 text-xs text-amber-600 dark:text-amber-400">{loadError}</p>
-          ) : null}
+          {loadError && <p className="mb-4 text-xs text-amber-600 dark:text-amber-400">{loadError}</p>}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <div>
               <p className="mb-1 text-xs text-muted-foreground">Revenue MTD</p>
@@ -162,99 +105,70 @@ const AdminPnL = () => {
         </GlassCard>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm text-muted-foreground">Date range:</span>
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none dark:bg-white/5"
-        />
-        <span className="text-sm text-muted-foreground">to</span>
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none dark:bg-white/5"
-        />
-        <button
-          onClick={handleRefresh}
-          className="rounded-xl bg-brand-purple px-4 py-2 text-sm font-medium text-white"
-        >
-          Apply
-        </button>
+      {/* Per-Master & Per-Child side by side */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GlassCard noPadding>
+          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+            <BarChart2 className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Per-Master P&L</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                  {['Master', 'Trades', 'P&L', 'Children'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pnlData.perMaster.length === 0 ? <EmptyRow cols={4} /> : pnlData.perMaster.map((row) => (
+                  <tr key={row.id} className="border-b border-border/30">
+                    <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{row.master}</td>
+                    <td className={cellCls}>{formatNumber(row.totalTrades)}</td>
+                    <td className={`px-4 py-3 text-sm font-semibold ${row.realisedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {formatCurrency(row.realisedPnl)}
+                    </td>
+                    <td className={cellCls}>{formatNumber(row.children)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+
+        <GlassCard noPadding>
+          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Per-Child P&L</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                  {['Child', 'Master', 'Executed', 'P&L'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pnlData.perChild.length === 0 ? <EmptyRow cols={4} /> : pnlData.perChild.map((row) => (
+                  <tr key={row.id} className="border-b border-border/30">
+                    <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{row.child}</td>
+                    <td className={`${cellCls} truncate max-w-[100px]`}>{row.master}</td>
+                    <td className={cellCls}>{formatNumber(row.copiesExecuted)}</td>
+                    <td className={`px-4 py-3 text-sm font-semibold ${row.realisedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {formatCurrency(row.realisedPnl)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
       </div>
 
-      <GlassCard noPadding>
-        <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
-          <BarChart2 className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Per-Master P&L Breakdown</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
-                {['Master', 'Total Trades', 'Volume', 'Realised P&L', 'Children', 'Subscription Revenue'].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {renderRows(
-                pnlData.perMaster,
-                ['Master'],
-                (row) => (
-                  <tr key={row.id} className={rowClass}>
-                    <td className="px-4 py-3 text-sm font-medium">{row.master}</td>
-                    <td className={emptyCellClass}>{formatNumber(row.totalTrades)}</td>
-                    <td className={emptyCellClass}>{formatCurrency(row.volume)}</td>
-                    <td className={emptyCellClass}>{formatCurrency(row.realisedPnl)}</td>
-                    <td className={emptyCellClass}>{formatNumber(row.children)}</td>
-                    <td className={emptyCellClass}>{formatCurrency(row.subscriptionRevenue)}</td>
-                  </tr>
-                ),
-                6,
-              )}
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
-
-      <GlassCard noPadding>
-        <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Per-Child P&L Breakdown</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
-                {['Child', 'Master', 'Copies Executed', 'Copies Failed', 'Realised P&L', 'Avg Slippage (%)'].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {renderRows(
-                pnlData.perChild,
-                ['Child'],
-                (row) => (
-                  <tr key={row.id} className={rowClass}>
-                    <td className="px-4 py-3 text-sm font-medium">{row.child}</td>
-                    <td className={emptyCellClass}>{row.master}</td>
-                    <td className={emptyCellClass}>{formatNumber(row.copiesExecuted)}</td>
-                    <td className={emptyCellClass}>{formatNumber(row.copiesFailed)}</td>
-                    <td className={emptyCellClass}>{formatCurrency(row.realisedPnl)}</td>
-                    <td className={emptyCellClass}>{row.avgSlippagePct}%</td>
-                  </tr>
-                ),
-                6,
-              )}
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
-
+      {/* Top Gainers & Losers side by side */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {[
           { label: 'Top Gainers', color: 'text-emerald-400', rows: pnlData.topGainers },
@@ -270,24 +184,20 @@ const AdminPnL = () => {
                 <thead>
                   <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
                     {['#', 'Master', 'P&L'].map((h) => (
-                      <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className={emptyCellClass}>No rows returned.</td>
+                  {rows.length === 0 ? <EmptyRow cols={3} /> : rows.map((row, i) => (
+                    <tr key={row.id} className="border-b border-border/30">
+                      <td className={cellCls}>{i + 1}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{row.master}</td>
+                      <td className={`px-4 py-3 text-sm font-semibold ${row.pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {formatCurrency(row.pnl)}
+                      </td>
                     </tr>
-                  ) : (
-                    rows.map((row, index) => (
-                      <tr key={row.id} className={rowClass}>
-                        <td className={emptyCellClass}>{index + 1}</td>
-                        <td className="px-4 py-3 text-sm font-medium">{row.master}</td>
-                        <td className={emptyCellClass}>{formatCurrency(row.pnl)}</td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>

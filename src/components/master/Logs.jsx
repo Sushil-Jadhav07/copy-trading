@@ -11,6 +11,8 @@ import { brokerService } from '@/lib/broker';
 import { engineService } from '@/lib/engine';
 import { formatRelativeTime, sortByMostRecent } from '@/lib/utils';
 import { connectChannel } from '@/lib/websocket';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 
 const STATUS_CFG = {
   EXECUTED: { icon: CheckCircle2, cls: 'bg-emerald-500 text-white', rowCls: 'border-l-emerald-500 bg-emerald-500/5', label: 'Executed' },
@@ -90,7 +92,7 @@ const Logs = () => {
   const [brokerAccounts, setBrokerAccounts] = useState([]);
   const [selectedBrokerAccountId, setSelectedBrokerAccountId] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [timeFilter, setTimeFilter] = useState('today');
+  const [timeFilter, setTimeFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [skipReasonLabels, setSkipReasonLabels] = useState({});
@@ -246,7 +248,7 @@ const Logs = () => {
       {filteredCopyLogs.length === 0 ? (
         <EmptyState title="No copy logs yet" sub="Logs appear here once the copy engine replicates trades" />
       ) : (
-        <table className="w-full">
+        <table className="w-full min-w-[900px]">
           <thead>
             <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
               {['Symbol', 'Side', 'Qty', 'Order', 'Trade ID', 'Child', 'Status', 'Latency', 'Skip Reason', 'Date'].map((h) => (
@@ -409,7 +411,7 @@ const Logs = () => {
     filteredTradeLogs.length === 0 ? (
       <EmptyState title="No trade logs" sub="Your placed trades will appear here" />
     ) : (
-      <table className="w-full">
+      <table className="w-full min-w-[480px]">
         <thead>
           <tr className="border-b border-border/50 bg-black/4 dark:bg-white/3">
             {['ID', 'Instrument', 'Quantity', 'Status', 'Placed At'].map((h) => (
@@ -476,6 +478,10 @@ const Logs = () => {
     trade:  filteredTradeLogs.length,
     broker: filteredBrokerErrors.length,
   };
+  const totalCounts = {
+    copy:   copyLogs.length,
+    broker: brokerErrors.length,
+  };
 
   return (
     <div className="space-y-6">
@@ -484,7 +490,61 @@ const Logs = () => {
           <h1 className="text-xl font-bold sm:text-2xl">Logs</h1>
           <p className="text-sm text-muted-foreground">Copy logs, trade logs, and broker errors in one place.</p>
         </div>
-        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        <div className="flex items-center gap-3">
+          <DownloadButton
+            onClick={() => {
+              try {
+                if (activeTab === 'copy') {
+                  downloadExcelSheet({
+                    rows: filteredCopyLogs.map((log) => ({
+                      Symbol: log.symbol || '-',
+                      Side: log.tradeType || log.side || '-',
+                      Qty: log.qty || '-',
+                      'Order ID': log.masterOrderId || log.orderId || '-',
+                      'Trade ID': String(log.id || '-'),
+                      Child: log.childName || log.childId || '-',
+                      Status: normalizeStatus(log.childStatus),
+                      'Latency (ms)': log.latencyMs || '-',
+                      Reason: log.errorMessage || log.skipReason || '-',
+                      Date: log.createdAt || log.timestamp || log.time || '-',
+                    })),
+                    sheetName: 'Copy Logs',
+                    fileName: buildExportFileName('Master Copy Logs'),
+                  });
+                } else if (activeTab === 'trade') {
+                  downloadExcelSheet({
+                    rows: filteredTradeLogs.map((log) => ({
+                      ID: log.id || log.tradeId || '-',
+                      Instrument: log.instrument || log.symbol || '-',
+                      Quantity: log.quantity || log.qty || 0,
+                      Status: log.status || '-',
+                      'Placed At': log.placedAt || log.createdAt || log.timestamp || '-',
+                    })),
+                    sheetName: 'Trade Logs',
+                    fileName: buildExportFileName('Master Trade Logs'),
+                  });
+                } else {
+                  downloadExcelSheet({
+                    rows: filteredBrokerErrors.map((log) => ({
+                      Message: log.message || log.error || '-',
+                      Broker: log.broker || log.brokerId || '-',
+                      Time: log.timestamp || log.createdAt || '-',
+                    })),
+                    sheetName: 'Broker Errors',
+                    fileName: buildExportFileName('Master Broker Errors'),
+                  });
+                }
+              } catch {}
+            }}
+            disabled={
+              (activeTab === 'copy' && filteredCopyLogs.length === 0) ||
+              (activeTab === 'trade' && filteredTradeLogs.length === 0) ||
+              (activeTab === 'broker' && filteredBrokerErrors.length === 0)
+            }
+            label="Export XLS"
+          />
+          <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">
@@ -545,7 +605,7 @@ const Logs = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <GlassCard>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Copy Logs</p>
-          <p className="text-2xl font-black">{tabCounts.copy}</p>
+          <p className="text-2xl font-black">{totalCounts.copy}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {statusCounts.EXECUTED > 0
               ? `${((statusCounts.EXECUTED / tabCounts.copy) * 100).toFixed(0)}% success rate`
@@ -555,7 +615,7 @@ const Logs = () => {
 
         <GlassCard>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Broker Errors</p>
-          <p className="text-2xl font-black text-rose-500">{tabCounts.broker}</p>
+          <p className="text-2xl font-black text-rose-500">{totalCounts.broker}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Critical integration errors</p>
         </GlassCard>
       </div>

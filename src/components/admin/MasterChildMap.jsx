@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Link2, RefreshCw, TrendingUp, UserCheck, Users } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown, Link2, RefreshCw, TrendingUp, UserCheck, Users, Search, Crown, User } from 'lucide-react';
+import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
 
@@ -11,32 +14,29 @@ const STATUS_OPTIONS = [
   { value: 'PENDING_APPROVAL', label: 'Pending Approval' },
 ];
 
-const panelClass = 'glass-card relative overflow-hidden rounded-[22px]';
-
-const statusBadgeClass = {
-  ACTIVE: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  PAUSED: 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  PENDING_APPROVAL: 'border-brand-purple/20 bg-brand-purple/10 text-brand-purple',
+const statusBadge = {
+  ACTIVE: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  PAUSED: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  PENDING_APPROVAL: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
 };
-
-const getStatusLabel = (value) => String(value || '').replace(/_/g, ' ');
 
 const MasterChildMap = () => {
   const { addToast } = useToast();
   const [masters, setMasters] = useState([]);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [masterFilter, setMasterFilter] = useState('ALL');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedMasterId, setExpandedMasterId] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await adminService.getMasterChildMap();
-      const nextMasters = response.masters || [];
-      setMasters(nextMasters);
-      setExpandedMasterId((current) => current || nextMasters[0]?.masterId || null);
+      const list = response.masters || [];
+      setMasters(list);
+      if (list.length <= 3) setExpandedIds(new Set(list.map((m) => m.masterId)));
     } catch (error) {
       addToast(error.message || 'Unable to load master-child map', 'error');
     } finally {
@@ -45,217 +45,176 @@ const MasterChildMap = () => {
     }
   }, [addToast]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  const handleRefresh = async () => { setRefreshing(true); await load(); };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await load();
-  };
+  const toggle = (id) => setExpandedIds((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
-  const masterOptions = useMemo(
-    () => [
-      { value: 'ALL', label: 'All Masters' },
-      ...masters.map((master) => ({
-        value: master.masterId,
-        label: master.masterName,
-      })),
-    ],
-    [masters],
-  );
+  const expandAll = () => setExpandedIds(new Set(masters.map((m) => m.masterId)));
+  const collapseAll = () => setExpandedIds(new Set());
 
-  const filteredMasters = useMemo(() => {
-    const statusNormalized = statusFilter.toUpperCase();
+  const masterOptions = useMemo(() => [
+    { value: 'ALL', label: 'All Masters' },
+    ...masters.map((m) => ({ value: m.masterId, label: m.masterName })),
+  ], [masters]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const st = statusFilter.toUpperCase();
     return masters
-      .filter((master) => masterFilter === 'ALL' || String(master.masterId) === String(masterFilter))
-      .map((master) => ({
-        ...master,
-        children:
-          statusNormalized === 'ALL'
-            ? master.children || []
-            : (master.children || []).filter((child) => String(child.status || '').toUpperCase() === statusNormalized),
+      .filter((m) => masterFilter === 'ALL' || String(m.masterId) === String(masterFilter))
+      .map((m) => ({
+        ...m,
+        children: (m.children || []).filter((c) => {
+          if (st !== 'ALL' && String(c.status || '').toUpperCase() !== st) return false;
+          if (q && !c.name.toLowerCase().includes(q) && !(c.email || '').toLowerCase().includes(q)) return false;
+          return true;
+        }),
       }))
-      .filter((master) => master.children.length > 0);
-  }, [masters, masterFilter, statusFilter]);
+      .filter((m) => {
+        if (q && m.masterName.toLowerCase().includes(q)) return true;
+        if (q && (m.masterEmail || '').toLowerCase().includes(q)) return true;
+        return m.children.length > 0 || !q;
+      });
+  }, [masters, masterFilter, statusFilter, search]);
 
   const stats = useMemo(() => {
-    const totalMasters = filteredMasters.length;
-    const totalChildren = filteredMasters.reduce((sum, master) => sum + master.children.length, 0);
-    const activeLinks = filteredMasters.reduce(
-      (sum, master) => sum + master.children.filter((child) => String(child.status || '').toUpperCase() === 'ACTIVE').length,
-      0,
-    );
-    const avgScaling = totalChildren
-      ? (
-          filteredMasters.reduce(
-            (sum, master) => sum + master.children.reduce((childSum, child) => childSum + Number(child.scalingFactor || 0), 0),
-            0,
-          ) / totalChildren
-        ).toFixed(2)
-      : '0.00';
-
-    return [
-      { label: 'Masters', value: totalMasters, icon: Users, tone: 'neutral' },
-      { label: 'Linked Children', value: totalChildren, icon: UserCheck, tone: 'positive' },
-      { label: 'Active Links', value: activeLinks, icon: Link2, tone: 'positive' },
-      { label: 'Avg Scaling', value: `${avgScaling}x`, icon: TrendingUp, tone: 'warning' },
-    ];
-  }, [filteredMasters]);
+    const tm = filtered.length;
+    const tc = filtered.reduce((s, m) => s + m.children.length, 0);
+    const al = filtered.reduce((s, m) => s + m.children.filter((c) => c.status === 'ACTIVE').length, 0);
+    const avg = tc ? (filtered.reduce((s, m) => s + m.children.reduce((cs, c) => cs + Number(c.scalingFactor || 0), 0), 0) / tc).toFixed(1) : '0';
+    return { masters: tm, children: tc, active: al, avgScale: avg };
+  }, [filtered]);
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-slate-900 dark:text-foreground">Master-Child Map</h1>
-          <p className="mt-1 text-xs text-slate-400 dark:text-muted-foreground">Browse relationships master-wise with child status and scaling visibility.</p>
+          <h1 className="text-xl font-bold sm:text-2xl">Master-Child Map</h1>
+          <p className="text-sm text-muted-foreground">Visual overview of master-follower relationships.</p>
         </div>
+        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+      </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <DivSelect
-            value={masterFilter}
-            onChange={setMasterFilter}
-            includeEmptyOption={false}
-            options={masterOptions}
-            triggerClassName="rounded-xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.05]"
-          />
-          <DivSelect
-            value={statusFilter}
-            onChange={setStatusFilter}
-            includeEmptyOption={false}
-            options={STATUS_OPTIONS}
-            triggerClassName="rounded-xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.05]"
-          />
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground dark:hover:bg-white/[0.08]"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing || loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-4 pt-1 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <article key={stat.label} className={`${panelClass} min-h-[88px] p-4`}>
-            <div className="relative z-10 flex h-full items-center gap-3">
-              <div
-                className={`flex h-11 w-11 items-center justify-center rounded-xl ${
-                  stat.tone === 'positive'
-                    ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400'
-                    : stat.tone === 'warning'
-                    ? 'bg-amber-500/12 text-amber-600 dark:text-amber-300'
-                    : 'bg-brand-purple/10 text-brand-purple'
-                }`}
-              >
-                <stat.icon className="h-4 w-4" />
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'Masters', value: stats.masters, icon: Crown, color: 'text-brand-purple', bg: 'bg-brand-purple/10' },
+          { label: 'Linked Children', value: stats.children, icon: Users, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Active Links', value: stats.active, icon: Link2, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+          { label: 'Avg Multiplier', value: `${stats.avgScale}x`, icon: TrendingUp, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+        ].map((s) => (
+          <GlassCard key={s.label}>
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.bg}`}>
+                <s.icon className={`h-5 w-5 ${s.color}`} />
               </div>
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-muted-foreground">{stat.label}</div>
-                <div className="mt-1 text-[1.45rem] font-semibold leading-none tracking-[-0.03em] text-slate-900 dark:text-foreground">{stat.value}</div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{s.label}</p>
+                <p className="text-2xl font-bold">{loading ? '…' : s.value}</p>
               </div>
             </div>
-          </article>
+          </GlassCard>
         ))}
-      </section>
+      </div>
 
-      <section className={`${panelClass} p-0`}>
-        <div className="relative z-10 border-b border-slate-200/70 px-4 py-3 dark:border-white/[0.06]">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-foreground">Masters</h2>
-          <p className="mt-0.5 text-xs text-slate-400 dark:text-muted-foreground">Click a master to expand or collapse linked children.</p>
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[180px] flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email…"
+            className="w-full rounded-xl border border-border bg-black/5 py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground/50 focus:border-brand-purple focus:outline-none dark:bg-white/5" />
         </div>
+        <DivSelect value={masterFilter} onChange={setMasterFilter} includeEmptyOption={false} options={masterOptions}
+          triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5" />
+        <DivSelect value={statusFilter} onChange={setStatusFilter} includeEmptyOption={false} options={STATUS_OPTIONS}
+          triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5" />
+        <div className="flex gap-1.5 ml-auto">
+          <button onClick={expandAll} className="rounded-lg bg-black/5 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10">Expand All</button>
+          <button onClick={collapseAll} className="rounded-lg bg-black/5 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10">Collapse All</button>
+        </div>
+      </div>
 
-        <div className="relative z-10 max-h-[680px] overflow-y-auto">
-          {loading ? (
-            <div className="px-5 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">Loading relationships...</div>
-          ) : filteredMasters.length ? (
-            filteredMasters.map((master) => {
-              const isExpanded = String(master.masterId) === String(expandedMasterId);
-
-              return (
-                <div
-                  key={master.masterId}
-                  className={`border-b border-slate-100/80 dark:border-white/[0.04] ${
-                    isExpanded ? 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.04]' : ''
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedMasterId((current) =>
-                        String(current) === String(master.masterId) ? null : master.masterId,
-                      )
-                    }
-                    className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`truncate text-[0.95rem] font-semibold ${isExpanded ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-900 dark:text-foreground'}`}>
-                          {master.masterName}
-                        </div>
-                        <span className="shrink-0 rounded-full border border-slate-200/80 bg-black/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-muted-foreground">
-                          {master.children.length} child{master.children.length === 1 ? '' : 'ren'}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-muted-foreground">{master.masterEmail || '-'}</div>
+      {/* Tree */}
+      {loading ? (
+        <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">Loading relationships…</p></GlassCard>
+      ) : filtered.length === 0 ? (
+        <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">No relationships match these filters.</p></GlassCard>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((master) => {
+            const isOpen = expandedIds.has(master.masterId);
+            return (
+              <GlassCard key={master.masterId} noPadding>
+                {/* Master header */}
+                <button type="button" onClick={() => toggle(master.masterId)}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-purple/10">
+                    <Crown className="h-4.5 w-4.5 text-brand-purple" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold truncate">{master.masterName}</p>
+                      <span className="shrink-0 rounded-full bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        {master.children.length} child{master.children.length !== 1 ? 'ren' : ''}
+                      </span>
                     </div>
-                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-muted-foreground'}`} />
-                  </button>
+                    {master.masterEmail && <p className="text-xs text-muted-foreground truncate">{master.masterEmail}</p>}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-                  {isExpanded && (
-                    <div className="border-t border-slate-200/60 bg-black/[0.02] px-0 py-0 dark:border-white/[0.05] dark:bg-white/[0.02]">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full">
-                          <thead className="bg-black/[0.02] dark:bg-white/[0.02]">
-                            <tr className="border-b border-slate-200/70 dark:border-white/[0.06]">
-                              {['Child', 'Child Email', 'Status', 'Scaling'].map((header) => (
-                                <th
-                                  key={header}
-                                  className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-muted-foreground/75"
-                                >
-                                  {header}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {master.children.map((child, index) => (
-                              <tr
-                                key={`${master.masterId}-${child.childId}-inline`}
-                                className={`border-b border-slate-100/80 transition-colors hover:bg-black/[0.02] dark:border-white/[0.04] dark:hover:bg-white/[0.03] ${
-                                  index % 2 === 1 ? 'bg-black/[0.015] dark:bg-white/[0.02]' : ''
-                                }`}
-                              >
-                                <td className="px-4 py-3">
-                                  <div className="text-sm font-medium text-slate-900 dark:text-foreground">{child.name}</div>
-                                </td>
-                                <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">{child.email || '-'}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${statusBadgeClass[child.status] || 'border-slate-200/80 bg-black/5 text-slate-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-muted-foreground'}`}>
-                                    {getStatusLabel(child.status)}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-xs font-semibold text-slate-900 dark:text-foreground">
-                                  {Number(child.scalingFactor || 0).toFixed(2)}x
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                {/* Children grid */}
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-border/40 bg-black/[0.02] dark:bg-white/[0.02] px-5 py-4">
+                        {master.children.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-4">No children match the current filters.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {master.children.map((child) => {
+                              const st = String(child.status || '').toUpperCase();
+                              const badge = statusBadge[st] || 'bg-black/5 text-muted-foreground border-border dark:bg-white/5';
+                              return (
+                                <div key={child.childId}
+                                  className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/60 px-3.5 py-3 transition-colors hover:border-border">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
+                                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold truncate">{child.name}</p>
+                                    <div className="mt-1 flex items-center gap-2">
+                                      <span className={`inline-flex rounded-full border px-1.5 py-px text-[9px] font-bold ${badge}`}>
+                                        {st.replace(/_/g, ' ')}
+                                      </span>
+                                      <span className="text-[10px] font-semibold text-muted-foreground">{Number(child.scalingFactor || 1).toFixed(1)}x</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    </motion.div>
                   )}
-                </div>
-              );
-            })
-          ) : (
-            <div className="px-5 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">No relationships available for this filter.</div>
-          )}
+                </AnimatePresence>
+              </GlassCard>
+            );
+          })}
         </div>
-      </section>
+      )}
     </div>
   );
 };

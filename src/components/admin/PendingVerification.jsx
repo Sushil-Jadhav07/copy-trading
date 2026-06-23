@@ -26,7 +26,7 @@ const PendingVerification = () => {
           name: user.name,
           email: user.email,
           submittedDate: user.joinedDate || 'N/A',
-          documents: user.raw?.documents || ['KYC'],
+          documents: user.raw?.documents || ['Documents'],
         }))
       );
     } catch (error) {
@@ -95,7 +95,6 @@ const PendingVerification = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Pending Verification</h1>
-          <p className="text-sm text-muted-foreground">Review submitted KYC documents and approve or reject new accounts</p>
         </div>
         <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
       </div>
@@ -174,7 +173,6 @@ const PendingVerification = () => {
           <GlassCard hover={false}>
             <div className="py-8 text-center">
               <p className="text-lg font-semibold">No pending verification requests</p>
-              <p className="text-sm text-muted-foreground mt-1">All submitted KYC requests have been reviewed.</p>
             </div>
           </GlassCard>
         )}

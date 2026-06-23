@@ -73,7 +73,7 @@ const ForceSquareOff = () => {
 
   const targetOptions = useMemo(() => {
     const list = scope === 'master-group' ? masters : allUsers;
-    return list.map((u) => ({ value: u.userId, label: `${u.name} (${u.email})` }));
+    return list.map((u) => ({ value: u.userId, label: u.name }));
   }, [scope, masters, allUsers]);
 
   const targetUser = useMemo(
@@ -133,7 +133,7 @@ const ForceSquareOff = () => {
                 placeholder={loadingTargets ? 'Loading…' : `Select ${scope === 'master-group' ? 'master' : 'user'}…`}
                 disabled={loadingTargets}
                 options={targetOptions}
-                triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5"
+                triggerClassName="w-full rounded-xl border border-border bg-black/5 px-3 py-2 text-sm truncate dark:bg-white/5"
               />
             </div>
 
@@ -186,7 +186,7 @@ const ForceSquareOff = () => {
               className={`w-full inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
                 confirmed && targetId && !submitting
                   ? 'bg-rose-500 text-white hover:bg-rose-500/90'
-                  : 'cursor-not-allowed bg-slate-100/60 text-slate-400 dark:bg-white/[0.04] dark:text-slate-600'
+                  : 'cursor-not-allowed bg-rose-500/10 text-rose-500/40 border border-rose-500/10'
               }`}
             >
               <AlertOctagon className="h-4 w-4" />
@@ -216,13 +216,13 @@ const ForceSquareOff = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
-                  {['Symbol', 'Side', 'Qty', 'Avg Price', 'LTP', 'Unrealised P&L', 'Broker', 'Children'].map((h) => (
+                  {['Symbol', 'Side', 'Qty', 'Avg Price', 'LTP', 'P&L', 'Broker'].map((h) => (
                     <th
                       key={h}
-                      className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                     >
                       {h}
                     </th>
@@ -232,19 +232,19 @@ const ForceSquareOff = () => {
               <tbody>
                 {!targetId ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       Select a target to preview open positions.
                     </td>
                   </tr>
                 ) : loadingPositions ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       Loading positions…
                     </td>
                   </tr>
                 ) : positions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No open positions found for this target.
                     </td>
                   </tr>
@@ -257,8 +257,8 @@ const ForceSquareOff = () => {
                         key={pos.id}
                         className="border-b border-border/30 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                       >
-                        <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold">{pos.symbol}</td>
-                        <td className="whitespace-nowrap px-4 py-3">
+                        <td className="px-4 py-3 text-sm font-semibold">{pos.symbol}</td>
+                        <td className="px-4 py-3">
                           <span
                             className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
                               isBuy
@@ -270,18 +270,17 @@ const ForceSquareOff = () => {
                             {pos.side}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold">{pos.qty}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{fmt(pos.avgPrice)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{fmt(pos.ltp)}</td>
+                        <td className="px-4 py-3 text-sm font-semibold">{pos.qty}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{fmt(pos.avgPrice)}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{fmt(pos.ltp)}</td>
                         <td
-                          className={`whitespace-nowrap px-4 py-3 text-sm font-semibold ${
+                          className={`px-4 py-3 text-sm font-semibold ${
                             positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'
                           }`}
                         >
                           {positive ? '+' : ''}{fmt(pos.pnl)}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{pos.broker}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-muted-foreground">{pos.children}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{pos.broker}</td>
                       </tr>
                     );
                   })

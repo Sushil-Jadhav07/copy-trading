@@ -107,7 +107,7 @@ const Dashboard = () => {
             onMenuClick={() => setMobileSidebarOpen(true)}
           />
 
-          <main className="p-4 pt-20 sm:p-6 sm:pt-20">
+          <main className="p-4 pt-20 sm:p-6 sm:pt-20" style={{ paddingTop: typeof window !== 'undefined' && localStorage.getItem('Ascentra Capital_impersonation') ? 'calc(5rem + 28px)' : undefined }}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

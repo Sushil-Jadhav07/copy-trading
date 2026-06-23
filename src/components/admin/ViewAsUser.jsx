@@ -3,8 +3,7 @@ import { AlertTriangle, Eye, LoaderCircle, ShieldAlert } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
-import { setAccessToken, clearRefreshToken } from '@/lib/api';
-import { authStorage } from '@/lib/auth';
+import { startImpersonation } from '@/lib/api';
 
 // ADM-16: "View as user" (read-only impersonation)
 // Endpoint needed: POST /api/v1/admin/impersonate/{userId}
@@ -189,9 +188,7 @@ const ViewAsUser = () => {
                   try {
                     const result = await adminService.impersonateUser(targetId);
                     if (!result.token) throw new Error('No impersonation token returned');
-                    clearRefreshToken();
-                    authStorage.clearImpersonatedRole();
-                    setAccessToken(result.token);
+                    startImpersonation(result.token, targetUser);
                     window.location.href = '/';
                   } catch (error) {
                     addToast(error.message || 'Unable to impersonate user', 'error');

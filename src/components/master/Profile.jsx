@@ -336,7 +336,7 @@ const Profile = () => {
         <p className="text-muted-foreground">Manage your account preferences</p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -464,7 +464,7 @@ const Profile = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium">Full Name</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="relative">
                         <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         <input
@@ -617,7 +617,7 @@ const Profile = () => {
                 </p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">Current Password</label>
                   <div className="relative">

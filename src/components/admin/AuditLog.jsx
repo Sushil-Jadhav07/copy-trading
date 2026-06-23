@@ -12,6 +12,9 @@ import { adminService } from '@/lib/admin';
 // body with GET /api/v1/admin/audit-log. Nothing here changes.
 
 const ACTION_OPTIONS = [
+  { value: 'IMPERSONATE_USER', label: 'Impersonate User' },
+  { value: 'DELETE_USER', label: 'Delete User' },
+  { value: 'CREATE_MASTER', label: 'Create Master' },
   { value: 'USER_ACTIVATE', label: 'User Activate' },
   { value: 'USER_DEACTIVATE', label: 'User Deactivate' },
   { value: 'USER_DELETE', label: 'User Delete' },
@@ -31,6 +34,9 @@ const ENTITY_OPTIONS = [
 ];
 
 const ACTION_STYLES = {
+  IMPERSONATE_USER: 'border-purple-500/15 bg-purple-500/10 text-purple-600 dark:text-purple-400',
+  DELETE_USER: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  CREATE_MASTER: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   USER_ACTIVATE: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   USER_DEACTIVATE: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
   USER_DELETE: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
@@ -41,6 +47,30 @@ const ACTION_STYLES = {
   FORCE_SQUARE_OFF: 'border-orange-500/15 bg-orange-500/10 text-orange-600 dark:text-orange-400',
 };
 
+const TIME_FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'all', label: 'All' },
+];
+
+const getTimeRange = (key) => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (key === 'today') return { from: todayStart.toISOString(), to: now.toISOString() };
+  if (key === 'yesterday') {
+    const from = new Date(todayStart); from.setDate(from.getDate() - 1);
+    return { from: from.toISOString(), to: todayStart.toISOString() };
+  }
+  if (key === 'week') {
+    const from = new Date(todayStart); from.setDate(from.getDate() - ((from.getDay() + 6) % 7));
+    return { from: from.toISOString(), to: now.toISOString() };
+  }
+  if (key === 'month') return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(), to: now.toISOString() };
+  return {};
+};
+
 const LIMIT = 12;
 
 const fmtTime = (iso) => {
@@ -49,11 +79,19 @@ const fmtTime = (iso) => {
   return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
+const fmtVal = (v) => {
+  if (v == null) return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  const s = String(v);
+  if (s.length > 36 && /^[a-f0-9-]{36}$/i.test(s)) return `${s.slice(0, 8)}…`;
+  return s;
+};
+
 const KeyVals = ({ obj, tone }) => (
   <div className="space-y-0.5">
     {Object.entries(obj || {}).map(([k, v]) => (
       <div key={k} className={`font-mono text-[11px] ${tone}`}>
-        <span className="text-muted-foreground">{k}:</span> {String(v)}
+        <span className="text-muted-foreground">{k}:</span> {fmtVal(v)}
       </div>
     ))}
   </div>
@@ -64,8 +102,7 @@ const AuditLog = () => {
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [timeFilter, setTimeFilter] = useState('all');
   const [page, setPage] = useState(1);
 
   const [logs, setLogs] = useState([]);
@@ -73,19 +110,20 @@ const AuditLog = () => {
   const [loading, setLoading] = useState(true);
 
   // reset to page 1 whenever a filter changes
-  useEffect(() => { setPage(1); }, [search, actionFilter, entityFilter, dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [search, actionFilter, entityFilter, timeFilter]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    const range = getTimeRange(timeFilter);
     adminService.getAuditLog({
       page,
       limit: LIMIT,
       search: search || undefined,
       action: actionFilter || undefined,
       entityType: entityFilter || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      dateFrom: range.from || undefined,
+      dateTo: range.to || undefined,
     })
       .then((res) => {
         if (!active) return;
@@ -94,7 +132,7 @@ const AuditLog = () => {
       })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [page, search, actionFilter, entityFilter, dateFrom, dateTo]);
+  }, [page, search, actionFilter, entityFilter, timeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   const showingFrom = total === 0 ? 0 : (page - 1) * LIMIT + 1;
@@ -112,8 +150,7 @@ const AuditLog = () => {
         Action: log.action,
         'Entity Type': log.entityType,
         'Entity ID': log.entityId,
-        Before: JSON.stringify(log.before || {}),
-        After: JSON.stringify(log.after || {}),
+        Details: JSON.stringify(log.parameters || log.before || {}),
         Reason: log.reason,
       }));
       downloadExcelSheet({
@@ -142,55 +179,46 @@ const AuditLog = () => {
       </section>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative min-w-[200px] flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search admin, entity ID, reason…"
-            className="w-full rounded-xl border border-border bg-black/5 py-2 pl-9 pr-4 text-sm placeholder:text-muted-foreground/50 focus:border-brand-purple focus:outline-none dark:bg-white/5"
-          />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {TIME_FILTERS.map((t) => (
+            <button key={t.key} onClick={() => setTimeFilter(t.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${timeFilter === t.key ? 'bg-brand-purple text-white' : 'bg-black/5 dark:bg-white/5 text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10'}`}>
+              {t.label}
+            </button>
+          ))}
         </div>
-        <DivSelect
-          value={actionFilter}
-          onChange={setActionFilter}
-          placeholder="All Actions"
-          options={ACTION_OPTIONS}
-          triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5"
-        />
-        <DivSelect
-          value={entityFilter}
-          onChange={setEntityFilter}
-          placeholder="All Entities"
-          options={ENTITY_OPTIONS}
-          triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5"
-        />
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none dark:bg-white/5"
-        />
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm focus:outline-none dark:bg-white/5"
-        />
+        <div className="flex flex-wrap gap-3">
+          <div className="relative min-w-[200px] flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search admin, entity ID, reason…"
+              className="w-full rounded-xl border border-border bg-black/5 py-2 pl-9 pr-4 text-sm placeholder:text-muted-foreground/50 focus:border-brand-purple focus:outline-none dark:bg-white/5" />
+          </div>
+          <DivSelect value={actionFilter} onChange={setActionFilter} placeholder="All Actions" options={ACTION_OPTIONS}
+            triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5" />
+          <DivSelect value={entityFilter} onChange={setEntityFilter} placeholder="All Entities" options={ENTITY_OPTIONS}
+            triggerClassName="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5" />
+        </div>
       </div>
 
       <GlassCard noPadding>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[640px] table-fixed">
             <thead>
               <tr className="border-b border-border/50 bg-black/[0.03] dark:bg-white/[0.03]">
-                {['Time', 'Admin', 'Action', 'Entity Type', 'Entity ID', 'Before', 'After', 'Reason'].map((h) => (
+                {[
+                  { label: 'Time', w: 'w-[13%]' },
+                  { label: 'Admin', w: 'w-[14%]' },
+                  { label: 'Action', w: 'w-[15%]' },
+                  { label: 'Entity Type', w: 'w-[10%]' },
+                  { label: 'Entity ID', w: 'w-[10%]' },
+                  { label: 'Details', w: 'w-[38%]' },
+                ].map((h) => (
                   <th
-                    key={h}
-                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    key={h.label}
+                    className={`${h.w} px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground`}
                   >
-                    {h}
+                    {h.label}
                   </th>
                 ))}
               </tr>
@@ -198,7 +226,7 @@ const AuditLog = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16">
+                  <td colSpan={6} className="px-4 py-16">
                     <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
                       <LoaderCircle className="h-4 w-4 animate-spin" />
                       Loading audit entries…
@@ -207,7 +235,7 @@ const AuditLog = () => {
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16">
+                  <td colSpan={6} className="px-4 py-16">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <ClipboardList className="h-10 w-10 text-muted-foreground/30" />
                       <p className="text-sm font-medium text-muted-foreground">No audit entries match these filters</p>
@@ -215,22 +243,29 @@ const AuditLog = () => {
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
-                  <tr key={log.id} className="border-b border-border/30 align-top hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{fmtTime(log.timestamp)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{log.adminName}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${ACTION_STYLES[log.action] || 'border-slate-500/15 bg-slate-500/10 text-slate-500'}`}>
-                        {log.action.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{log.entityType}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{log.entityId}</td>
-                    <td className="px-4 py-3"><KeyVals obj={log.before} tone="text-rose-500/80" /></td>
-                    <td className="px-4 py-3"><KeyVals obj={log.after} tone="text-emerald-600/90 dark:text-emerald-400/90" /></td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground max-w-[240px]">{log.reason}</td>
-                  </tr>
-                ))
+                logs.map((log) => {
+                  const details = Object.keys(log.parameters || {}).length > 0
+                    ? log.parameters
+                    : Object.keys(log.before || {}).length > 0 || Object.keys(log.after || {}).length > 0
+                    ? { ...log.before, ...log.after }
+                    : log.reason ? { reason: log.reason } : null;
+                  return (
+                    <tr key={log.id} className="border-b border-border/30 align-top hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{fmtTime(log.timestamp)}</td>
+                      <td className="px-4 py-3 text-sm font-medium truncate">{log.adminName}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ACTION_STYLES[log.action] || 'border-slate-500/15 bg-slate-500/10 text-slate-500'}`}>
+                          {log.action.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{log.entityType}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground" title={log.entityId}>{log.entityId && log.entityId !== 'N/A' && log.entityId.length > 12 ? `${log.entityId.slice(0, 8)}…` : log.entityId}</td>
+                      <td className="px-4 py-3">
+                        {details ? <KeyVals obj={details} tone="text-muted-foreground" /> : <span className="text-xs text-muted-foreground">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

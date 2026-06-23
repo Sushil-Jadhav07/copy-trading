@@ -12,6 +12,8 @@ import { engineService } from '@/lib/engine';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 import { roundTo } from '@/lib/utils';
+import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
+import DownloadButton from '@/components/shared/DownloadButton';
 
 const fmtDateShort = (raw) => {
   if (!raw) return '-';
@@ -203,7 +205,39 @@ const CopiedTrades = () => {
           <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">Copied Trades</h1>
           <p className="mt-1 text-sm text-muted-foreground">Child copy-trade execution log from child API.</p>
         </div>
-        <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        <div className="flex items-center gap-3">
+          <DownloadButton
+            onClick={() => {
+              try {
+                downloadExcelSheet({
+                  rows: filtered.map((trade) => {
+                    const symbol = (trade.instrument && trade.instrument !== 'N/A') ? trade.instrument : (trade.reference || 'UNKNOWN');
+                    const side = String(trade.type || trade.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+                    const status = String(trade.status || '').toUpperCase();
+                    return {
+                      Instrument: symbol,
+                      Master: trade.masterName || trade.master || '-',
+                      Side: side,
+                      Status: status,
+                      Broker: trade.broker || trade.raw?.broker || '-',
+                      Qty: trade.myQty ?? trade.masterQty ?? 0,
+                      'Entry Price': trade.entry ?? trade.price ?? '-',
+                      LTP: trade.ltp || trade.current || '-',
+                      'P&L': trade.pnl || 0,
+                      'Latency (ms)': trade.latencyMs || '-',
+                      Time: fmtDateShort(trade.time || trade.raw?.createdAt || trade.createdAt),
+                    };
+                  }),
+                  sheetName: 'Copied Trades',
+                  fileName: buildExportFileName('Child Copied Trades'),
+                });
+              } catch {}
+            }}
+            disabled={filtered.length === 0}
+            label="Export XLS"
+          />
+          <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-black/5 dark:bg-white/3 p-4 rounded-2xl border border-border/40">
@@ -271,7 +305,7 @@ const CopiedTrades = () => {
               <span className="text-brand-blue">Partial ({partialCount})</span>
             </div>
 
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-border/40 bg-black/3 dark:bg-white/3">
                   <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">#</th>
