@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Eye, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap, Server, MoreHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -344,8 +345,10 @@ const UserManagement = ({
       } else if (isTotp) {
         if (!form.clientId?.trim()) {
           setTestResult({ ok: false, message: 'Enter Angel One Client ID before testing.' });
+        } else if (!form.apiKey?.trim()) {
+          setTestResult({ ok: false, message: 'Enter Angel One SmartAPI Key before testing.' });
         } else if (!form.apiSecret?.trim()) {
-          setTestResult({ ok: false, message: 'Enter Angel One API Secret Key before testing.' });
+          setTestResult({ ok: false, message: 'Enter Angel One MPIN before testing.' });
         } else {
           setTestResult({ ok: true, message: 'Angel One credentials are ready. Click Add, then enter TOTP.' });
         }
@@ -407,17 +410,16 @@ const UserManagement = ({
       if (form.growwOption === 'accessToken' && !form.accessToken.trim()) errors.accessToken = 'Required';
       if (form.growwOption === 'apiKeyWithTotp' && !form.apiKey.trim()) errors.apiKey = 'Required';
     }
-    if (needsUserCredentials) {
-      if (!form.apiKey.trim()) errors.apiKey = 'Required';
-      if (!form.apiSecret.trim()) errors.apiSecret = 'Required';
-    }
-    if (isTotp) {
-      if (!form.clientId?.trim()) errors.clientId = 'Required';
-      if (!form.apiSecret?.trim()) errors.apiSecret = 'Required';
-    }
     if (isDhan) {
       if (!form.dhanClientId?.trim()) errors.dhanClientId = 'Required';
       if (form.dhanOption === 'accessToken' && !form.accessToken.trim()) errors.accessToken = 'Required';
+    } else if (isTotp) {
+      if (!form.clientId?.trim()) errors.clientId = 'Required';
+      if (!form.apiKey?.trim()) errors.apiKey = 'Required';
+      if (!form.apiSecret?.trim()) errors.apiSecret = 'Required';
+    } else if (needsUserCredentials) {
+      if (!form.apiKey.trim()) errors.apiKey = 'Required';
+      if (!form.apiSecret.trim()) errors.apiSecret = 'Required';
     }
     Object.assign(errors, validateProxyConfig(form));
     setFormErrors(errors);
@@ -446,10 +448,11 @@ const UserManagement = ({
         return;
       }
       if (isTotp) {
-        const brokerId = brokerMeta?.brokerId || (normalizedBrokerId === 'angelone' ? 'ANGELONE' : normalizedBrokerId);
+        const brokerId = brokerMeta?.brokerId || (['angelone', 'angel one'].includes(normalizedBrokerId) ? 'ANGELONE' : normalizedBrokerId);
         const newAcc = await brokerService.addAccount({
           brokerId,
           clientId: form.clientId.trim(),
+          apiKey: form.apiKey.trim(),
           apiSecret: form.apiSecret.trim(),
           accountNickname: form.nickname,
           ...proxyPayload,
@@ -1042,14 +1045,19 @@ const UserManagement = ({
                 <div className="sm:col-span-2 lg:col-span-3">
                   <p className="text-xs font-semibold text-brand-purple mb-2">Step 1: Set Credentials</p>
                 </div>
-                <div className="sm:col-span-2 lg:col-span-2">
+                <div className="sm:col-span-2 lg:col-span-1">
                   <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Angel One Client Code</label>
-                  <input value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))} placeholder="Angel One Client Code" className={inputCls} />
+                  <input value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))} placeholder="Client Code" className={inputCls} />
                   {formErrors.clientId && <p className="text-danger text-xs mt-1">{formErrors.clientId}</p>}
                 </div>
-                <div className="sm:col-span-2 lg:col-span-2">
-                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Password</label>
-                  <input type="password" value={form.apiSecret} onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))} placeholder="Angel One Password" className={inputCls} />
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">API Key</label>
+                  <input value={form.apiKey} onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))} placeholder="SmartAPI Key" className={inputCls} />
+                  {formErrors.apiKey && <p className="text-danger text-xs mt-1">{formErrors.apiKey}</p>}
+                </div>
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Password (MPIN)</label>
+                  <input type="password" value={form.apiSecret} onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))} placeholder="MPIN" className={inputCls} />
                   {formErrors.apiSecret && <p className="text-danger text-xs mt-1">{formErrors.apiSecret}</p>}
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 flex items-end">
@@ -1242,13 +1250,18 @@ const UserManagement = ({
         {loading ? (
           <div className="p-4"><SkeletonLoader type="table" rows={4} columns={8} /></div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div>
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['#', 'Account', 'Broker', 'Client ID', 'Routing', 'Balance', 'Positions', 'Signal', 'Latency', 'Copy', 'Status', 'Last Synced', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
-                  ))}
+                  <th className="w-[22%] px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>
+                  <th className="w-[13%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Routing</th>
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance</th>
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal</th>
+                  <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Copy</th>
+                  <th className="w-[11%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                  <th className="w-[13%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Last Synced</th>
+                  <th className="w-[7%] px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1261,49 +1274,41 @@ const UserManagement = ({
                   const quality = String(metrics.quality || 'unknown');
                   const latencyMs = metrics.latencyMs;
                   const proxyMeta = getProxyStatusMeta(acc);
+                  const pnl = liveBalances[id]?.pnl ?? acc.pnl ?? 0;
                   return (
                     <motion.tr key={id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
                       className="border-b border-border/30 hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                      {/* Account — consolidated */}
                       <td className="px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold">{acc.nickname || acc.broker}</p>
-                          <p className="text-xs text-muted-foreground">{acc.broker} · {acc.userId || acc.clientId}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">{acc.broker || '—'}</td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">{acc.clientId || acc.userId || '—'}</td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">
-                        <div className="space-y-1">
-                          <span className={`inline-flex rounded-full border px-2.5 py-1 font-medium ${proxyMeta.badgeClass}`}>
-                            {proxyMeta.label}
-                          </span>
-                          {acc.proxyConfigured && (
-                            <p className="text-[11px] text-muted-foreground">Edit from account details</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {formatCurrency(liveBalances[id]?.margin ?? acc.margin ?? 0)}
-                          </p>
-                          <p className={`text-xs font-semibold ${(liveBalances[id]?.pnl ?? acc.pnl ?? 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {(liveBalances[id]?.pnl ?? acc.pnl ?? 0) >= 0 ? '+' : ''}
-                            {formatCurrency(liveBalances[id]?.pnl ?? acc.pnl ?? 0)} P&L
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{acc.nickname || acc.broker}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {acc.broker}{(acc.clientId || acc.userId) ? ` · ${acc.clientId || acc.userId}` : ''}
                           </p>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">{positions}</td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">
-                        <span className="uppercase">{quality}</span>
+                      {/* Routing */}
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${proxyMeta.badgeClass}`}>
+                          {proxyMeta.label}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">
-                        {latencyMs != null ? `${latencyMs}ms` : '—'}
+                      {/* Balance + P&L */}
+                      <td className="px-3 py-3">
+                        <p className="text-sm font-medium">{formatCurrency(liveBalances[id]?.margin ?? acc.margin ?? 0)}</p>
+                        <p className={`text-[11px] font-semibold ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                        </p>
                       </td>
-                      <td className="px-4 py-3">
+                      {/* Signal + Latency */}
+                      <td className="px-3 py-3">
+                        <p className="text-xs font-medium uppercase">{quality}</p>
+                        <p className="text-[11px] text-muted-foreground">{latencyMs != null ? `${latencyMs}ms` : '—'}</p>
+                      </td>
+                      {/* Copy */}
+                      <td className="px-3 py-3">
                         {isMasterScope ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <ToggleSwitch
                               checked={Boolean(acc.isCopyEnable)}
                               disabled={Boolean(togglingCopyEnable[id])}
@@ -1311,21 +1316,24 @@ const UserManagement = ({
                               className="scale-75 origin-left"
                               activeClassName="bg-emerald-500"
                             />
-                            <span className={`text-xs font-semibold whitespace-nowrap ${acc.isCopyEnable ? 'text-emerald-500' : 'text-amber-500'}`}>
-                              {acc.isCopyEnable ? 'Copying Enabled' : 'Copying Paused'}
+                            <span className={`text-[11px] font-semibold ${acc.isCopyEnable ? 'text-emerald-500' : 'text-amber-500'}`}>
+                              {acc.isCopyEnable ? 'Enabled' : 'Paused'}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      {/* Status */}
+                      <td className="px-3 py-3">
                         <StatusBadge acc={acc} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {/* Last Synced */}
+                      <td className="px-3 py-3 text-xs text-muted-foreground">
                         {syncedAt || '—'}
                       </td>
-                      <td className="px-4 py-3">
+                      {/* Actions */}
+                      <td className="px-3 py-3 text-right">
                         <RowActionMenu
                           items={[
                             {
@@ -1649,38 +1657,58 @@ const ActionBtn = ({ title, color = 'purple', onClick, spin, children }) => (
   </button>
 );
 
-const RowActionMenu = ({ items = [] }) => (
-  <details className="group relative">
-    <summary className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-border/60 bg-black/5 text-muted-foreground transition-colors hover:bg-black/10 hover:text-foreground dark:bg-white/5 dark:hover:bg-white/10">
-      <MoreHorizontal className="h-4 w-4" />
-    </summary>
-    <div className="absolute right-0 top-10 z-20 min-w-[168px] overflow-hidden rounded-xl border border-border/70 bg-background/95 shadow-xl backdrop-blur">
-      <div className="flex flex-col p-1.5">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.label}
-              type="button"
-              disabled={item.disabled}
-              onClick={(event) => {
-                event.preventDefault();
-                item.onClick?.();
-                const details = event.currentTarget.closest('details');
-                if (details) details.open = false;
-              }}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
-            >
-              <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-white ${COLOR_MAP[item.color] || COLOR_MAP.purple}`}>
-                <Icon className={`h-3.5 w-3.5 ${item.spin ? 'animate-spin' : ''}`} />
-              </span>
-              <span className="font-medium">{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
+const RowActionMenu = ({ items = [] }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target) && !btnRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 4, left: rect.right });
+  }, [open]);
+
+  return (
+    <div className="relative inline-flex justify-end">
+      <button ref={btnRef} onClick={() => setOpen((p) => !p)}
+        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-black/5 text-muted-foreground transition-colors hover:bg-black/10 hover:text-foreground dark:bg-white/5 dark:hover:bg-white/10">
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {open && ReactDOM.createPortal(
+        <div ref={menuRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)' }}
+          className="z-50 min-w-[130px] overflow-hidden rounded-lg border border-border/70 bg-background/95 shadow-xl backdrop-blur">
+          <div className="flex flex-col p-1">
+            {items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button key={item.label} type="button" disabled={item.disabled}
+                  onClick={() => { item.onClick?.(); setOpen(false); }}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5">
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-md text-white ${COLOR_MAP[item.color] || COLOR_MAP.purple}`}>
+                    <Icon className={`h-3 w-3 ${item.spin ? 'animate-spin' : ''}`} />
+                  </span>
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
-  </details>
-);
+  );
+};
 
 export default UserManagement;
