@@ -45,7 +45,7 @@ const initialCreateForm = {
   assignedMasterId: '',
 };
 
-const formatBrokerCount = (user) => (Array.isArray(user?.brokerAccounts) ? user.brokerAccounts.length : 0);
+const formatBrokerCount = (user) => user?.brokersCount || 0;
 
 const routeConfig = {
   all: {

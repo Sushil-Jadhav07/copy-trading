@@ -63,7 +63,7 @@ const ForceSquareOff = () => {
       return;
     }
     setLoadingPositions(true);
-    const params = scope === 'master-group' ? { masterId: targetId } : { userId: targetId };
+    const params = { targetId: targetId, scope: scope };
     adminService
       .getPositions(params)
       .then(setPositions)
@@ -219,7 +219,7 @@ const ForceSquareOff = () => {
             <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
-                  {['Symbol', 'Side', 'Qty', 'Avg Price', 'LTP', 'P&L', 'Broker'].map((h) => (
+                  {['Name', 'Symbol', 'Side', 'Qty', 'Avg Price', 'LTP', 'P&L', 'Broker'].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -232,19 +232,19 @@ const ForceSquareOff = () => {
               <tbody>
                 {!targetId ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       Select a target to preview open positions.
                     </td>
                   </tr>
                 ) : loadingPositions ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       Loading positions…
                     </td>
                   </tr>
                 ) : positions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No open positions found for this target.
                     </td>
                   </tr>
@@ -252,11 +252,13 @@ const ForceSquareOff = () => {
                   positions.map((pos) => {
                     const isBuy = pos.side === 'BUY';
                     const positive = pos.pnl >= 0;
+                    const brokerName = pos.broker !== 'N/A' ? pos.broker : (targetUser?.brokerAccounts?.[0]?.brokerId || 'N/A');
                     return (
                       <tr
                         key={pos.id}
                         className="border-b border-border/30 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                       >
+                        <td className="px-4 py-3 text-sm font-semibold">{pos.name}</td>
                         <td className="px-4 py-3 text-sm font-semibold">{pos.symbol}</td>
                         <td className="px-4 py-3">
                           <span
@@ -280,7 +282,7 @@ const ForceSquareOff = () => {
                         >
                           {positive ? '+' : ''}{fmt(pos.pnl)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{pos.broker}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{brokerName}</td>
                       </tr>
                     );
                   })

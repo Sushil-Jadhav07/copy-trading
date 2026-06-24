@@ -85,14 +85,49 @@ const RiskLimits = () => {
   }, []);
 
   useEffect(() => {
-    setOverrides({
-      maxCapitalExposure: globals.maxCapitalExposure,
-      maxTradesPerDay: globals.maxTradesPerDay,
-      maxOpenPositions: globals.maxOpenPositions,
-      maxLotSize: globals.maxLotSize,
-      marginCheckEnabled: globals.marginCheckEnabled,
-    });
-  }, [selectedUserId]);
+    if (!selectedUserId) {
+      setOverrides({
+        maxCapitalExposure: globals.maxCapitalExposure,
+        maxTradesPerDay: globals.maxTradesPerDay,
+        maxOpenPositions: globals.maxOpenPositions,
+        maxLotSize: globals.maxLotSize,
+        marginCheckEnabled: globals.marginCheckEnabled,
+      });
+      return;
+    }
+    
+    riskService.getRulesForUser(selectedUserId)
+      .then(data => {
+        if (data && Object.keys(data).length > 0) {
+          setOverrides({
+            maxCapitalExposure: Number(data.maxCapitalExposure ?? globals.maxCapitalExposure),
+            maxTradesPerDay: Number(data.maxTradesPerDay ?? globals.maxTradesPerDay),
+            maxOpenPositions: Number(data.maxOpenPositions ?? globals.maxOpenPositions),
+            maxLotSize: Number(data.maxLotSize ?? globals.maxLotSize),
+            marginCheckEnabled: Boolean(data.marginCheckEnabled ?? globals.marginCheckEnabled),
+          });
+        } else {
+          // If no custom rules, fallback to globals
+          setOverrides({
+            maxCapitalExposure: globals.maxCapitalExposure,
+            maxTradesPerDay: globals.maxTradesPerDay,
+            maxOpenPositions: globals.maxOpenPositions,
+            maxLotSize: globals.maxLotSize,
+            marginCheckEnabled: globals.marginCheckEnabled,
+          });
+        }
+      })
+      .catch(() => {
+        addToast('Failed to load user overrides', 'error');
+        setOverrides({
+          maxCapitalExposure: globals.maxCapitalExposure,
+          maxTradesPerDay: globals.maxTradesPerDay,
+          maxOpenPositions: globals.maxOpenPositions,
+          maxLotSize: globals.maxLotSize,
+          marginCheckEnabled: globals.marginCheckEnabled,
+        });
+      });
+  }, [selectedUserId, globals]);
 
   const updateGlobal = (key, value) =>
     setGlobals((prev) => ({ ...prev, [key]: key === 'marginCheckEnabled' ? value : value }));

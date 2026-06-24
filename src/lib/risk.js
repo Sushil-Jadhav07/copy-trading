@@ -105,6 +105,15 @@ export const riskService = {
     }
   },
 
+  async getRulesForUser(userId) {
+    try {
+      const res = await api.get(`/api/v1/admin/risk/rules/${userId}`);
+      return res.data?.data || res.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to fetch user risk rules'));
+    }
+  },
+
   async setRulesForUser(userId, body) {
     try {
       const res = await api.put(`/api/v1/admin/risk/rules/${userId}`, body);

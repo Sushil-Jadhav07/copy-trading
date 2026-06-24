@@ -69,6 +69,7 @@ export const normalizeAdminUser = (payload = {}) => ({
   createdAt: payload.createdAt || payload.created_at || null,
   twoFactorEnabled: Boolean(payload.twoFactorEnabled),
   brokerAccounts: asArray(payload.brokerAccounts),
+  brokersCount: Number(payload.brokers) || asArray(payload.brokerAccounts).length || 0,
   raw: payload,
 });
 
@@ -136,6 +137,7 @@ const normalizeTradeLog = (log = {}, index = 0) => {
     childName: log.childName || log.child || log.childId || '',
     timestamp: log.timestamp || log.createdAt || log.time || '',
     children: log.children || log.followers || log.copiedAccounts || 0,
+    latency: log.latency || 0,
     message: log.message || '',
     reference: log.reference || '',
     error: log.error || log.reason || '',
@@ -165,23 +167,27 @@ const normalizeSubscription = (subscription = {}, index = 0) => ({
   raw: subscription,
 });
 
-const normalizeAdminPosition = (pos = {}, index = 0) => ({
-  id: pos.id || pos.positionId || `pos-${index}`,
-  masterId: pos.masterId || '',
-  masterName: pos.masterName || pos.master || 'Unknown',
-  symbol: pos.symbol || pos.instrument || pos.tradingSymbol || 'N/A',
-  exchange: pos.exchange || 'NSE',
-  side: String(pos.side || pos.positionType || pos.direction || 'BUY').toUpperCase(),
-  qty: Number(pos.qty || pos.quantity || pos.netQty || 0),
-  avgPrice: Number(pos.avgPrice || pos.averagePrice || pos.entryPrice || 0),
-  ltp: Number(pos.ltp || pos.lastPrice || pos.currentPrice || 0),
-  pnl: Number(pos.pnl || pos.unrealizedPnl || pos.mtm || 0),
-  pnlPct: Number(pos.pnlPct || pos.pnlPercent || pos.changePercent || 0),
-  product: String(pos.product || pos.productType || 'MIS').toUpperCase(),
-  broker: pos.broker || pos.brokerName || 'N/A',
-  children: Number(pos.children || pos.childCount || pos.copiedCount || 0),
-  raw: pos,
-});
+const normalizeAdminPosition = (pos = {}, index = 0) => {
+  const qty = Number(pos.qty || pos.quantity || pos.netQty || pos.netQuantity || 0);
+  return {
+    id: pos.id || pos.positionId || `pos-${index}`,
+    masterId: pos.masterId || '',
+    masterName: pos.masterName || pos.master || 'Unknown',
+    name: pos.name || pos.contractDisplayName || pos.tradingsymbol || pos.trading_symbol || pos.symbol || 'N/A',
+    symbol: pos.tradingsymbol || pos.trading_symbol || pos.symbol || pos.instrument || pos.tradingSymbol || 'N/A',
+    exchange: pos.exchange || 'NSE',
+    side: String(pos.side || pos.positionType || pos.direction || (qty >= 0 ? 'BUY' : 'SELL')).toUpperCase(),
+    qty: qty,
+    avgPrice: Number(pos.avgPrice || pos.averagePrice || pos.average_price || pos.entryPrice || pos.buy_price || pos.sell_price || pos.buyPrice || pos.sellPrice || pos.buyAvgPrice || pos.sellAvgPrice || pos.netPrice || 0),
+    ltp: Number(pos.ltp || pos.lastPrice || pos.last_price || pos.currentPrice || 0),
+    pnl: Number(pos.pnl || pos.unrealizedPnl || pos.mtm || 0),
+    pnlPct: Number(pos.pnlPct || pos.pnlPercent || pos.changePercent || 0),
+    product: String(pos.product || pos.productType || 'MIS').toUpperCase(),
+    broker: pos.broker || pos.brokerName || 'N/A',
+    children: Number(pos.children || pos.childCount || pos.copiedCount || 0),
+    raw: pos,
+  };
+};
 
 const normalizeMasterChildMap = (entry = {}, index = 0) => {
   const children = Array.isArray(entry.children) ? entry.children : [];
@@ -300,6 +306,7 @@ const normalizeAuditEntry = (entry = {}, index = 0) => {
     action: String(entry.action || entry.eventType || 'UNKNOWN').toUpperCase(),
     entityType: String(entry.entityType || entry.targetType || 'SYSTEM').toUpperCase(),
     entityId: entry.entityId || entry.targetId || entry.reference || params.userId || params.targetId || 'N/A',
+    entityName: entry.entityName || '',
     before: entry.before || entry.oldValue || entry.previous || {},
     after: entry.after || entry.newValue || entry.current || {},
     reason: entry.reason || entry.message || entry.description || '',
@@ -311,11 +318,11 @@ const normalizeAuditEntry = (entry = {}, index = 0) => {
 
 const normalizeTraceChild = (entry = {}, index = 0) => ({
   id: entry.id || entry.childId || `trace-child-${index}`,
-  child: entry.child || entry.childName || entry.childId || 'Unknown',
-  broker: entry.broker || entry.brokerName || 'N/A',
+  child: entry.child || entry.childName || entry.childUser || entry.childId || 'Unknown',
+  broker: entry.broker || entry.brokerName || entry.childBroker || 'N/A',
   scaleFactor: Number(entry.scaleFactor ?? entry.scalingFactor ?? entry.multiplier ?? 1),
-  qtyCopied: Number(entry.qtyCopied ?? entry.childQty ?? entry.qty ?? entry.quantity ?? 0),
-  orderId: entry.orderId || entry.childOrderId || entry.reference || '—',
+  qtyCopied: Number(entry.qtyCopied ?? entry.quantityCopied ?? entry.childQty ?? entry.qty ?? entry.quantity ?? 0),
+  orderId: entry.orderId || entry.brokerOrderId || entry.childOrderId || entry.reference || '—',
   status: String(entry.status || entry.childStatus || 'UNKNOWN').toUpperCase(),
   executedAt: entry.executedAt || entry.childPlacedAt || entry.completedAt || entry.timestamp || null,
   price: Number(entry.price ?? entry.avgPrice ?? entry.averagePrice ?? entry.executedPrice ?? 0),
