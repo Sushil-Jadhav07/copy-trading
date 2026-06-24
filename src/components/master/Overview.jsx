@@ -161,12 +161,12 @@ const Overview = () => {
         </GlassCard>
 
         <GlassCard title="Children Performance">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] table-fixed">
+          <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <table className="w-full min-w-[420px]">
               <thead>
                 <tr className="border-b border-border/50">
                   {['Name', 'Broker', 'Scaling', 'P&L Today', 'Status'].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -175,10 +175,10 @@ const Overview = () => {
               <tbody>
                 {childrenPerformance.slice(0, 6).map((row) => (
                   <tr key={row.id} className="border-b border-border/30 last:border-b-0">
-                    <td className="px-3 py-2 text-sm">{row.name}</td>
-                    <td className="px-3 py-2 text-sm">{row.broker}</td>
+                    <td className="px-3 py-2 text-sm whitespace-nowrap">{row.name}</td>
+                    <td className="px-3 py-2 text-sm whitespace-nowrap">{row.broker}</td>
                     <td className="px-3 py-2 text-sm">{row.scaling}x</td>
-                    <td className={`px-3 py-2 text-sm font-medium ${row.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                    <td className={`px-3 py-2 text-sm font-medium whitespace-nowrap ${row.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
                       {formatPnl(row.pnl)}
                     </td>
                     <td className="px-3 py-2">

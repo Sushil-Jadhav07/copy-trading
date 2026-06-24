@@ -317,7 +317,7 @@ const AllUsers = ({ scope = 'all' }) => {
           <p className="text-sm text-muted-foreground">{viewConfig.subtitle}</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          <DownloadButton onClick={handleExportUsers} disabled={filteredUsers.length === 0} label="Export" />
+          <DownloadButton onClick={handleExportUsers} disabled={filteredUsers.length === 0} label="Export Excel" />
           <button
             onClick={() => loadUsers(false)}
             className="flex-1 rounded-lg border border-white/10 bg-black/5 px-3 py-2 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:px-4 sm:text-sm"

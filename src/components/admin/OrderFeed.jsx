@@ -237,7 +237,7 @@ const OrderFeed = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <DownloadButton onClick={() => exportexcel(filteredRows)} disabled={filteredRows.length === 0} label="Export excel" />
+          <DownloadButton onClick={() => exportexcel(filteredRows)} disabled={filteredRows.length === 0} label="Export Excel" />
         </div>
       </section>
 

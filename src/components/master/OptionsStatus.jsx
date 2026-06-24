@@ -10,14 +10,62 @@ import {
   WifiOff,
   CheckCircle2,
   AlertTriangle,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+
+const PAGE_SIZE = 20;
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import RefreshButton from '@/components/shared/RefreshButton';
+import DownloadButton from '@/components/shared/DownloadButton';
 import { useToast } from '@/components/shared/Toast';
 import { brokerService } from '@/lib/broker';
 import { masterService } from '@/lib/master';
 import { formatCurrency } from '@/lib/utils';
+import { downloadExcelSheet, buildExportFileName } from '@/lib/excel';
+
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'success', label: 'Success' },
+  { key: 'failed', label: 'Failed' },
+  { key: 'skipped', label: 'Skipped' },
+];
+
+const DATE_FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'all', label: 'All' },
+];
+
+const matchesDateFilter = (value, filterKey) => {
+  if (filterKey === 'all') return true;
+  const date = new Date(value || '');
+  if (!Number.isFinite(date.getTime())) return false;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (filterKey === 'today') return date >= startOfToday;
+  if (filterKey === 'yesterday') {
+    const start = new Date(startOfToday);
+    start.setDate(start.getDate() - 1);
+    return date >= start && date < startOfToday;
+  }
+  if (filterKey === 'week') {
+    const day = startOfToday.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const weekStart = new Date(startOfToday);
+    weekStart.setDate(weekStart.getDate() - diff);
+    return date >= weekStart;
+  }
+  if (filterKey === 'month') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return date >= monthStart;
+  }
+  return true;
+};
 
 
 const normalizeSymbol = (value = '') =>
@@ -142,6 +190,12 @@ const OptionsStatus = () => {
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [trades, setTrades] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('today');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, search]);
 
 
   useEffect(() => {
@@ -212,15 +266,33 @@ const OptionsStatus = () => {
     () => orders.filter((item) => isOptionRecord(item)),
     [orders],
   );
-  const optionTrades = useMemo(
-    () =>
-      trades
-        .filter((item) => isOptionRecord(item))
-        .sort((a, b) => toMs(getTradeTimestamp(b)) - toMs(getTradeTimestamp(a))),
-    [trades],
-  );
+  const optionTrades = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return trades
+      .filter((item) => isOptionRecord(item))
+      .filter((item) => matchesDateFilter(getTradeTimestamp(item), dateFilter))
+      .filter((item) => {
+        if (statusFilter === 'all') return true;
+        const s = String(item.status || '').toUpperCase();
+        if (statusFilter === 'success') return ['SUCCESS', 'EXECUTED', 'COMPLETE', 'TRADED'].includes(s);
+        if (statusFilter === 'failed') return ['FAILED', 'REJECTED', 'ERROR'].includes(s);
+        if (statusFilter === 'skipped') return s === 'SKIPPED';
+        return true;
+      })
+      .filter((item) => {
+        if (!q) return true;
+        const sym = String(item.symbol || item.instrument || '').toLowerCase();
+        const id = String(item.copyGroupId || item.orderId || '').toLowerCase();
+        return sym.includes(q) || id.includes(q);
+      })
+      .sort((a, b) => toMs(getTradeTimestamp(b)) - toMs(getTradeTimestamp(a)));
+  }, [trades, dateFilter, statusFilter, search]);
 
   const totalOpenQty = optionPositions.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const totalPages = Math.max(1, Math.ceil(optionTrades.length / PAGE_SIZE));
+  const pagedTrades = optionTrades.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const showingFrom = optionTrades.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, optionTrades.length);
   const totalOptionsPnl = optionPositions.reduce((sum, item) => sum + Number(item.unrealizedPnl || item.pnl || 0), 0);
   const showSessionWarning = sessionActive === false;
 
@@ -293,6 +365,68 @@ const OptionsStatus = () => {
       </div>
 
       <GlassCard title="Taken Option Trades" subtitle="Only the necessary executed option trade fields">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                statusFilter === f.key
+                  ? 'bg-brand-purple text-white'
+                  : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+          <div className="mx-1 h-4 w-px bg-border/60" />
+          {DATE_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setDateFilter(f.key)}
+              className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                dateFilter === f.key
+                  ? 'bg-brand-purple text-white'
+                  : 'bg-black/5 text-muted-foreground hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search symbol/ref..."
+                className="h-8 rounded-lg border border-border bg-black/5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none dark:bg-white/5"
+              />
+            </div>
+            <DownloadButton
+              onClick={() => {
+                try {
+                  downloadExcelSheet({
+                    rows: optionTrades.map((t, i) => ({
+                      '#': i + 1,
+                      Symbol: t.symbol || t.instrument || '—',
+                      Type: getTradeTypeLabel(t),
+                      Side: t.side || t.type || '—',
+                      Qty: t.qty ?? '—',
+                      Status: t.status || '—',
+                      'Latency (ms)': t.latencyMs ?? '—',
+                      'Date & Time': formatDateTime(getTradeTimestamp(t)),
+                    })),
+                    sheetName: 'Option Trades',
+                    fileName: buildExportFileName('Master Option Trades'),
+                  });
+                } catch {}
+              }}
+              disabled={optionTrades.length === 0}
+              label="Export Excel"
+            />
+          </div>
+        </div>
         {loading ? (
           <SkeletonLoader type="table" rows={6} columns={8} />
         ) : (
@@ -308,7 +442,7 @@ const OptionsStatus = () => {
                 </tr>
               </thead>
               <tbody>
-                {optionTrades.map((trade, idx) => (
+                {pagedTrades.map((trade, idx) => (
                   <motion.tr
                     key={trade.id || `${trade.symbol}-${idx}`}
                     initial={{ opacity: 0, y: 4 }}
@@ -316,7 +450,7 @@ const OptionsStatus = () => {
                     transition={{ delay: idx * 0.02 }}
                     className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                   >
-                    <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{idx + 1}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{(page - 1) * PAGE_SIZE + idx + 1}</td>
                     <td className="px-4 py-3">
                       <div className="space-y-0.5">
                         <p className="text-sm font-bold">{trade.symbol || trade.instrument || '—'}</p>
@@ -357,15 +491,39 @@ const OptionsStatus = () => {
                     </td>
                   </motion.tr>
                 ))}
-                {optionTrades.length === 0 && (
+                {pagedTrades.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      No option trades found
+                      No option trades found for the selected filters
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && optionTrades.length > 0 && (
+          <div className="flex items-center justify-between border-t border-border/40 px-4 py-3 text-sm">
+            <span className="text-xs text-muted-foreground">
+              Showing {showingFrom}–{showingTo} of {optionTrades.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-xs font-medium hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              </button>
+              <span className="text-xs text-muted-foreground">Page {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-black/5 px-3 py-1.5 text-xs font-medium hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </GlassCard>

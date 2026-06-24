@@ -102,7 +102,7 @@ const AuditLog = () => {
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
-  const [timeFilter, setTimeFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('today');
   const [page, setPage] = useState(1);
 
   const [logs, setLogs] = useState([]);
@@ -175,7 +175,7 @@ const AuditLog = () => {
             Read-only record of every admin action that changes system state — who, what, when, before and after.
           </p>
         </div>
-        <DownloadButton onClick={handleExport} disabled={logs.length === 0} label="Export Page" />
+        <DownloadButton onClick={handleExport} disabled={logs.length === 0} label="Export Excel" />
       </section>
 
       {/* Filters */}

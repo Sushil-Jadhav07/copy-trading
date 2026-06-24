@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Fingerprint, MessageCircle, Phone, Shield, User, Users, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
+import DivSelect from '@/components/shared/DivSelect';
 import { useToast } from '@/components/shared/Toast';
 import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/lib/auth';
@@ -365,7 +366,7 @@ const Profile = () => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{item.label}</p>
-                <p className={`mt-3 text-xl font-semibold ${item.textColor}`}>{item.value}</p>
+                <p className={`mt-2 text-base font-semibold ${item.textColor}`}>{item.value}</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-2">
                 <item.icon className={`h-4 w-4 ${item.textColor}`} />
@@ -375,7 +376,7 @@ const Profile = () => {
         ))}
       </div>
 
-      {Array.isArray(user?.brokerAccounts) && user.brokerAccounts.length > 0 && (
+      {activeTab === 'profile' && Array.isArray(user?.brokerAccounts) && user.brokerAccounts.length > 0 && (
         <GlassCard>
           <p className="mb-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Broker Sessions</p>
           <div className="space-y-3">
@@ -549,21 +550,21 @@ const Profile = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold">Identity</h3>
-                    <p className="text-sm text-muted-foreground">Live values returned for your account.</p>
+                    <p className="text-xs text-muted-foreground">Live values returned for your account.</p>
                   </div>
                 </div>
 
-                <div className="space-y-3 text-sm">
+                <div className="space-y-3 text-xs">
                   <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">User ID</p>
+                    <p className="text-xs uppercase text-muted-foreground">User ID</p>
                     <p className="mt-2 break-all font-medium text-foreground">{user?.id ?? user?.userId ?? 'N/A'}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Email</p>
+                    <p className="text-xs uppercase text-muted-foreground">Email</p>
                     <p className="mt-2 font-medium text-foreground">{user?.email || 'N/A'}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Phone</p>
+                    <p className="text-xs uppercase text-muted-foreground">Phone</p>
                     <p className="mt-2 font-medium text-foreground">{user?.phone || 'Not added yet'}</p>
                   </div>
                 </div>
@@ -576,11 +577,11 @@ const Profile = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold">Account Snapshot</h3>
-                    <p className="text-sm text-muted-foreground">Quick status summary from the backend.</p>
+                    <p className="text-xs text-muted-foreground">Quick status summary from the backend.</p>
                   </div>
                 </div>
 
-                <div className="space-y-3 text-sm">
+                <div className="space-y-3 text-xs">
                   <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                     <span className="text-muted-foreground">Two-Factor Auth</span>
                     <span className={user?.twoFactorEnabled ? 'font-medium text-emerald-400' : 'font-medium text-amber-400'}>
@@ -608,142 +609,106 @@ const Profile = () => {
         )}
 
         {activeTab === 'security' && (
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-emerald-500/15 bg-black/10 p-4 sm:p-5">
-              <div className="mb-5">
-                <h2 className="text-lg font-semibold">Change Password</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Use this form to update your password.
-                </p>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            {/* Change Password — Left card */}
+            <div className="rounded-xl border border-border/60 bg-black/5 dark:bg-white/5 p-4 space-y-3">
+              <div className="flex items-center gap-2 border-b border-border/40 pb-3">
+                <Shield className="h-3.5 w-3.5 text-brand-purple" />
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">Current Password</label>
-                  <div className="relative">
-                    <input
-                      aria-label="Current password"
-                      type={showPassword.current ? 'text' : 'password'}
-                      value={security.currentPassword}
-                      onChange={(e) => setSecurity({ ...security, currentPassword: e.target.value })}
-                      placeholder="Enter current password"
-                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 pr-11 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => ({ ...prev, current: !prev.current }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={showPassword.current ? 'Hide current password' : 'Show current password'}
-                    >
-                      {showPassword.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium">New Password</label>
-                  <div className="relative">
-                    <input
-                      aria-label="New password"
-                      type={showPassword.next ? 'text' : 'password'}
-                      value={security.newPassword}
-                      onChange={(e) => setSecurity({ ...security, newPassword: e.target.value })}
-                      placeholder="Enter new password"
-                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 pr-11 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => ({ ...prev, next: !prev.next }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={showPassword.next ? 'Hide new password' : 'Show new password'}
-                    >
-                      {showPassword.next ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium">Confirm New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.confirm ? 'text' : 'password'}
-                      value={security.confirmPassword}
-                      onChange={(e) => setSecurity({ ...security, confirmPassword: e.target.value })}
-                      placeholder="Confirm new password"
-                      className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-2.5 pr-11 focus:outline-none focus:border-emerald-500/50 dark:border-white/10 dark:bg-white/5"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => ({ ...prev, confirm: !prev.confirm }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={showPassword.confirm ? 'Hide confirm password' : 'Show confirm password'}
-                    >
-                      {showPassword.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  <p className="text-sm font-semibold">Change Password</p>
+                  <p className="text-xs text-muted-foreground">Update your login password.</p>
                 </div>
               </div>
-
-              <div className="mt-5">
-                <button
-                  onClick={handlePasswordChange}
-                  disabled={
-                    savingPassword ||
-                    !security.currentPassword ||
-                    !security.newPassword ||
-                    !security.confirmPassword
-                  }
-                  className="btn-primary"
-                >
-                  {savingPassword ? 'Updating Password...' : 'Update Password'}
-                </button>
+              <div className="space-y-3">
+                {[
+                  { key: 'current', label: 'Current Password', placeholder: 'Current password', field: 'currentPassword', show: showPassword.current },
+                  { key: 'next',    label: 'New Password',     placeholder: 'New password',     field: 'newPassword',     show: showPassword.next },
+                  { key: 'confirm', label: 'Confirm Password', placeholder: 'Confirm password', field: 'confirmPassword',  show: showPassword.confirm },
+                ].map(({ key, label, placeholder, field, show }) => (
+                  <div key={key}>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
+                    <div className="relative">
+                      <input
+                        type={show ? 'text' : 'password'}
+                        value={security[field]}
+                        onChange={(e) => setSecurity({ ...security, [field]: e.target.value })}
+                        placeholder={placeholder}
+                        className="w-full rounded-lg border border-black/10 bg-black/5 px-3 py-2 pr-9 text-sm focus:outline-none focus:border-brand-purple/50 dark:border-white/10 dark:bg-white/5"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => ({ ...prev, [key]: !prev[key] }))}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
+              <button
+                onClick={handlePasswordChange}
+                disabled={savingPassword || !security.currentPassword || !security.newPassword || !security.confirmPassword}
+                className="btn-primary"
+              >
+                {savingPassword ? 'Updating...' : 'Update Password'}
+              </button>
             </div>
 
-            <div className="space-y-4 rounded-2xl border border-cyan-500/15 bg-black/10 p-4 sm:p-5">
-              <div>
-                <h2 className="text-lg font-semibold">Two-Factor Authentication</h2>
-                <p className="text-sm text-muted-foreground">
-                  Add an extra verification step to protect your account.
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5">
-                <p className="text-sm">
-                  Status:{' '}
-                  <span className={user?.twoFactorEnabled ? 'text-emerald-500 font-medium' : 'text-amber-500 font-medium'}>
-                    {user?.twoFactorEnabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </p>
+            {/* Two-Factor Authentication — Right card */}
+            <div className="rounded-xl border border-border/60 bg-black/5 dark:bg-white/5 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-3">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="h-3.5 w-3.5 text-brand-purple" />
+                  <div>
+                    <p className="text-sm font-semibold">Two-Factor Auth</p>
+                    <p className="text-xs text-muted-foreground">Extra verification to protect your account.</p>
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${user?.twoFactorEnabled ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                  {user?.twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                </span>
               </div>
 
               {!user?.twoFactorEnabled && (
-                <>
+                <div className="space-y-3">
+                  {/* Info rows */}
+                  {[
+                    { label: 'Protection', value: 'OTP on every login' },
+                    { label: 'Method',     value: twoFactorSetup.channel === 'PHONE' ? 'Phone OTP' : 'Email OTP' },
+                    { label: 'Status',     value: 'Not configured' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-center justify-between rounded-lg border border-border/40 bg-black/5 px-3 py-2 dark:bg-white/5">
+                      <span className="text-xs text-muted-foreground">{label}</span>
+                      <span className="text-xs font-medium">{value}</span>
+                    </div>
+                  ))}
+
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">2FA Channel</label>
-                    <select
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">2FA Channel</label>
+                    <DivSelect
                       value={twoFactorSetup.channel}
-                      onChange={(e) => setTwoFactorSetup((prev) => ({ ...prev, channel: e.target.value }))}
-                      className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
-                    >
-                      {twoFactorOptions.email && <option value="EMAIL">Email OTP</option>}
-                      {twoFactorOptions.phone && <option value="PHONE">Phone OTP</option>}
-                    </select>
+                      onChange={(val) => setTwoFactorSetup((prev) => ({ ...prev, channel: val }))}
+                      includeEmptyOption={false}
+                      options={[
+                        ...(twoFactorOptions.email ? [{ value: 'EMAIL', label: 'Email OTP' }] : []),
+                        ...(twoFactorOptions.phone ? [{ value: 'PHONE', label: 'Phone OTP' }] : []),
+                      ]}
+                    />
                   </div>
 
-                  <button
-                    onClick={handleEnableTwoFactor}
-                    disabled={savingTwoFactor}
-                    className="btn-primary"
-                  >
+                  <button onClick={handleEnableTwoFactor} disabled={savingTwoFactor} className="btn-primary w-full">
                     {savingTwoFactor ? 'Preparing...' : 'Enable Two-Factor Auth'}
                   </button>
 
                   {twoFactorSetup.otpSent && (
-                    <div className="space-y-4 rounded-xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5">
-                      <p className="text-sm text-muted-foreground">
+                    <div className="space-y-3 rounded-lg border border-border/40 bg-black/5 p-3 dark:bg-white/5">
+                      <p className="text-xs text-muted-foreground">
                         Enter the 6-digit code sent to your {twoFactorSetup.channel === 'PHONE' ? 'phone' : 'email'}.
                       </p>
                       <div>
-                        <label className="block text-sm font-medium mb-1.5">Verification Code</label>
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground">Verification Code</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -751,35 +716,31 @@ const Profile = () => {
                           value={twoFactorCode}
                           onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                           placeholder="Enter 6-digit code"
-                          className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
+                          className="w-full rounded-lg border border-black/10 bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple/50 dark:border-white/10 dark:bg-white/5"
                         />
                       </div>
-                      <button
-                        onClick={handleVerifyTwoFactor}
-                        disabled={savingTwoFactor || twoFactorCode.length !== 6}
-                        className="btn-primary"
-                      >
+                      <button onClick={handleVerifyTwoFactor} disabled={savingTwoFactor || twoFactorCode.length !== 6} className="btn-primary w-full">
                         {savingTwoFactor ? 'Verifying...' : 'Verify and Enable'}
                       </button>
                     </div>
                   )}
-                </>
+                </div>
               )}
 
               {user?.twoFactorEnabled && (
-                <div className="space-y-4 rounded-xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5">
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">Password</label>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Password</label>
                     <input
                       type="password"
                       value={disableTwoFactorForm.password}
                       onChange={(e) => setDisableTwoFactorForm({ ...disableTwoFactorForm, password: e.target.value })}
                       placeholder="Enter your password"
-                      className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
+                      className="w-full rounded-lg border border-black/10 bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple/50 dark:border-white/10 dark:bg-white/5"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">OTP</label>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">OTP</label>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -787,27 +748,21 @@ const Profile = () => {
                       value={disableTwoFactorForm.otp}
                       onChange={(e) => setDisableTwoFactorForm({ ...disableTwoFactorForm, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })}
                       placeholder="Enter 6-digit code"
-                      className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-purple/50"
+                      className="w-full rounded-lg border border-black/10 bg-black/5 px-3 py-2 text-sm focus:outline-none focus:border-brand-purple/50 dark:border-white/10 dark:bg-white/5"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleSendDisableOtp}
-                    disabled={savingTwoFactor}
-                    className="rounded-xl border border-black/10 px-6 py-2.5 text-sm font-medium dark:border-white/10"
-                  >
-                    {savingTwoFactor ? 'Sending...' : 'Send OTP to email'}
-                  </button>
-                  <button
-                    onClick={handleDisableTwoFactor}
-                    disabled={savingTwoFactor || disableTwoFactorForm.otp.length !== 6 || !disableTwoFactorForm.password}
-                    className="btn-danger"
-                  >
-                    {savingTwoFactor ? 'Disabling...' : 'Disable Two-Factor Auth'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={handleSendDisableOtp} disabled={savingTwoFactor} className="rounded-lg border border-border/60 px-4 py-2 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      {savingTwoFactor ? 'Sending...' : 'Send OTP to email'}
+                    </button>
+                    <button onClick={handleDisableTwoFactor} disabled={savingTwoFactor || disableTwoFactorForm.otp.length !== 6 || !disableTwoFactorForm.password} className="btn-danger">
+                      {savingTwoFactor ? 'Disabling...' : 'Disable 2FA'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
+
           </div>
         )}
         </GlassCard>
@@ -821,141 +776,114 @@ const Profile = () => {
       {/* Broker Accounts Tab */}
       {activeTab === 'brokers' && (
         <GlassCard>
-          <div className="flex items-center justify-between gap-4 mb-5">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-border/40">
             <div>
-              <h2 className="text-base font-black tracking-tight">Broker Accounts</h2>
-              <p className="text-xs text-muted-foreground mt-1">Live margin, session status, and positions from each linked broker</p>
+              <p className="text-sm font-semibold">Broker Accounts</p>
+              <p className="text-xs text-muted-foreground">Live margin, session status and positions</p>
             </div>
             <button
               onClick={loadBrokerProfiles}
               disabled={loadingBrokers}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-black/5 dark:bg-white/5 text-xs font-bold uppercase tracking-wider hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-black/5 dark:bg-white/5 text-xs font-medium hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingBrokers ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3 h-3 ${loadingBrokers ? 'animate-spin' : ''}`} />
               Refresh All
             </button>
           </div>
 
-          {brokerProfiles.length === 0 && !loadingBrokers ? (
-            <div className="py-12 text-center">
-              <Users className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-sm font-bold uppercase">No Broker Accounts</p>
-              <p className="text-xs text-muted-foreground mt-1">Link a broker from the Demat Accounts section.</p>
-              <button
-                onClick={loadBrokerProfiles}
-                className="mt-4 text-xs font-bold text-brand-purple hover:underline"
-              >
+          {/* Empty */}
+          {brokerProfiles.length === 0 && !loadingBrokers && (
+            <div className="py-10 text-center">
+              <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No Broker Accounts</p>
+              <p className="text-xs text-muted-foreground mt-1">Link a broker from Demat Accounts.</p>
+              <button onClick={loadBrokerProfiles} className="mt-3 text-xs font-semibold text-brand-purple hover:underline">
                 Load accounts
               </button>
             </div>
-          ) : loadingBrokers ? (
-            <div className="space-y-3">
-              {[1,2].map(i => <div key={i} className="h-28 rounded-2xl bg-black/5 dark:bg-white/5 animate-pulse" />)}
+          )}
+
+          {/* Skeleton */}
+          {loadingBrokers && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[1, 2].map(i => <div key={i} className="h-36 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" />)}
             </div>
-          ) : (
-            <div className="space-y-4">
+          )}
+
+          {/* Cards grid */}
+          {!loadingBrokers && brokerProfiles.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {brokerProfiles.map((acc) => {
-                const statusColor = acc.fundsUtilizationStatus === 'RED'
-                  ? 'border-rose-500/30 bg-rose-500/5'
-                  : acc.fundsUtilizationStatus === 'YELLOW'
-                  ? 'border-amber-500/30 bg-amber-500/5'
-                  : 'border-emerald-500/20 bg-emerald-500/5';
-                const marginColor = acc.fundsUtilizationStatus === 'RED'
-                  ? 'text-rose-500 bg-rose-500'
-                  : acc.fundsUtilizationStatus === 'YELLOW'
-                  ? 'text-amber-500 bg-amber-500'
-                  : 'text-emerald-500 bg-emerald-500';
+                const isActive = acc.sessionActive;
+                const utilStatus = acc.fundsUtilizationStatus;
+                const barColor = utilStatus === 'RED' ? 'bg-rose-500' : utilStatus === 'YELLOW' ? 'bg-amber-500' : 'bg-emerald-500';
+                const pctColor = utilStatus === 'RED' ? 'text-rose-500' : utilStatus === 'YELLOW' ? 'text-amber-500' : 'text-emerald-500';
 
                 return (
-                  <div key={acc.accountId} className={`rounded-2xl border p-4 ${statusColor}`}>
-                    <div className="flex items-center justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-black/10 dark:bg-white/10 flex items-center justify-center font-black text-sm">
+                  <div key={acc.accountId} className="rounded-xl border border-border/60 bg-black/5 dark:bg-white/5 overflow-hidden">
+
+                    {/* Card header */}
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/40">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-brand-purple/10 flex items-center justify-center text-xs font-black text-brand-purple">
                           {(acc.broker || '?')[0]}
                         </div>
                         <div>
-                          <p className="text-sm font-black">{acc.broker || '—'}</p>
+                          <p className="text-sm font-semibold leading-tight">{acc.broker || '—'}</p>
                           <p className="text-xs text-muted-foreground">{acc.clientId || acc.fullName || '—'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${
-                          acc.sessionActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
-                        }`}>
-                          {acc.sessionActive ? 'Active' : 'Expired'}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                          {isActive ? 'Active' : 'Expired'}
                         </span>
-                        {acc.isTokenExpired && (
-                          <span className="flex items-center gap-1 text-xs text-rose-500 font-bold">
-                            <AlertCircle className="w-3.5 h-3.5" /> Token expired
-                          </span>
-                        )}
                         <button
                           onClick={() => handleRefreshBroker(acc.accountId)}
                           disabled={refreshingBroker[acc.accountId]}
-                          className="p-1.5 rounded-lg border border-border hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-                          title="Refresh"
+                          className="p-1 rounded-lg border border-border/60 hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${refreshingBroker[acc.accountId] ? 'animate-spin' : ''}`} />
+                          <RefreshCw className={`w-3 h-3 text-muted-foreground ${refreshingBroker[acc.accountId] ? 'animate-spin' : ''}`} />
                         </button>
                       </div>
                     </div>
 
                     {/* Margin bar */}
-                    <div className="mb-3">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-muted-foreground font-bold">Margin Used</span>
-                        <span className={`font-black ${marginColor.split(' ')[0]}`}>
-                          {acc.marginUsedPercent?.toFixed(1) ?? 0}%
-                        </span>
+                    <div className="px-4 pt-3 pb-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">Margin Used</span>
+                        <span className={`text-xs font-semibold ${pctColor}`}>{(acc.marginUsedPercent ?? 0).toFixed(1)}%</span>
                       </div>
-                      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${marginColor.split(' ')[1]}`}
-                          style={{ width: `${Math.min(100, acc.marginUsedPercent || 0)}%` }}
-                        />
+                      <div className="h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, acc.marginUsedPercent || 0)}%` }} />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 text-xs">
-                      <div>
-                        <p className="text-muted-foreground font-bold">Available</p>
-                        <p className="font-black">₹{(acc.marginAvailable || 0).toLocaleString('en-IN')}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground font-bold">Used</p>
-                        <p className="font-black">₹{(acc.marginUsed || 0).toLocaleString('en-IN')}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground font-bold">Positions</p>
-                        <p className="font-black">{acc.openPositionsCount ?? 0}</p>
-                      </div>
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 divide-x divide-border/40 border-t border-border/40">
+                      {[
+                        { label: 'Available', value: `₹${(acc.marginAvailable || 0).toLocaleString('en-IN')}` },
+                        { label: 'Used',      value: `₹${(acc.marginUsed      || 0).toLocaleString('en-IN')}` },
+                        { label: 'Positions', value: acc.openPositionsCount ?? 0 },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="px-3 py-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
+                          <p className="text-xs font-semibold mt-0.5">{value}</p>
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        acc.fundsUtilizationStatus === 'GREEN' ? 'bg-emerald-500/10 text-emerald-500' :
-                        acc.fundsUtilizationStatus === 'YELLOW' ? 'bg-amber-500/10 text-amber-500' :
-                        'bg-rose-500/10 text-rose-500'
-                      }`}>
-                        {acc.fundsUtilizationStatus || 'UNKNOWN'}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Margin: ₹{(acc.marginAvailable || 0).toLocaleString('en-IN')} available
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {(acc.marginUsedPercent ?? 0).toFixed(1)}% used
-                      </span>
-                    </div>
-
-                    {acc.isTokenExpired && (
-                      <p className="text-xs text-rose-500 font-bold mt-1">Session expired - re-login required</p>
-                    )}
-
-                    {acc.tokenExpiresInHours != null && !acc.isTokenExpired && (
-                      <p className="mt-2 text-[10px] text-muted-foreground">
-                        Session expires in {formatDuration(Number(acc.tokenExpiresInHours))}
-                        {acc.lastSyncedAt && ` · Synced ${new Date(acc.lastSyncedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
-                      </p>
+                    {/* Footer */}
+                    {(acc.isTokenExpired || (acc.tokenExpiresInHours != null && !acc.isTokenExpired)) && (
+                      <div className="px-4 py-2 border-t border-border/40">
+                        {acc.isTokenExpired
+                          ? <p className="text-xs text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Session expired — re-login required</p>
+                          : <p className="text-xs text-muted-foreground">
+                              Expires in {formatDuration(Number(acc.tokenExpiresInHours))}
+                              {acc.lastSyncedAt && ` · Synced ${new Date(acc.lastSyncedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
+                            </p>
+                        }
+                      </div>
                     )}
                   </div>
                 );

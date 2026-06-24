@@ -152,7 +152,7 @@ const FailedCopyMonitor = () => {
             Every copy that was skipped, rejected, or errored — with a human-readable reason and latency.
           </p>
         </div>
-        <DownloadButton onClick={handleExport} disabled={copies.length === 0} label="Export XLS" />
+        <DownloadButton onClick={handleExport} disabled={copies.length === 0} label="Export Excel" />
       </section>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

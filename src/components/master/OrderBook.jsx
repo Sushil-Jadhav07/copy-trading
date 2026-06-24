@@ -234,7 +234,7 @@ const OrderBook = () => {
           <p className="text-sm text-muted-foreground">Orders for this broker account</p>
         </div>
         <div className="flex items-center gap-2">
-          <DownloadButton onClick={handleDownload} disabled={filteredOrders.length === 0} label="Excel" />
+          <DownloadButton onClick={handleDownload} disabled={filteredOrders.length === 0} label="Export Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>

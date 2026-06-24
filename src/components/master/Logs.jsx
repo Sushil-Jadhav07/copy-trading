@@ -92,7 +92,7 @@ const Logs = () => {
   const [brokerAccounts, setBrokerAccounts] = useState([]);
   const [selectedBrokerAccountId, setSelectedBrokerAccountId] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [timeFilter, setTimeFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('today');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [skipReasonLabels, setSkipReasonLabels] = useState({});
@@ -541,7 +541,7 @@ const Logs = () => {
               (activeTab === 'trade' && filteredTradeLogs.length === 0) ||
               (activeTab === 'broker' && filteredBrokerErrors.length === 0)
             }
-            label="Export XLS"
+            label="Export Excel"
           />
           <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
         </div>

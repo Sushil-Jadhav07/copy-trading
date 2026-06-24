@@ -1223,28 +1223,6 @@ const CopyTrading = () => {
             <p className="text-xs text-muted-foreground mt-0.5">{linkedRows.length} active child subscriptions</p>
           </div>
           <div className="flex items-center gap-3">
-            <DownloadButton
-              onClick={() => {
-                try {
-                  downloadExcelSheet({
-                    rows: filtered.map((child) => ({
-                      Follower: child.nickname || child.userId || 'Child',
-                      'User ID': child.userId,
-                      Broker: child.broker,
-                      Status: child.status,
-                      Margin: child.margin || 0,
-                      'P&L Today': child.pnlToday || 0,
-                      Positions: child.positions || 0,
-                      Multiplier: child.multiplier || 1,
-                    })),
-                    sheetName: 'Followers',
-                    fileName: buildExportFileName('Master Followers'),
-                  });
-                } catch {}
-              }}
-              disabled={filtered.length === 0}
-              label="Export XLS"
-            />
             <div className="relative">
               <label htmlFor="follower-search" className="sr-only">Filter followers</label>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1326,12 +1304,6 @@ const CopyTrading = () => {
                             <div className="flex items-center gap-1.5 text-xs text-amber-500 font-bold mt-1">
                               <AlertCircle className="w-3 h-3" />
                               <span>Session expired</span>
-                              <button
-                                onClick={() => navigate(`/master/demat/${child.brokerAccountId || child.accountId}`)}
-                                className="underline hover:no-underline text-amber-600"
-                              >
-                                Re-login -
-                              </button>
                             </div>
                           )}
                           {effectiveLowMargin && (

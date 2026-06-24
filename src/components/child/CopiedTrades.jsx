@@ -234,7 +234,7 @@ const CopiedTrades = () => {
               } catch {}
             }}
             disabled={filtered.length === 0}
-            label="Export XLS"
+            label="Export Excel"
           />
           <RefreshButton onClick={handleRefresh} loading={refreshing || loading} />
         </div>

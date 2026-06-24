@@ -280,7 +280,7 @@ const OpenPositions = () => {
               triggerClassName="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-purple"
             />
           )}
-          <DownloadButton onClick={handleDownload} disabled={filteredPositions.length === 0} label="Excel" />
+          <DownloadButton onClick={handleDownload} disabled={filteredPositions.length === 0} label="Export Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>

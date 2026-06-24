@@ -220,7 +220,7 @@ const ChildOrderBook = () => {
               triggerClassName="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm"
             />
           )}
-          <DownloadButton onClick={handleDownload} disabled={filteredOrders.length === 0} label="Excel" />
+          <DownloadButton onClick={handleDownload} disabled={filteredOrders.length === 0} label="Export Excel" />
           <RefreshButton onClick={handleRefresh} loading={loading || refreshing} />
         </div>
       </div>

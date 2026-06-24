@@ -159,7 +159,7 @@ const LatencyHistory = () => {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState({ content: [], totalElements: 0 });
   const [page, setPage] = useState(0);
-  const [rangeKey, setRangeKey] = useState('all');
+  const [rangeKey, setRangeKey] = useState('today');
   const [sideFilter, setSideFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [query, setQuery] = useState('');
@@ -334,7 +334,7 @@ const LatencyHistory = () => {
               } catch {}
             }}
             disabled={filteredEvents.length === 0}
-            label="Export XLS"
+            label="Export Excel"
           />
           <button
             onClick={() => loadAll(selectedRange)}
