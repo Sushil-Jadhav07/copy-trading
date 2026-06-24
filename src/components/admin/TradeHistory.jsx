@@ -108,7 +108,9 @@ const TradeHistory = () => {
         setTrades(res.logs || []);
         setTotalItems(res.meta?.total || 0);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[TradeHistory] Failed to load trade logs:', err?.message || err);
+      })
       .finally(() => setLoading(false));
   }, [page]);
 

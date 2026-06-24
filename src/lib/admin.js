@@ -383,7 +383,7 @@ const normalizeOrderTrace = (payload = {}) => {
 
 const normalizeBrokerStatusEntry = (entry = {}, index = 0) => ({
   id: entry.id || entry.brokerId || entry.broker || entry.name || `broker-status-${index}`,
-  name: entry.name || entry.brokerName || entry.broker || entry.brokerId || 'Broker',
+  name: entry.userName || entry.name || entry.brokerName || entry.broker || entry.brokerId || 'Broker',
   brokerId: entry.brokerId || entry.broker || entry.name || '',
   account: entry.account || entry.clientId || entry.nickname || entry.userId || '—',
   active: entry.active ?? null,
