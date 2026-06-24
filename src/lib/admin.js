@@ -69,6 +69,7 @@ export const normalizeAdminUser = (payload = {}) => ({
   createdAt: payload.createdAt || payload.created_at || null,
   twoFactorEnabled: Boolean(payload.twoFactorEnabled),
   brokerAccounts: asArray(payload.brokerAccounts),
+  brokersCount: Number(payload.brokers) || asArray(payload.brokerAccounts).length || 0,
   raw: payload,
 });
 
@@ -136,6 +137,7 @@ const normalizeTradeLog = (log = {}, index = 0) => {
     childName: log.childName || log.child || log.childId || '',
     timestamp: log.timestamp || log.createdAt || log.time || '',
     children: log.children || log.followers || log.copiedAccounts || 0,
+    latency: log.latency || 0,
     message: log.message || '',
     reference: log.reference || '',
     error: log.error || log.reason || '',
@@ -304,6 +306,7 @@ const normalizeAuditEntry = (entry = {}, index = 0) => {
     action: String(entry.action || entry.eventType || 'UNKNOWN').toUpperCase(),
     entityType: String(entry.entityType || entry.targetType || 'SYSTEM').toUpperCase(),
     entityId: entry.entityId || entry.targetId || entry.reference || params.userId || params.targetId || 'N/A',
+    entityName: entry.entityName || '',
     before: entry.before || entry.oldValue || entry.previous || {},
     after: entry.after || entry.newValue || entry.current || {},
     reason: entry.reason || entry.message || entry.description || '',

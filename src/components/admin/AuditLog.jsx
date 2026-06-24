@@ -211,7 +211,7 @@ const AuditLog = () => {
                   { label: 'Admin', w: 'w-[14%]' },
                   { label: 'Action', w: 'w-[15%]' },
                   { label: 'Entity Type', w: 'w-[10%]' },
-                  { label: 'Entity ID', w: 'w-[10%]' },
+                  { label: 'Entity Name', w: 'w-[10%]' },
                   { label: 'Details', w: 'w-[38%]' },
                 ].map((h) => (
                   <th
@@ -244,24 +244,34 @@ const AuditLog = () => {
                 </tr>
               ) : (
                 logs.map((log) => {
-                  const details = Object.keys(log.parameters || {}).length > 0
-                    ? log.parameters
-                    : Object.keys(log.before || {}).length > 0 || Object.keys(log.after || {}).length > 0
-                    ? { ...log.before, ...log.after }
-                    : log.reason ? { reason: log.reason } : null;
+                  let details = null;
+                  if (log.parameters) {
+                      try {
+                          const parsed = typeof log.parameters === 'string' ? JSON.parse(log.parameters) : log.parameters;
+                          details = parsed;
+                      } catch(e) {
+                          details = { raw: log.parameters };
+                      }
+                  } else if (Object.keys(log.after || {}).length > 0) {
+                      details = log.after;
+                  }
+                  
                   return (
-                    <tr key={log.id} className="border-b border-border/30 align-top hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{fmtTime(log.timestamp)}</td>
-                      <td className="px-4 py-3 text-sm font-medium truncate">{log.adminName}</td>
+                    <tr
+                      key={log.id}
+                      className="group border-b border-border/50 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+                    >
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{fmtTime(log.timestamp)}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{log.adminName}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ACTION_STYLES[log.action] || 'border-slate-500/15 bg-slate-500/10 text-slate-500'}`}>
+                        <span className="inline-flex rounded-full bg-brand-purple/10 px-2 py-1 text-[10px] font-semibold tracking-wider text-brand-purple">
                           {log.action.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{log.entityType}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground" title={log.entityId}>{log.entityId && log.entityId !== 'N/A' && log.entityId.length > 12 ? `${log.entityId.slice(0, 8)}…` : log.entityId}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground" title={log.entityId}>{log.entityName || log.entityId || 'N/A'}</td>
                       <td className="px-4 py-3">
-                        {details ? <KeyVals obj={details} tone="text-muted-foreground" /> : <span className="text-xs text-muted-foreground">—</span>}
+                        {details ? <KeyVals obj={details} tone="text-muted-foreground" /> : <span className="text-xs text-muted-foreground">-</span>}
                       </td>
                     </tr>
                   );
