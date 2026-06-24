@@ -167,21 +167,6 @@ const OrderFeed = () => {
   const [loading, setLoading] = useState(true);
   const [selectedTradeId, setSelectedTradeId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [traceDetails, setTraceDetails] = useState({});
-  const [traceLoading, setTraceLoading] = useState(false);
-
-  const fetchOrderTrace = async (rowId, traceId) => {
-    if (traceDetails[rowId]) return;
-    setTraceLoading(true);
-    try {
-      const data = await adminService.getOrderTrace(traceId);
-      setTraceDetails((prev) => ({ ...prev, [rowId]: data }));
-    } catch (err) {
-      console.error('Failed to fetch trace details:', err);
-    } finally {
-      setTraceLoading(false);
-    }
-  };
 
   useEffect(() => {
     const load = () => {
