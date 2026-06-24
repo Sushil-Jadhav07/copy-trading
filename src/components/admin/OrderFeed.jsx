@@ -81,8 +81,8 @@ const mapLogToFeedRow = (log) => {
 
   return {
     id: log.id,
-    orderId: log.reference || `LOG-${log.id}`,
-    traceId: log.reference || String(log.id),
+    orderId: (log.raw?.masterTradeId || log.reference || String(log.id)).split('-')[0].toUpperCase(),
+    traceId: log.raw?.masterTradeId || log.reference || String(log.id),
     timestamp: log.timestamp,
     detectedAt: formatTime(log.timestamp),
     symbol: log.symbol,
@@ -96,7 +96,7 @@ const mapLogToFeedRow = (log) => {
     status: statusState.status,
     state: statusState.state,
     detail: {
-      orderId: log.reference || String(log.id),
+      orderId: (log.raw?.masterTradeId || log.reference || String(log.id)).split('-')[0].toUpperCase(),
       title: log.symbol,
       type: log.type,
       side: log.action,
@@ -167,6 +167,22 @@ const OrderFeed = () => {
   const [loading, setLoading] = useState(true);
   const [selectedTradeId, setSelectedTradeId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [traceDetails, setTraceDetails] = useState({});
+  const [traceLoading, setTraceLoading] = useState(false);
+
+  const fetchOrderTrace = async (id, traceId) => {
+    if (traceDetails[id]) return;
+    if (!traceId) return;
+    setTraceLoading(true);
+    try {
+      const res = await adminService.getOrderTrace(traceId);
+      setTraceDetails(prev => ({ ...prev, [id]: res }));
+    } catch (err) {
+      console.error('Failed to fetch trace details:', err);
+    } finally {
+      setTraceLoading(false);
+    }
+  };
 
   useEffect(() => {
     const load = () => {
@@ -177,7 +193,9 @@ const OrderFeed = () => {
           setFeedRows(mapped);
           setSelectedTradeId((prev) => prev ?? (mapped[0]?.id ?? null));
         })
-        .catch(() => {})
+        .catch((err) => {
+          console.error('[OrderFeed] Failed to load trade logs:', err?.message || err);
+        })
         .finally(() => setLoading(false));
     };
 
