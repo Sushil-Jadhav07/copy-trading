@@ -522,7 +522,12 @@ const OrderFeed = () => {
                     <p className="text-sm text-slate-400 dark:text-muted-foreground">No timeline data available.</p>
                   )}
                   {selectedTrade.detail?.latencyFooter && (
-                    <p className="text-sm text-slate-400 dark:text-muted-foreground">{selectedTrade.detail.latencyFooter}</p>
+                    <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+                      <p className="text-xs font-semibold text-red-600 dark:text-red-400">System Message / Reason</p>
+                      <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+                        {selectedTrade.detail.latencyFooter}
+                      </p>
+                    </div>
                   )}
                 </div>
               </section>
