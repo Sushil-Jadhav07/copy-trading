@@ -167,6 +167,21 @@ const OrderFeed = () => {
   const [loading, setLoading] = useState(true);
   const [selectedTradeId, setSelectedTradeId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [traceDetails, setTraceDetails] = useState({});
+  const [traceLoading, setTraceLoading] = useState(false);
+
+  const fetchOrderTrace = async (rowId, traceId) => {
+    if (traceDetails[rowId]) return;
+    setTraceLoading(true);
+    try {
+      const data = await adminService.getOrderTrace(traceId);
+      setTraceDetails((prev) => ({ ...prev, [rowId]: data }));
+    } catch (err) {
+      console.error('Failed to fetch trace details:', err);
+    } finally {
+      setTraceLoading(false);
+    }
+  };
 
   useEffect(() => {
     const load = () => {
@@ -213,10 +228,31 @@ const OrderFeed = () => {
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const selectedTrade = useMemo(
-    () => feedRows.find((row) => row.id === selectedTradeId) || feedRows[0] || null,
-    [selectedTradeId, feedRows],
-  );
+  const selectedTrade = useMemo(() => {
+    const row = feedRows.find((r) => r.id === selectedTradeId) || feedRows[0] || null;
+    if (!row) return null;
+    const trace = traceDetails[row.id];
+    if (trace) {
+      return {
+        ...row,
+        detail: {
+          ...row.detail,
+          timeline: [
+            { text: 'Detected Master Trade', time: formatTime(trace.masterOrder?.placedTime || row.timestamp), delta: '0ms' },
+            { text: 'Risk Checks Evaluated', time: formatTime(trace.masterOrder?.placedTime || row.timestamp), delta: trace.riskChecks?.riskCheckPassed !== false ? 'Passed' : 'Failed' },
+            { text: `Placed ${trace.summary?.childCopies || 0} child copies`, time: formatTime(trace.masterOrder?.placedTime || row.timestamp), delta: `Avg Latency: ${trace.summary?.averageLatencyMs || 0}ms` },
+          ],
+          childReplication: (trace.childCopies || []).map((c) => ({
+            name: c.child,
+            broker: c.broker,
+            status: c.status === 'COMPLETED' ? 'Complete' : c.status === 'FAILED' || c.status === 'SKIPPED' ? 'Failed' : 'Pending',
+            meta: `Qty: ${c.quantity || 0} | Price: ${c.price || 'Market'} | ${c.reason || ''}`,
+          })),
+        },
+      };
+    }
+    return row;
+  }, [selectedTradeId, feedRows, traceDetails]);
 
   return (
     <div className="space-y-5">
@@ -365,6 +401,7 @@ const OrderFeed = () => {
                           onClick={() => {
                             setSelectedTradeId(row.id);
                             setDetailsOpen(true);
+                            fetchOrderTrace(row.id, row.traceId);
                           }}
                           className="inline-flex items-center gap-1 rounded-lg bg-brand-purple/10 px-3 py-1.5 text-sm font-semibold text-brand-purple transition hover:bg-brand-purple/15"
                         >
@@ -472,6 +509,10 @@ const OrderFeed = () => {
                   ))}
                 </div>
               </section>
+
+              {traceLoading && (
+                <p className="mt-4 text-sm text-slate-400 dark:text-muted-foreground animate-pulse">Loading trace data…</p>
+              )}
 
               <section className="mt-6">
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-foreground">Execution Timeline</h3>
