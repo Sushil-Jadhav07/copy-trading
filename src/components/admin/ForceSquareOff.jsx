@@ -170,12 +170,26 @@ const ForceSquareOff = () => {
               onClick={async () => {
                 try {
                   setSubmitting(true);
-                  await adminService.forceSquareOff({
+                  const results = await adminService.forceSquareOff({
                     targetId,
                     scope,
                     confirmationText: CONFIRM_PHRASE,
                   });
-                  addToast('Square-off initiated', 'success');
+                  
+                  const successCount = results.filter(r => r.status === 'success').length;
+                  const failedCount = results.filter(r => r.status === 'failed').length;
+                  const ignoredCount = results.filter(r => r.status === 'ignored').length;
+                  
+                  if (successCount > 0) {
+                    addToast(`Successfully closed ${successCount} position(s)` + (failedCount > 0 ? `, but ${failedCount} failed` : ''), 'success');
+                  } else if (failedCount > 0) {
+                    addToast(`Failed to close ${failedCount} position(s)`, 'error');
+                  } else if (ignoredCount > 0) {
+                    addToast(`${ignoredCount} position(s) were ignored (e.g. zero quantity)`, 'info');
+                  } else {
+                    addToast('No positions were closed', 'info');
+                  }
+                  
                   setConfirmText('');
                 } catch (error) {
                   addToast(error.message || 'Unable to force square-off', 'error');

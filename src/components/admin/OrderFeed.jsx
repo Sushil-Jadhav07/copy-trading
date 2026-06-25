@@ -93,8 +93,8 @@ const mapLogToFeedRow = (log) => {
 
   return {
     id: log.id,
-    orderId: log.reference || `LOG-${log.id}`,
-    traceId: log.reference || String(log.id),
+    orderId: log.reference || String(log.id),
+    traceId: log.traceId || log.reference || String(log.id),
     timestamp: log.timestamp,
     detectedAt: formatTime(log.timestamp),
     symbol: log.symbol,

@@ -138,8 +138,8 @@ const normalizeTradeLog = (log = {}, index = 0) => {
     timestamp: log.timestamp || log.createdAt || log.time || '',
     children: log.children || log.followers || log.copiedAccounts || 0,
     latency: log.latency || 0,
-    message: log.message || '',
-    reference: log.reference || '',
+    reference: log.reference,
+    traceId: log.traceId || log.reference,
     error: log.error || log.reason || '',
     status,
     raw: log,
@@ -318,6 +318,7 @@ const normalizeTraceChild = (entry = {}, index = 0) => ({
   scaleFactor: Number(String(entry.scaleFactor ?? entry.scalingFactor ?? entry.multiplier ?? 1).replace('x', '')),
   qtyCopied: Number(entry.qtyCopied ?? entry.quantityCopied ?? entry.childQty ?? entry.qty ?? entry.quantity ?? 0),
   orderId: entry.orderId || entry.brokerOrderId || entry.childOrderId || entry.reference || '—',
+  traceId: entry.traceId || entry.reference || String(entry.id),
   status: String(entry.status || entry.childStatus || 'UNKNOWN').toUpperCase(),
   executedAt: entry.executedAt || entry.childPlacedAt || entry.completedAt || entry.timestamp || null,
   price: Number(entry.price ?? entry.avgPrice ?? entry.averagePrice ?? entry.executedPrice ?? 0),
@@ -340,6 +341,7 @@ const normalizeOrderTrace = (payload = {}) => {
   return {
     traceId: source.traceId || source.id || source.copyGroupId || source.reference || '',
     masterOrder: {
+      traceId: source.traceId || source.id || source.copyGroupId || source.reference || '',
       masterOrderId: mo.broker_order_id || mo.masterOrderId || mo.orderId || mo.reference || '—',
       masterUser: mo.master_user || mo.masterUser || mo.masterName || mo.masterId || 'Unknown',
       masterBroker: mo.master_broker || mo.masterBroker || mo.broker || 'N/A',
