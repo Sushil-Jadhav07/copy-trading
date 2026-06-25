@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import GlassCard from '@/components/shared/GlassCard';
 import RefreshButton from '@/components/shared/RefreshButton';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import { adminService } from '@/lib/admin';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
-import { TrendingUp, Users, Activity, CreditCard, BarChart2, Trophy } from 'lucide-react';
+import { TrendingUp, Users, Activity, CreditCard, BarChart2, Trophy, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const cellCls = 'px-4 py-3 text-sm text-muted-foreground';
 
@@ -17,6 +17,10 @@ const AdminPnL = () => {
   const [loadError, setLoadError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
+  const [masterPage, setMasterPage] = useState(1);
+  const [childPage, setChildPage] = useState(1);
+  const pageSize = 5;
+
   const load = useCallback(async () => {
     try {
       const [analyticsData, platformPnl] = await Promise.all([
@@ -26,10 +30,12 @@ const AdminPnL = () => {
       setAnalytics(analyticsData);
       setPnlData(platformPnl);
       setLoadError('');
+      setMasterPage(1);
+      setChildPage(1);
     } catch (error) {
       const message = error.message || 'Unable to load platform P&L';
       setLoadError(message);
-      setAnalytics({ totalTrades: 0, activeSubscriptions: 0, activeMasters: 0, totalChildren: 0, revenueMtd: 0, totalUsers: 0, totalAdmins: 0 });
+      setAnalytics({ totalTrades: 0, activeSubscriptions: 0, activeMasters: 0, totalChildren: 0, totalUsers: 0, totalAdmins: 0 });
       setPnlData({ perMaster: [], perChild: [], topGainers: [], topLosers: [] });
       addToast(message, 'error');
     } finally {
@@ -52,6 +58,20 @@ const AdminPnL = () => {
   const EmptyRow = ({ cols }) => (
     <tr><td colSpan={cols} className={cellCls}>No data available.</td></tr>
   );
+
+  const paginatedMasters = useMemo(() => {
+    const start = (masterPage - 1) * pageSize;
+    return pnlData.perMaster.slice(start, start + pageSize);
+  }, [pnlData.perMaster, masterPage]);
+
+  const totalMasterPages = Math.ceil(pnlData.perMaster.length / pageSize);
+
+  const paginatedChildren = useMemo(() => {
+    const start = (childPage - 1) * pageSize;
+    return pnlData.perChild.slice(start, start + pageSize);
+  }, [pnlData.perChild, childPage]);
+
+  const totalChildPages = Math.ceil(pnlData.perChild.length / pageSize);
 
   return (
     <div className="space-y-6">
@@ -85,90 +105,7 @@ const AdminPnL = () => {
         </div>
       )}
 
-      {!loading && analytics && (
-        <GlassCard title="Revenue Overview">
-          {loadError && <p className="mb-4 text-xs text-amber-600 dark:text-amber-400">{loadError}</p>}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Revenue MTD</p>
-              <p className="text-xl font-bold text-foreground">{formatCurrency(analytics.revenueMtd ?? 0)}</p>
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Total Users</p>
-              <p className="text-xl font-bold text-foreground">{formatNumber(analytics.totalUsers ?? 0)}</p>
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Total Admins</p>
-              <p className="text-xl font-bold text-foreground">{formatNumber(analytics.totalAdmins ?? 0)}</p>
-            </div>
-          </div>
-        </GlassCard>
-      )}
-
-      {/* Per-Master & Per-Child side by side */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <GlassCard noPadding>
-          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
-            <BarChart2 className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Per-Master P&L</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
-                  {['Master', 'Trades', 'P&L', 'Children'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pnlData.perMaster.length === 0 ? <EmptyRow cols={4} /> : pnlData.perMaster.map((row) => (
-                  <tr key={row.id} className="border-b border-border/30">
-                    <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{row.master}</td>
-                    <td className={cellCls}>{formatNumber(row.totalTrades)}</td>
-                    <td className={`px-4 py-3 text-sm font-semibold ${row.realisedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {formatCurrency(row.realisedPnl)}
-                    </td>
-                    <td className={cellCls}>{formatNumber(row.children)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </GlassCard>
-
-        <GlassCard noPadding>
-          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Per-Child P&L</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
-                  {['Child', 'Master', 'Executed', 'P&L'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pnlData.perChild.length === 0 ? <EmptyRow cols={4} /> : pnlData.perChild.map((row) => (
-                  <tr key={row.id} className="border-b border-border/30">
-                    <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{row.child}</td>
-                    <td className={`${cellCls} truncate max-w-[100px]`}>{row.master}</td>
-                    <td className={cellCls}>{formatNumber(row.copiesExecuted)}</td>
-                    <td className={`px-4 py-3 text-sm font-semibold ${row.realisedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {formatCurrency(row.realisedPnl)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </GlassCard>
-      </div>
-
-      {/* Top Gainers & Losers side by side */}
+      {/* Top Gainers & Losers side by side (MOVED ABOVE) */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {[
           { label: 'Top Gainers', color: 'text-emerald-400', rows: pnlData.topGainers },
@@ -203,6 +140,115 @@ const AdminPnL = () => {
             </div>
           </GlassCard>
         ))}
+      </div>
+
+      {/* Per-Master & Per-Child side by side */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GlassCard noPadding>
+          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+            <BarChart2 className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Per-Master P&L</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                  {['Master', 'Trades', 'P&L', 'Children'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedMasters.length === 0 ? <EmptyRow cols={4} /> : paginatedMasters.map((row) => (
+                  <tr key={row.id} className="border-b border-border/30">
+                    <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{row.master}</td>
+                    <td className={cellCls}>{formatNumber(row.totalTrades)}</td>
+                    <td className={`px-4 py-3 text-sm font-semibold ${row.realisedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {formatCurrency(row.realisedPnl)}
+                    </td>
+                    <td className={cellCls}>{formatNumber(row.children)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {totalMasterPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border/40 px-4 py-3">
+              <span className="text-xs text-muted-foreground">
+                Page {masterPage} of {totalMasterPages}
+              </span>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setMasterPage(p => Math.max(1, p - 1))}
+                  disabled={masterPage === 1}
+                  className="rounded p-1 hover:bg-white/5 disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => setMasterPage(p => Math.min(totalMasterPages, p + 1))}
+                  disabled={masterPage === totalMasterPages}
+                  className="rounded p-1 hover:bg-white/5 disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+
+        <GlassCard noPadding>
+          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Per-Child P&L</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/40 bg-black/[0.03] dark:bg-white/[0.03]">
+                  {['Child', 'Master', 'Executed', 'P&L'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedChildren.length === 0 ? <EmptyRow cols={4} /> : paginatedChildren.map((row) => (
+                  <tr key={row.id} className="border-b border-border/30">
+                    <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{row.child}</td>
+                    <td className={`${cellCls} truncate max-w-[100px]`}>{row.master}</td>
+                    <td className={cellCls}>{formatNumber(row.copiesExecuted)}</td>
+                    <td className={`px-4 py-3 text-sm font-semibold ${row.realisedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {formatCurrency(row.realisedPnl)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {totalChildPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border/40 px-4 py-3">
+              <span className="text-xs text-muted-foreground">
+                Page {childPage} of {totalChildPages}
+              </span>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setChildPage(p => Math.max(1, p - 1))}
+                  disabled={childPage === 1}
+                  className="rounded p-1 hover:bg-white/5 disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => setChildPage(p => Math.min(totalChildPages, p + 1))}
+                  disabled={childPage === totalChildPages}
+                  className="rounded p-1 hover:bg-white/5 disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </GlassCard>
       </div>
     </div>
   );

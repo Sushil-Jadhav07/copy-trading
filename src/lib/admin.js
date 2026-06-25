@@ -175,7 +175,7 @@ const normalizeAdminPosition = (pos = {}, index = 0) => {
     qty: qty,
     avgPrice: Number(pos.avgPrice || pos.averagePrice || pos.average_price || pos.entryPrice || pos.buy_price || pos.sell_price || pos.buyPrice || pos.sellPrice || pos.buyAvgPrice || pos.sellAvgPrice || pos.netPrice || 0),
     ltp: Number(pos.ltp || pos.lastPrice || pos.last_price || pos.currentPrice || 0),
-    pnl: Number(pos.pnl || pos.unrealizedPnl || pos.mtm || 0),
+    pnl: Number(pos.pnl || pos.unrealizedPnl || pos.mtm || pos.realised || pos.realised_pnl || pos.realized_profit || pos.realizedProfit || pos.realisedPnl || 0),
     pnlPct: Number(pos.pnlPct || pos.pnlPercent || pos.changePercent || 0),
     product: String(pos.product || pos.productType || 'MIS').toUpperCase(),
     broker: pos.broker || pos.brokerName || 'N/A',
