@@ -141,12 +141,7 @@ const normalizeTradeLog = (log = {}, index = 0) => {
     message: log.message || '',
     reference: log.reference || '',
     error: log.error || log.reason || '',
-    status:
-      status === 'FAILED' || type === 'ERROR'
-        ? 'error'
-        : status === 'CANCELLED'
-        ? 'warning'
-        : 'success',
+    status,
     raw: log,
   };
 };
@@ -320,13 +315,13 @@ const normalizeTraceChild = (entry = {}, index = 0) => ({
   id: entry.id || entry.childId || `trace-child-${index}`,
   child: entry.child || entry.childName || entry.childUser || entry.childId || 'Unknown',
   broker: entry.broker || entry.brokerName || entry.childBroker || 'N/A',
-  scaleFactor: Number(entry.scaleFactor ?? entry.scalingFactor ?? entry.multiplier ?? 1),
+  scaleFactor: Number(String(entry.scaleFactor ?? entry.scalingFactor ?? entry.multiplier ?? 1).replace('x', '')),
   qtyCopied: Number(entry.qtyCopied ?? entry.quantityCopied ?? entry.childQty ?? entry.qty ?? entry.quantity ?? 0),
   orderId: entry.orderId || entry.brokerOrderId || entry.childOrderId || entry.reference || '—',
   status: String(entry.status || entry.childStatus || 'UNKNOWN').toUpperCase(),
   executedAt: entry.executedAt || entry.childPlacedAt || entry.completedAt || entry.timestamp || null,
   price: Number(entry.price ?? entry.avgPrice ?? entry.averagePrice ?? entry.executedPrice ?? 0),
-  latencyMs: Number(entry.latencyMs ?? entry.childLatencyMs ?? entry.totalLatencyMs ?? 0),
+  latencyMs: entry.latencyMs != null ? Number(entry.latencyMs) : null,
   slippagePct: Number(entry.slippagePct ?? entry.slippagePercent ?? entry.slippage ?? 0),
   reason: entry.reason || entry.message || entry.errorMessage || entry.skipReason || '',
   raw: entry,
@@ -334,6 +329,9 @@ const normalizeTraceChild = (entry = {}, index = 0) => ({
 
 const normalizeOrderTrace = (payload = {}) => {
   const source = payload?.data || payload || {};
+  // masterOrder fields are nested under source.masterOrder in the API response
+  const mo = source.masterOrder || source;
+  const sm = source.summary || {};
   const childCopies = asArray(source.childCopies || source.children || source.results || source.replications).map(normalizeTraceChild);
   const succeeded = childCopies.filter((entry) => ['SUCCESS', 'EXECUTED', 'COMPLETED'].includes(entry.status)).length;
   const failedOrSkipped = childCopies.filter((entry) => !['SUCCESS', 'EXECUTED', 'COMPLETED'].includes(entry.status)).length;
@@ -342,39 +340,23 @@ const normalizeOrderTrace = (payload = {}) => {
   return {
     traceId: source.traceId || source.id || source.copyGroupId || source.reference || '',
     masterOrder: {
-      traceId: source.traceId || source.id || source.copyGroupId || source.reference || '',
-      masterOrderId: source.masterOrderId || source.orderId || source.reference || '',
-      masterUser: source.masterUser || source.masterName || source.masterId || 'Unknown',
-      masterBroker: source.masterBroker || source.broker || source.brokerName || 'N/A',
-      symbol: source.symbol || source.instrument || 'N/A',
-      side: String(source.side || source.action || source.type || '—').toUpperCase(),
-      quantity: Number(source.quantity ?? source.qty ?? source.masterQty ?? 0),
-      orderType: source.orderType || '—',
-      product: source.product || '—',
-      exchange: source.exchange || '—',
-      triggerTime: source.triggerTime || source.masterTriggeredAt || source.createdAt || null,
-      placedTime: source.placedTime || source.masterPlacedAt || source.updatedAt || null,
-      averagePrice: Number(source.averagePrice ?? source.avgPrice ?? source.price ?? 0),
-      executionStatus: String(source.executionStatus || source.status || 'UNKNOWN').toUpperCase(),
+      masterOrderId: mo.broker_order_id || mo.masterOrderId || mo.orderId || mo.reference || '—',
+      masterUser: mo.master_user || mo.masterUser || mo.masterName || mo.masterId || 'Unknown',
+      symbol: mo.symbol || mo.instrument || source.symbol || '—',
+      side: String(mo.side || mo.action || source.side || '—').toUpperCase(),
+      quantity: Number(mo.quantity ?? mo.qty ?? source.quantity ?? 0),
+      orderType: mo.order_type || mo.orderType || '—',
+      product: mo.product || '—',
+      placedTime: mo.placed_at || mo.placedTime || mo.masterPlacedAt || null,
+      price: Number(mo.price ?? mo.averagePrice ?? mo.avgPrice ?? 0),
+      executionStatus: String(mo.status || mo.executionStatus || 'UNKNOWN').toUpperCase(),
     },
     summary: {
-      childCopies: Number(source.childCopies ?? source.childrenTotal ?? childCopies.length),
-      succeeded: Number(source.succeeded ?? source.success ?? succeeded),
-      failedOrSkipped: Number(source.failedOrSkipped ?? source.failed ?? source.skipped ?? failedOrSkipped),
-      averageLatencyMs: latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : null,
-      fastestLatencyMs: latencies.length ? Math.min(...latencies) : null,
-      slowestLatencyMs: latencies.length ? Math.max(...latencies) : null,
-      failureRate:
-        childCopies.length > 0
-          ? `${Math.round((failedOrSkipped / childCopies.length) * 100)}%`
-          : '0%',
-      lastBackendSync: source.lastBackendSync || source.updatedAt || source.timestamp || null,
-      lookupStatus: childCopies.length > 0 ? 'Available' : 'Partial',
-    },
-    riskChecks: {
-      riskCheckPassed: source.riskCheckPassed ?? source.riskPassed ?? null,
-      sellGuardPassed: source.sellGuardPassed ?? source.sellGuard ?? null,
-      failedRule: source.failedRule || source.ruleFailure || '',
+      childCopies: Number(sm.totalChildren ?? sm.childCopies ?? source.childrenTotal ?? childCopies.length),
+      succeeded: Number(sm.copied ?? sm.succeeded ?? sm.success ?? succeeded),
+      failedOrSkipped: sm.failed != null ? Number(sm.failed) + Number(sm.skipped ?? 0) : failedOrSkipped,
+      averageLatencyMs: sm.averageLatencyMs != null ? Number(sm.averageLatencyMs) : (latencies.length ? Math.round(latencies.reduce((s, v) => s + v, 0) / latencies.length) : null),
+      failureRate: childCopies.length > 0 ? `${Math.round((failedOrSkipped / childCopies.length) * 100)}%` : '0%',
     },
     childCopies,
     raw: source,

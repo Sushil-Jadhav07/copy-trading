@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
@@ -13,7 +13,7 @@ import { formatRelativeTime, sortByMostRecent } from '@/lib/utils';
 const MsgCell = ({ msg }) => {
   if (!msg || msg === '-') return <span className="text-xs text-muted-foreground">-</span>;
   return (
-    <div className="flex items-center gap-1.5 min-w-0 max-w-[220px]">
+    <div className="flex items-center gap-1.5 min-w-0 max-w-[120px]">
       <span className="text-xs text-muted-foreground truncate">{msg}</span>
       <TooltipProvider>
         <Tooltip>

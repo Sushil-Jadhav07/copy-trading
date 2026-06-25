@@ -50,6 +50,7 @@ const CONNECTED_BROKERS = [
   { name: 'Zerodha', state: 'live' },
   { name: 'Angel One', state: 'live' },
   { name: 'Groww', state: 'live' },
+  { name: 'Fyers', state: 'live' },
   { name: 'Upstox', state: 'error' },
   { name: 'Dhan', state: 'live' },
 ];
@@ -72,12 +73,23 @@ const formatTime = (ts) => {
   return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
+const STATUS_MAP = {
+  EXECUTED:    { status: 'Complete',    state: 'Completed'   },
+  COMPLETED:   { status: 'Complete',    state: 'Completed'   },
+  SUCCESS:     { status: 'Complete',    state: 'Completed'   },
+  REPLICATING: { status: 'Replicating', state: 'Replicating' },
+  PENDING:     { status: 'Pending',     state: 'Detected'    },
+  DETECTED:    { status: 'Detected',    state: 'Detected'    },
+  SKIPPED:     { status: 'Skipped',     state: 'Failed'      },
+  FAILED:      { status: 'Failed',      state: 'Failed'      },
+  REJECTED:    { status: 'Rejected',    state: 'Failed'      },
+  TIMEOUT:     { status: 'Timeout',     state: 'Failed'      },
+  CANCELLED:   { status: 'Cancelled',   state: 'Failed'      },
+  ERROR:       { status: 'Error',       state: 'Failed'      },
+};
+
 const mapLogToFeedRow = (log) => {
-  const statusState = {
-    success: { status: 'Complete', state: 'Completed' },
-    error: { status: 'Rejected', state: 'Failed' },
-    warning: { status: 'Pending', state: 'Detected' },
-  }[log.status] || { status: 'Complete', state: 'Completed' };
+  const statusState = STATUS_MAP[String(log.status || '').toUpperCase()] || { status: log.status || 'Unknown', state: 'Detected' };
 
   return {
     id: log.id,
@@ -122,7 +134,6 @@ const exportexcel = (rows) => {
       Qty: row.qty,
       'Exec Price': row.execPrice,
       Type: row.type,
-      Broker: row.broker,
       Children: row.children,
       Status: row.status,
     })),
@@ -144,18 +155,36 @@ const brokerChipClass = {
   error: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
 };
 
+const STATUS_BADGE_COMPLETE  = 'border-emerald-500/15 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+const STATUS_BADGE_FAILED    = 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400';
+const STATUS_BADGE_PENDING   = 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+const STATUS_BADGE_NEUTRAL   = 'border-slate-300/80 bg-slate-200/60 text-slate-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-400';
+const STATUS_BADGE_REPLICATE = 'border-brand-purple/20 bg-brand-purple/10 text-brand-purple';
+
 const statusBadgeClass = {
-  Complete: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  Pending: 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  'Trigger Pending': 'border-orange-500/15 bg-orange-500/10 text-orange-700 dark:text-orange-300',
-  Rejected: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
-  Cancelled: 'border-slate-300/80 bg-slate-200/60 text-slate-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-400',
+  Complete:    STATUS_BADGE_COMPLETE,
+  Replicating: STATUS_BADGE_REPLICATE,
+  Detected:    STATUS_BADGE_PENDING,
+  Pending:     STATUS_BADGE_PENDING,
+  Failed:      STATUS_BADGE_FAILED,
+  Rejected:    STATUS_BADGE_FAILED,
+  Skipped:     STATUS_BADGE_NEUTRAL,
+  Timeout:     STATUS_BADGE_FAILED,
+  Cancelled:   STATUS_BADGE_NEUTRAL,
+  Error:       STATUS_BADGE_FAILED,
 };
 
 const detailStatusClass = {
-  Complete: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  Failed: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
-  Pending: 'border-brand-purple/20 bg-brand-purple/10 text-brand-purple',
+  Complete:    STATUS_BADGE_COMPLETE,
+  Replicating: STATUS_BADGE_REPLICATE,
+  Detected:    STATUS_BADGE_PENDING,
+  Pending:     STATUS_BADGE_PENDING,
+  Failed:      STATUS_BADGE_FAILED,
+  Rejected:    STATUS_BADGE_FAILED,
+  Skipped:     STATUS_BADGE_NEUTRAL,
+  Timeout:     STATUS_BADGE_FAILED,
+  Cancelled:   STATUS_BADGE_NEUTRAL,
+  Error:       STATUS_BADGE_FAILED,
 };
 
 const OrderFeed = () => {
@@ -211,7 +240,6 @@ const OrderFeed = () => {
       if (
         query &&
         !row.symbol.toLowerCase().includes(query) &&
-        !row.broker.toLowerCase().includes(query) &&
         !row.exchange.toLowerCase().includes(query)
       ) return false;
       if (from || to) {
@@ -245,7 +273,7 @@ const OrderFeed = () => {
           childReplication: (trace.childCopies || []).map((c) => ({
             name: c.child,
             broker: c.broker,
-            status: c.status === 'COMPLETED' ? 'Complete' : c.status === 'FAILED' || c.status === 'SKIPPED' ? 'Failed' : 'Pending',
+            status: (STATUS_MAP[String(c.status || '').toUpperCase()] || { status: c.status || 'Pending' }).status,
             meta: `Qty: ${c.quantity || 0} | Price: ${c.price || 'Market'} | ${c.reason || ''}`,
           })),
         },
@@ -277,38 +305,41 @@ const OrderFeed = () => {
         </div>
       </section>
 
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {FEED_FILTERS.map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => setActiveFilter(filter)}
-              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                activeFilter === filter
-                  ? 'border-brand-purple bg-brand-purple text-white'
-                  : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {TIME_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setTimeFilter(f.key)}
-              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                timeFilter === f.key
-                  ? 'border-emerald-500 bg-emerald-500 text-white'
-                  : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+      <section>
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {FEED_FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setActiveFilter(filter)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                  activeFilter === filter
+                    ? 'border-brand-purple bg-brand-purple text-white'
+                    : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+          <div className="hidden lg:block mx-4 h-6 w-px bg-slate-200 dark:bg-white/10" />
+          <div className="flex flex-wrap items-center gap-2">
+            {TIME_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setTimeFilter(f.key)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                  timeFilter === f.key
+                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                    : 'border-slate-200/80 bg-white/75 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:bg-white/[0.07]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -336,7 +367,7 @@ const OrderFeed = () => {
               <table className="min-w-full">
                 <thead className="bg-black/[0.02] dark:bg-white/[0.02]">
                   <tr className="border-b border-slate-200/70 dark:border-white/[0.06]">
-                    {['Order ID', 'Time', 'Symbol', 'Type', 'B/S', 'Qty', 'Price', 'Status', 'Broker', 'Children', 'Action'].map((header) => (
+                    {['Order ID', 'Time', 'Symbol', 'Type', 'B/S', 'Qty', 'Price', 'Status', 'Children', 'Action'].map((header) => (
                       <th
                         key={header}
                         className="whitespace-nowrap px-4 py-4 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-muted-foreground/75"
@@ -349,13 +380,13 @@ const OrderFeed = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
+                      <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
                         Loading trade feed...
                       </td>
                     </tr>
                   ) : feedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
+                      <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
                         No live trades detected yet.
                       </td>
                     </tr>
@@ -393,7 +424,6 @@ const OrderFeed = () => {
                           {row.status}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 dark:text-slate-300">{row.broker}</td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900 dark:text-foreground">{row.children}</td>
                       <td className="whitespace-nowrap px-4 py-4">
                         <button
@@ -468,7 +498,7 @@ const OrderFeed = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-5 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               <section className="rounded-[20px] border border-slate-200/80 bg-white/60 p-5 backdrop-blur-xl dark:border-white/6 dark:bg-white/[0.035]">
                 <div className="space-y-4 text-sm">
                   {[
@@ -488,7 +518,6 @@ const OrderFeed = () => {
                     ['Quantity', selectedTrade.detail?.quantity || String(selectedTrade.qty)],
                     ['Price', selectedTrade.detail?.price || (selectedTrade.execPrice ? `₹${selectedTrade.execPrice}` : '—')],
                     ['Status', selectedTrade.detail?.status || selectedTrade.status, 'status'],
-                    ['Broker', selectedTrade.detail?.masterBroker || selectedTrade.broker],
                   ].map(([label, value, kind]) => (
                     <div key={label} className="flex items-center justify-between gap-4">
                       <span className="text-slate-500 dark:text-muted-foreground">{label}</span>
@@ -552,13 +581,12 @@ const OrderFeed = () => {
                 <div className="mt-4 space-y-3">
                   {(selectedTrade.detail?.childReplication || []).map((child) => (
                     <div
-                      key={`${child.name}-${child.broker}`}
+                      key={child.name}
                       className="rounded-[18px] border border-slate-200/80 bg-white/60 px-4 py-4 backdrop-blur-xl dark:border-white/6 dark:bg-white/[0.035]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="font-semibold text-slate-900 dark:text-foreground">{child.name}</div>
-                          <div className="mt-0.5 text-sm text-slate-500 dark:text-muted-foreground">{child.broker}</div>
                         </div>
                         <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${detailStatusClass[child.status] || detailStatusClass.Pending}`}>
                           {child.status === 'Complete' && <Check className="h-3.5 w-3.5" />}

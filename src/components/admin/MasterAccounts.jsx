@@ -3,6 +3,7 @@ import { Eye, LoaderCircle, Search, Trash2, UserCheck, UserX } from 'lucide-reac
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
+import RefreshButton from '@/components/shared/RefreshButton';
 import SlideOver from '@/components/shared/SlideOver';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
@@ -121,13 +122,7 @@ const MasterAccounts = () => {
             Live master list with copy-trading pause controls.
           </p>
         </div>
-        <button
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className="self-start rounded-xl border border-border bg-black/5 px-4 py-2 text-sm transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
-        >
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
+        <RefreshButton onClick={() => load(true)} loading={refreshing} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

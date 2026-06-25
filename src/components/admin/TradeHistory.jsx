@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Info, Search, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Search } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
 import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
@@ -8,7 +8,7 @@ import DownloadButton from '@/components/shared/DownloadButton';
 const MsgCell = ({ msg }) => {
   if (!msg || msg === '—' || msg === '-') return <span className="text-sm text-slate-400">—</span>;
   return (
-    <div className="flex items-center gap-1.5 min-w-0 max-w-[220px]">
+    <div className="flex items-center gap-1.5 min-w-0 max-w-[120px]">
       <span className="text-sm text-slate-400 dark:text-slate-400 truncate">{msg}</span>
       <TooltipProvider>
         <Tooltip>
@@ -66,7 +66,6 @@ const formatTimestamp = (ts) => {
   return d.toLocaleString('en-IN', {
     day: '2-digit',
     month: 'short',
-    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -83,7 +82,6 @@ const exportexcel = (rows) => {
       Qty: row.qty,
       Price: row.price,
       Status: statusLabel[row.status] || row.status,
-      Broker: row.broker,
       Master: row.master,
       Message: row.message || '',
     })),
@@ -119,7 +117,6 @@ const TradeHistory = () => {
     return trades.filter(
       (row) =>
         row.symbol.toLowerCase().includes(query) ||
-        row.broker.toLowerCase().includes(query) ||
         row.master.toLowerCase().includes(query),
     );
   }, [search, trades]);
@@ -173,17 +170,17 @@ const TradeHistory = () => {
           type="text"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search symbol or broker…"
+          placeholder="Search symbol or master…"
           className="w-full rounded-xl border border-slate-200/80 bg-white/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-brand-purple dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground dark:placeholder-muted-foreground"
         />
       </section>
 
       <section className={`${panelClass} p-0`}>
         <div className="relative z-10 overflow-x-auto">
-          <table className="min-w-full">
+          <table className="w-full">
             <thead className="bg-black/[0.02] dark:bg-white/[0.02]">
               <tr className="border-b border-slate-200/70 dark:border-white/[0.06]">
-                {['Timestamp', 'Symbol', 'Type', 'B/S', 'Qty', 'Price', 'Status', 'Broker', 'Master', 'Message'].map((header) => (
+                {['Timestamp', 'Symbol', 'Type', 'B/S', 'Qty', 'Price', 'Status', 'Master', 'Message'].map((header) => (
                   <th
                     key={header}
                     className="whitespace-nowrap px-4 py-4 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-muted-foreground/75"
@@ -196,7 +193,7 @@ const TradeHistory = () => {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
                     Loading trade logs…
                   </td>
                 </tr>
@@ -235,16 +232,15 @@ const TradeHistory = () => {
                         {statusLabel[row.status] || row.status}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 dark:text-slate-300">{row.broker}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 dark:text-slate-300">{row.master}</td>
-                    <td className="px-4 py-4"><MsgCell msg={row.message || '—'} /></td>
+                    <td className="w-[1%] px-4 py-4"><MsgCell msg={row.message || '—'} /></td>
                   </tr>
                 );
               })}
 
               {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-16 text-center text-sm text-slate-400 dark:text-muted-foreground">
                     No trade history matches your search.
                   </td>
                 </tr>

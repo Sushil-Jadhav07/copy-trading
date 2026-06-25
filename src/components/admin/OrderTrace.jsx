@@ -1,9 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link2, LoaderCircle, Search } from 'lucide-react';
+import { Info, Link2, LoaderCircle, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import GlassCard from '@/components/shared/GlassCard';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
 import { useToast } from '@/components/shared/Toast';
+
+const ReasonCell = ({ reason }) => {
+  if (!reason || reason === '—') return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="flex items-center gap-1.5 min-w-0 max-w-[180px]">
+      <span className="truncate text-sm text-muted-foreground">{reason}</span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground">
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-sm text-xs leading-relaxed break-words whitespace-normal">
+            {reason}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+};
 
 const PLACEHOLDER = '—';
 
@@ -82,26 +104,22 @@ const OrderTrace = () => {
 
   const summaryCards = useMemo(() => [
     { label: 'Trace ID', value: trace?.traceId || traceId || PLACEHOLDER },
-    { label: 'Child Copies', value: String(trace?.summary?.childCopies ?? 0) },
+    { label: 'Total Children', value: String(trace?.summary?.childCopies ?? 0) },
     { label: 'Succeeded', value: String(trace?.summary?.succeeded ?? 0) },
     { label: 'Failed / Skipped', value: String(trace?.summary?.failedOrSkipped ?? 0) },
   ], [trace, traceId]);
 
   const masterOrderFields = useMemo(() => [
-    ['Trace ID', trace?.masterOrder?.traceId || traceId || PLACEHOLDER],
-    ['Master Order ID', trace?.masterOrder?.masterOrderId || PLACEHOLDER],
+    ['Order ID', trace?.masterOrder?.masterOrderId || PLACEHOLDER],
     ['Master User', trace?.masterOrder?.masterUser || PLACEHOLDER],
-    ['Master Broker', trace?.masterOrder?.masterBroker || PLACEHOLDER],
     ['Symbol', trace?.masterOrder?.symbol || PLACEHOLDER],
     ['Side', trace?.masterOrder?.side || PLACEHOLDER],
-    ['Quantity', String(trace?.masterOrder?.quantity ?? 0)],
+    ['Quantity', trace?.masterOrder ? String(trace.masterOrder.quantity) : PLACEHOLDER],
+    ['Price', trace?.masterOrder?.price ? `₹${trace.masterOrder.price}` : PLACEHOLDER],
     ['Order Type', trace?.masterOrder?.orderType || PLACEHOLDER],
     ['Product', trace?.masterOrder?.product || PLACEHOLDER],
-    ['Exchange', trace?.masterOrder?.exchange || PLACEHOLDER],
-    ['Trigger Time', fmtDateTime(trace?.masterOrder?.triggerTime)],
-    ['Placed Time', fmtDateTime(trace?.masterOrder?.placedTime)],
-    ['Average Price', trace?.masterOrder?.averagePrice ? String(trace.masterOrder.averagePrice) : PLACEHOLDER],
-    ['Execution Status', trace?.masterOrder?.executionStatus || PLACEHOLDER],
+    ['Placed At', fmtDateTime(trace?.masterOrder?.placedTime)],
+    ['Status', trace?.masterOrder?.executionStatus || PLACEHOLDER],
   ], [trace, traceId]);
 
   return (
@@ -151,11 +169,7 @@ const OrderTrace = () => {
             Trace loaded successfully.
           </div>
         )
-      ) : (
-        <div className="rounded-2xl border border-border bg-black/5 px-5 py-4 text-sm text-muted-foreground dark:bg-white/5">
-          Enter a trace ID to inspect master and child execution details.
-        </div>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {summaryCards.map((card) => (
@@ -185,13 +199,9 @@ const OrderTrace = () => {
         <GlassCard>
           <h2 className="text-base font-semibold">Trace Summary</h2>
           <div className="mt-5 space-y-3">
-            {[ 
-              ['Lookup Status', trace?.summary?.lookupStatus || (traceId ? 'Loading' : PLACEHOLDER)],
-              ['Average Child Latency', trace?.summary?.averageLatencyMs != null ? `${trace.summary.averageLatencyMs}ms` : PLACEHOLDER],
-              ['Fastest Child Latency', trace?.summary?.fastestLatencyMs != null ? `${trace.summary.fastestLatencyMs}ms` : PLACEHOLDER],
-              ['Slowest Child Latency', trace?.summary?.slowestLatencyMs != null ? `${trace.summary.slowestLatencyMs}ms` : PLACEHOLDER],
+            {[
+              ['Avg. Latency', trace?.summary?.averageLatencyMs != null ? `${trace.summary.averageLatencyMs}ms` : PLACEHOLDER],
               ['Failure Rate', trace?.summary?.failureRate || PLACEHOLDER],
-              ['Last Backend Sync', fmtDateTime(trace?.summary?.lastBackendSync)],
             ].map(([label, value]) => (
               <div key={label} className="flex items-center justify-between gap-4 rounded-xl bg-black/5 px-3 py-3 text-sm dark:bg-white/5">
                 <span className="text-muted-foreground">{label}</span>
@@ -201,25 +211,6 @@ const OrderTrace = () => {
           </div>
         </GlassCard>
       </div>
-
-      {/* Risk checks — spec section 6 */}
-      <GlassCard>
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Risk Checks
-          </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {[
-              ['Risk Check Passed', trace?.riskChecks?.riskCheckPassed == null ? PLACEHOLDER : String(trace.riskChecks.riskCheckPassed)],
-              ['Sell-Guard Passed', trace?.riskChecks?.sellGuardPassed == null ? PLACEHOLDER : String(trace.riskChecks.sellGuardPassed)],
-              ['Failed Rule', trace?.riskChecks?.failedRule || PLACEHOLDER],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-xl bg-black/5 p-3 dark:bg-white/5">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-0.5 text-sm font-semibold text-foreground">{value}</p>
-              </div>
-            ))}
-          </div>
-      </GlassCard>
 
       <GlassCard noPadding>
         <div className="border-b border-border/40 px-4 py-3">
@@ -248,11 +239,7 @@ const OrderTrace = () => {
                 <tr>
                   <td colSpan={childColumns.length} className="px-4 py-12 text-center text-sm text-muted-foreground">Loading trace…</td>
                 </tr>
-              ) : !traceId ? (
-                <tr>
-                  <td colSpan={childColumns.length} className="px-4 py-12 text-center text-sm text-muted-foreground">Enter a trace ID to view child copy details.</td>
-                </tr>
-              ) : !trace || trace.childCopies.length === 0 ? (
+              ) : !traceId ? null : !trace || trace.childCopies.length === 0 ? (
                 <tr>
                   <td colSpan={childColumns.length} className="px-4 py-12 text-center text-sm text-muted-foreground">No child copy rows found for this trace.</td>
                 </tr>
@@ -269,7 +256,7 @@ const OrderTrace = () => {
                     <td className="px-4 py-3 text-sm">{row.price || PLACEHOLDER}</td>
                     <td className="px-4 py-3 text-sm">{row.latencyMs || PLACEHOLDER}</td>
                     <td className="px-4 py-3 text-sm">{row.slippagePct || PLACEHOLDER}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{row.reason || PLACEHOLDER}</td>
+                    <td className="px-4 py-3"><ReasonCell reason={row.reason} /></td>
                   </tr>
                 ))
               )}
