@@ -94,7 +94,7 @@ const SystemLogs = () => {
 
   const filteredBrokers = brokerFilter === 'ALL'
     ? brokerStatuses
-    : brokerStatuses.filter((b) => (b.brokerId || b.name || b.broker || '').toUpperCase() === brokerFilter);
+    : brokerStatuses.filter((b) => (b.broker || b.brokerId || b.name || '').toUpperCase() === brokerFilter);
 
   const renderTradeLogs = () => (
     <table className="w-full min-w-[700px]">
@@ -171,17 +171,17 @@ const SystemLogs = () => {
           triggerClassName="rounded-lg border border-border bg-black/5 px-3 py-2 text-sm focus:border-brand-purple dark:bg-white/5"
         />
       </div>
-      <table className="w-full min-w-[480px]">
+      <table className="w-full min-w-[860px]">
         <thead>
           <tr className="border-b border-border/50 bg-black/5 dark:bg-white/5">
-            {['Broker', 'API Status', 'Latency (ms)', 'Last Checked'].map((header) => (
+            {['User', 'Type', 'Broker', 'API Status', 'Active', 'User ID', 'Latency (ms)', 'Last Checked'].map((header) => (
               <th key={header} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{header}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {filteredBrokers.length === 0 && (
-            <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">No broker status data</td></tr>
+            <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">No broker status data</td></tr>
           )}
           {filteredBrokers.map((broker, index) => {
             const st = String(broker.status || '').toUpperCase();
@@ -189,7 +189,14 @@ const SystemLogs = () => {
             const isAuth = st === 'AUTH_REQUIRED';
             return (
               <tr key={broker.id || index} className="border-b border-border/20 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3 text-sm font-semibold">{broker.name || '-'}</td>
+                <td className="px-4 py-3">
+                  <div className="min-w-[180px]">
+                    <p className="text-sm font-semibold">{broker.userName || broker.name || '-'}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{broker.account || '-'}</p>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{broker.accountType || '-'}</td>
+                <td className="px-4 py-3 text-sm font-semibold">{broker.broker || broker.brokerId || '-'}</td>
                 <td className="px-4 py-3 text-sm">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-white ${
                     isActive ? 'bg-emerald-500' : isAuth ? 'bg-amber-500' : 'bg-rose-500'
@@ -197,6 +204,10 @@ const SystemLogs = () => {
                     {broker.status || 'UNKNOWN'}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {broker.active == null ? '-' : broker.active ? 'Yes' : 'No'}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{broker.userId || broker.account || '-'}</td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">{broker.ping ?? broker.latencyMs ?? '-'}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{formatRelativeTime(broker.lastSync || broker.lastChecked)}</td>
               </tr>
