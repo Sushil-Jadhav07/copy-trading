@@ -28,8 +28,8 @@ const MsgCell = ({ msg }) => {
 
 const buildStats = (trades) => {
   const total = trades.length;
-  const wins = trades.filter((t) => t.status === 'success').length;
-  const losses = trades.filter((t) => t.status === 'error').length;
+  const wins = trades.filter((t) => t.status === 'success' || t.status === 'EXECUTED' || t.status === 'COMPLETED').length;
+  const losses = trades.filter((t) => t.status === 'error' || t.status === 'FAILED').length;
   const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : '0.0';
   return [
     { label: 'Total Trades', value: String(total), tone: 'neutral' },
@@ -46,11 +46,25 @@ const tagClass =
 
 const statusBadgeClass = {
   success: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  EXECUTED: 'border-emerald-500/15 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
   error: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  FAILED: 'border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-400',
   warning: 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  PENDING: 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  SKIPPED: 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  CANCELLED: 'border-amber-500/15 bg-amber-500/10 text-amber-700 dark:text-amber-300',
 };
 
-const statusLabel = { success: 'Complete', error: 'Failed', warning: 'Pending' };
+const statusLabel = { 
+  success: 'Complete', 
+  EXECUTED: 'Executed', 
+  error: 'Failed', 
+  FAILED: 'Failed', 
+  warning: 'Pending', 
+  PENDING: 'Pending', 
+  SKIPPED: 'Skipped', 
+  CANCELLED: 'Cancelled' 
+};
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', {

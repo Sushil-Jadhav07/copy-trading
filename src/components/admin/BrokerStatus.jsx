@@ -68,16 +68,6 @@ const AccountRow = ({ account }) => {
           <p className="text-[10px] uppercase tracking-wide opacity-60">Last Sync</p>
           <p className="mt-0.5 font-medium text-foreground">{fmtDateTime(account.lastSync)}</p>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-wide opacity-60">Ping</p>
-          <p className={`mt-0.5 font-semibold ${
-            account.ping == null ? 'text-muted-foreground' :
-            account.ping < 100 ? 'text-emerald-400' :
-            account.ping < 300 ? 'text-amber-400' : 'text-rose-400'
-          }`}>
-            {account.ping != null ? `${account.ping}ms` : '—'}
-          </p>
-        </div>
       </div>
     </div>
   );
@@ -92,10 +82,6 @@ const BrokerCard = ({ brokerName, accounts }) => {
   const activePct = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 0;
   const masters = accounts.filter(a => a.raw?.accountType === 'MASTER');
   const children = accounts.filter(a => a.raw?.accountType !== 'MASTER');
-  const avgPing = (() => {
-    const pings = accounts.map(a => a.ping).filter(p => p != null);
-    return pings.length ? Math.round(pings.reduce((s, v) => s + v, 0) / pings.length) : null;
-  })();
 
   return (
     <article className="glass-card overflow-hidden p-0">
@@ -136,15 +122,6 @@ const BrokerCard = ({ brokerName, accounts }) => {
                 />
               </div>
             </div>
-
-            {avgPing != null && (
-              <div className="hidden flex-col items-end sm:flex">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60">Avg Ping</p>
-                <p className={`text-sm font-semibold ${avgPing < 100 ? 'text-emerald-400' : avgPing < 300 ? 'text-amber-400' : 'text-rose-400'}`}>
-                  {avgPing}ms
-                </p>
-              </div>
-            )}
 
             <ChevronDown className={`h-4 w-4 flex-shrink-0 text-muted-foreground/50 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           </div>

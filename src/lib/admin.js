@@ -342,6 +342,7 @@ const normalizeOrderTrace = (payload = {}) => {
     masterOrder: {
       masterOrderId: mo.broker_order_id || mo.masterOrderId || mo.orderId || mo.reference || '—',
       masterUser: mo.master_user || mo.masterUser || mo.masterName || mo.masterId || 'Unknown',
+      masterBroker: mo.master_broker || mo.masterBroker || mo.broker || 'N/A',
       symbol: mo.symbol || mo.instrument || source.symbol || '—',
       side: String(mo.side || mo.action || source.side || '—').toUpperCase(),
       quantity: Number(mo.quantity ?? mo.qty ?? source.quantity ?? 0),
