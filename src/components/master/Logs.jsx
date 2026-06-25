@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Search, AlertCircle, CheckCircle2, Clock, SkipForward, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import DivSelect from '@/components/shared/DivSelect';
 import RefreshButton from '@/components/shared/RefreshButton';
@@ -96,22 +96,18 @@ const Logs = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [skipReasonLabels, setSkipReasonLabels] = useState({});
+  const [brokerAccountsLoading, setBrokerAccountsLoading] = useState(false);
+  const websocketRefreshTimer = useRef(null);
 
-  const load = useCallback(async () => {
+  const loadCopyLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const [copyData, tradeData, accounts] = await Promise.all([
-        masterService.getCopyLogs().catch(() => []),
-        masterService.getTradeHistory().catch(() => []),
-        brokerService.getAccounts().catch(() => []),
-      ]);
+      const copyData = await masterService.getCopyLogs().catch(() => []);
       const normalizedCopyLogs = (Array.isArray(copyData) ? copyData : copyData.logs || []).map((log) => ({
         ...log,
         errorCode: log.errorCode,
       }));
       setCopyLogs(normalizedCopyLogs);
-      setTradeLogs(Array.isArray(tradeData) ? tradeData : []);
-      setBrokerAccounts(accounts);
       setBrokerErrors(
         normalizedCopyLogs.filter((log) => {
           const status = normalizeStatus(log.childStatus);
@@ -125,24 +121,37 @@ const Logs = () => {
           timestamp: log.createdAt || log.timestamp || log.time || null,
         }))
       );
-      if (!selectedBrokerAccountId && accounts.length > 0) {
-        setSelectedBrokerAccountId(accounts[0]?.accountId || '');
-      }
     } catch (error) {
       addToast(error.message, 'error');
     } finally {
       setLoading(false);
     }
-  }, [addToast, selectedBrokerAccountId]);
+  }, [addToast]);
+
+  const loadBrokerAccounts = useCallback(async () => {
+    if (brokerAccountsLoading) return;
+
+    setBrokerAccountsLoading(true);
+    try {
+      const accounts = await brokerService.getAccounts().catch(() => []);
+      setBrokerAccounts(accounts);
+      setSelectedBrokerAccountId((prev) => (!prev && accounts.length > 0 ? accounts[0]?.accountId || '' : prev));
+    } finally {
+      setBrokerAccountsLoading(false);
+    }
+  }, [brokerAccountsLoading]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadCopyLogs();
+  }, [loadCopyLogs]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await load();
+      await loadCopyLogs();
+      if (activeTab === 'broker') {
+        await loadBrokerAccounts();
+      }
     } finally {
       setRefreshing(false);
     }
@@ -164,16 +173,31 @@ const Logs = () => {
       'trades',
       (event) => {
         if (['TRADE_COPIED', 'copy_trade', 'TRADE_COPY_FAILED', 'copy_trade_failed', 'MESSAGE'].includes(event)) {
-          // New trade activity, refresh the logs
-          load();
+          if (websocketRefreshTimer.current) {
+            clearTimeout(websocketRefreshTimer.current);
+          }
+          websocketRefreshTimer.current = setTimeout(() => {
+            loadCopyLogs();
+          }, 400);
         }
       },
       null,
       null,
     );
 
-    return () => sub.close();
-  }, [load]);
+    return () => {
+      sub.close();
+      if (websocketRefreshTimer.current) {
+        clearTimeout(websocketRefreshTimer.current);
+      }
+    };
+  }, [loadCopyLogs]);
+
+  useEffect(() => {
+    if (activeTab === 'broker' && brokerAccounts.length === 0) {
+      loadBrokerAccounts();
+    }
+  }, [activeTab, brokerAccounts.length, loadBrokerAccounts]);
 
   const matchesTimeFilter = (value) => {
     if (timeFilter === 'all') return true;
@@ -266,11 +290,8 @@ const Logs = () => {
               const reason = log.errorMessage || skipReasonLabels[reasonCode] || reasonCode || log.message || 'No details provided';
 
               return (
-                <motion.tr
+                <tr
                   key={log.id || i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.02 }}
                   className={`border-b border-border/15 border-l-2 hover:bg-black/3 dark:hover:bg-white/3 transition-colors ${cfg.rowCls}`}
                 >
                   <td className="px-4 py-3 text-sm font-bold">{log.symbol || 'N/A'}</td>
@@ -312,8 +333,7 @@ const Logs = () => {
                     <div className="flex items-center gap-2">
                       <StatusPill status={log.childStatus} />
                       {(isFailed || isSkipped) && (
-                        <TooltipProvider>
-                          <Tooltip>
+                        <Tooltip>
                             <TooltipTrigger asChild>
                               <button className="text-muted-foreground hover:text-foreground transition-colors">
                                 <Info className="h-3.5 w-3.5" />
@@ -322,15 +342,13 @@ const Logs = () => {
                             <TooltipContent side="top" className="max-w-xs text-[10px] font-bold uppercase tracking-wide leading-relaxed break-words whitespace-normal">
                               {reason}
                             </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        </Tooltip>
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     {log.latencyMs != null && log.latencyMs > 0 ? (
-                      <TooltipProvider>
-                        <Tooltip>
+                      <Tooltip>
                           <TooltipTrigger asChild>
                             <span className={`text-xs font-black tabular-nums cursor-help flex flex-col ${log.latencyMs < 200 ? 'text-emerald-500' : log.latencyMs < 500 ? 'text-amber-500' : 'text-rose-500'}`}>
                               {log.latencyMs}ms
@@ -368,8 +386,7 @@ const Logs = () => {
                               )}
                             </div>
                           </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      </Tooltip>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
@@ -378,8 +395,7 @@ const Logs = () => {
                     {log.skipReason ? (
                       <div className="flex items-center gap-1.5 max-w-[120px]">
                         <span className="text-[10px] font-bold text-muted-foreground truncate">{log.skipReason}</span>
-                        <TooltipProvider>
-                          <Tooltip>
+                        <Tooltip>
                             <TooltipTrigger asChild>
                               <button type="button" className="shrink-0 text-muted-foreground/40 hover:text-foreground transition-colors">
                                 <Info className="h-3 w-3" />
@@ -388,8 +404,7 @@ const Logs = () => {
                             <TooltipContent side="left" className="max-w-sm text-xs leading-relaxed break-words whitespace-normal">
                               {log.skipReason}
                             </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        </Tooltip>
                       </div>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">—</span>
@@ -398,7 +413,7 @@ const Logs = () => {
                   <td className="px-4 py-3 text-[10px] font-bold text-muted-foreground whitespace-nowrap">
                     {formatDate(log.createdAt || log.timestamp || log.time)}
                   </td>
-                </motion.tr>
+                </tr>
               );
             })}
           </tbody>
@@ -439,16 +454,22 @@ const Logs = () => {
   const renderBrokerErrors = () => (
     <>
       <div className="px-4 py-3 border-b border-border/30">
-        <DivSelect
-          value={selectedBrokerAccountId}
-          onChange={setSelectedBrokerAccountId}
-          includeEmptyOption={false}
-          options={brokerAccounts.map((a) => ({
-            value: a.accountId,
-            label: `${a.broker} - ${a.userId || a.accountId}`,
-          }))}
-          triggerClassName="rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple"
-        />
+        {brokerAccounts.length > 0 ? (
+          <DivSelect
+            value={selectedBrokerAccountId}
+            onChange={setSelectedBrokerAccountId}
+            includeEmptyOption={false}
+            options={brokerAccounts.map((a) => ({
+              value: a.accountId,
+              label: `${a.broker} - ${a.userId || a.accountId}`,
+            }))}
+            triggerClassName="rounded-xl border border-border bg-black/5 dark:bg-white/5 px-3 py-2 text-sm focus:border-brand-purple"
+          />
+        ) : (
+          <div className="text-xs text-muted-foreground">
+            {brokerAccountsLoading ? 'Loading broker accounts...' : 'No broker account filter available.'}
+          </div>
+        )}
       </div>
       {filteredBrokerErrors.length === 0 ? (
         <EmptyState title="No broker errors" sub="Broker API errors will appear here" />
