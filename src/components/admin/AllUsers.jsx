@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Eye, LoaderCircle, Search, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, LoaderCircle, RefreshCw, Search, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -320,9 +320,10 @@ const AllUsers = ({ scope = 'all' }) => {
           <DownloadButton onClick={handleExportUsers} disabled={filteredUsers.length === 0} label="Export Excel" />
           <button
             onClick={() => loadUsers(false)}
-            className="flex-1 rounded-lg border border-white/10 bg-black/5 px-3 py-2 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:px-4 sm:text-sm"
+            className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/5 px-3 py-2 text-xs transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 sm:px-4 sm:text-sm"
           >
-            {refreshing ? 'Refreshing...' : 'Refresh'}
+            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="whitespace-nowrap">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
           <button
             onClick={() => setCreateModal(true)}
@@ -601,22 +602,6 @@ const AllUsers = ({ scope = 'all' }) => {
             </div>
           ))}
 
-          {createForm.role === 'Child' && (
-            <div>
-              <label className="mb-1.5 block text-xs text-muted-foreground">Assign Master *</label>
-              <DivSelect
-                value={createForm.assignedMasterId}
-                onChange={(value) => setCreateForm((current) => ({ ...current, assignedMasterId: value }))}
-                placeholder="Select master"
-                options={masterOptions.map((master) => ({
-                  value: master.userId,
-                  label: `${master.name} (${master.email})`,
-                }))}
-                triggerClassName="w-full rounded-lg border border-border bg-black/5 px-3 py-2.5 text-sm focus:border-emerald-500 dark:bg-white/5"
-              />
-              {createErrors.assignedMasterId && <p className="mt-1 text-xs text-red-400">{createErrors.assignedMasterId}</p>}
-            </div>
-          )}
 
           <div className="flex gap-3 pt-2">
             <button

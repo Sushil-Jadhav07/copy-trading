@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { ShieldAlert } from 'lucide-react';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
 import AppErrorBoundary from '@/components/shared/AppErrorBoundary';
@@ -10,6 +11,54 @@ import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
+import { adminService } from '@/lib/admin';
+
+const KillSwitchBanner = () => {
+  const [halted, setHalted] = useState(false);
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      adminService.getGlobalRiskSettings()
+        .then((s) => {
+          if (!active) return;
+          setHalted(Boolean(s?.kill_switch_active));
+          setReason(s?.kill_switch_reason || s?.reason || '');
+        })
+        .catch(() => {});
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => { active = false; clearInterval(interval); };
+  }, []);
+
+  if (!halted) return null;
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-5 py-3.5 mb-6">
+      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-rose-500/15">
+        <ShieldAlert className="h-5 w-5 text-rose-500" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+          Trading Halted by Admin
+        </p>
+        {reason && (
+          <p className="mt-0.5 text-xs text-rose-500/80 dark:text-rose-500 truncate">
+            Reason: {reason}
+          </p>
+        )}
+      </div>
+      <div className="ml-auto flex-shrink-0">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-semibold text-rose-500 ring-1 ring-rose-500/20">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+          All copy orders paused
+        </span>
+      </div>
+    </div>
+  );
+};
 
 const CursorGlow = ({ position, isVisible }) => {
   if (!isVisible) return null;
@@ -113,6 +162,7 @@ const Dashboard = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
+              <KillSwitchBanner />
               {showShellOverviewHeader && (
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
                   <div>

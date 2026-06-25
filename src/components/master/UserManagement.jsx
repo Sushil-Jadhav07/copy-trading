@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap, Server, MoreHorizontal } from 'lucide-react';
+import { RefreshCw, Link, Link2Off, Trash2, WifiOff, CheckCircle2, Clock, XCircle, AlertCircle, Zap, Server } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
@@ -1333,39 +1333,18 @@ const UserManagement = ({
                         {syncedAt || '—'}
                       </td>
                       {/* Actions */}
-                      <td className="px-3 py-3 text-right">
-                        <RowActionMenu
-                          items={[
-                            {
-                              label: 'Refresh',
-                              icon: RefreshCw,
-                              color: 'purple',
-                              onClick: () => handleRefresh(acc),
-                              spin: refreshing[id],
-                            },
-                            ...(!isChildScope ? [{
-                              label: 'View Details',
-                              icon: Eye,
-                              color: 'blue',
-                              onClick: () => navigate(`${detailBasePath}/${id}`),
-                            }] : []),
-                            {
-                              label: active ? 'Disconnect' : 'Connect',
-                              icon: active ? Link2Off : Link,
-                              color: active ? 'warning' : 'success',
-                              onClick: () => handleToggleConnect(acc),
-                            },
-                            {
-                              label: 'Delete',
-                              icon: Trash2,
-                              color: 'danger',
-                              onClick: () => {
-                                setSelectedAcc(acc);
-                                setDeleteModal(true);
-                              },
-                            },
-                          ]}
-                        />
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <ActionBtn title="Refresh" color="purple" onClick={() => handleRefresh(acc)} spin={refreshing[id]}>
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </ActionBtn>
+                          <ActionBtn title={active ? 'Disconnect' : 'Connect'} color={active ? 'warning' : 'success'} onClick={() => handleToggleConnect(acc)}>
+                            {active ? <Link2Off className="h-3.5 w-3.5" /> : <Link className="h-3.5 w-3.5" />}
+                          </ActionBtn>
+                          <ActionBtn title="Delete" color="danger" onClick={() => { setSelectedAcc(acc); setDeleteModal(true); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </ActionBtn>
+                        </div>
                       </td>
                     </motion.tr>
                   );
@@ -1657,58 +1636,5 @@ const ActionBtn = ({ title, color = 'purple', onClick, spin, children }) => (
   </button>
 );
 
-const RowActionMenu = ({ items = [] }) => {
-  const [open, setOpen] = useState(false);
-  const btnRef = useRef(null);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target) && !btnRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [open]);
-
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-    if (!open || !btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 4, left: rect.right });
-  }, [open]);
-
-  return (
-    <div className="relative inline-flex justify-end">
-      <button ref={btnRef} onClick={() => setOpen((p) => !p)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-black/5 text-muted-foreground transition-colors hover:bg-black/10 hover:text-foreground dark:bg-white/5 dark:hover:bg-white/10">
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-      {open && ReactDOM.createPortal(
-        <div ref={menuRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)' }}
-          className="z-50 min-w-[130px] overflow-hidden rounded-lg border border-border/70 bg-background/95 shadow-xl backdrop-blur">
-          <div className="flex flex-col p-1">
-            {items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button key={item.label} type="button" disabled={item.disabled}
-                  onClick={() => { item.onClick?.(); setOpen(false); }}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5">
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-md text-white ${COLOR_MAP[item.color] || COLOR_MAP.purple}`}>
-                    <Icon className={`h-3 w-3 ${item.spin ? 'animate-spin' : ''}`} />
-                  </span>
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-};
 
 export default UserManagement;
