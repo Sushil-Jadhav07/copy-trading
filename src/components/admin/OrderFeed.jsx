@@ -204,12 +204,13 @@ const OrderFeed = () => {
   const [traceDetails, setTraceDetails] = useState({});
   const [traceLoading, setTraceLoading] = useState(false);
 
-  const fetchOrderTrace = async (rowId, traceId) => {
-    if (traceDetails[rowId]) return;
+  const fetchOrderTrace = async (id, traceId) => {
+    if (traceDetails[id]) return;
+    if (!traceId) return;
     setTraceLoading(true);
     try {
-      const data = await adminService.getOrderTrace(traceId);
-      setTraceDetails((prev) => ({ ...prev, [rowId]: data }));
+      const res = await adminService.getOrderTrace(traceId);
+      setTraceDetails(prev => ({ ...prev, [id]: res }));
     } catch (err) {
       console.error('Failed to fetch trace details:', err);
     } finally {
@@ -226,7 +227,9 @@ const OrderFeed = () => {
           setFeedRows(mapped);
           setSelectedTradeId((prev) => prev ?? (mapped[0]?.id ?? null));
         })
-        .catch(() => {})
+        .catch((err) => {
+          console.error('[OrderFeed] Failed to load trade logs:', err?.message || err);
+        })
         .finally(() => setLoading(false));
     };
 

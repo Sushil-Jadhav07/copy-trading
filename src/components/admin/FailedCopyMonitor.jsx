@@ -100,6 +100,9 @@ const FailedCopyMonitor = () => {
         setTotal(res.total);
         setStats(res.stats);
       })
+      .catch((err) => {
+        console.error('[FailedCopyMonitor] Failed to load failed copies:', err?.message || err);
+      })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [page, search, statusFilter, brokerFilter, timeFilter]);

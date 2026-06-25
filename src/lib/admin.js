@@ -368,8 +368,12 @@ const normalizeOrderTrace = (payload = {}) => {
 
 const normalizeBrokerStatusEntry = (entry = {}, index = 0) => ({
   id: entry.id || entry.brokerId || entry.broker || entry.name || `broker-status-${index}`,
-  name: entry.name || entry.brokerName || entry.broker || entry.brokerId || 'Broker',
+  name: entry.userName || entry.name || entry.brokerName || entry.broker || entry.brokerId || 'Broker',
+  userName: entry.userName || entry.name || 'Unknown User',
+  userId: entry.userId || entry.clientId || entry.id || '—',
+  accountType: String(entry.accountType || entry.role || 'UNKNOWN').toUpperCase(),
   brokerId: entry.brokerId || entry.broker || entry.name || '',
+  broker: entry.broker || entry.brokerName || entry.name || '—',
   account: entry.account || entry.clientId || entry.nickname || entry.userId || '—',
   active: entry.active ?? null,
   tokenExpiry: entry.tokenExpiry || entry.tokenExpiresAt || entry.expiresAt || null,

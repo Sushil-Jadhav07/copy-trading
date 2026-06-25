@@ -310,7 +310,7 @@ const ChildOpenPositions = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50 bg-black/3 dark:bg-white/3">
-                  {['#', 'Instrument', 'Exchange', 'Product', 'Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Change %', 'Trigger Price', 'Master'].map((h) => (
+                  {['#', 'Instrument', 'Exchange', 'Product', 'Side', 'Qty', 'Avg. Price', 'LTP', 'Unrealized P&L', 'Change %', 'Trigger Price', 'Master'].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -337,6 +337,13 @@ const ChildOpenPositions = () => {
                     <td className="px-6 py-4">
                       <span className="text-xs font-bold">{getDisplayText(pos.product || pos.productType)}</span>
                     </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex min-w-[3.75rem] items-center justify-center rounded px-2 py-1 text-[10px] font-black tracking-wide text-white ${
+                        (pos.side || pos.type || '').toUpperCase() === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'
+                      }`}>
+                        {(pos.side || pos.type || '-').toUpperCase()}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-sm font-black">{getDisplayCount(pos.qty)}</td>
                     <td className="px-6 py-4 text-sm font-bold tabular-nums">{formatCurrency(pos.avgPrice || 0)}</td>
                     <td className="px-6 py-4 text-sm font-bold tabular-nums text-brand-purple">{formatCurrency(pos.ltp || 0)}</td>
@@ -356,7 +363,7 @@ const ChildOpenPositions = () => {
                 ))}
                 {filteredPositions.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-6 py-20 text-center">
+                    <td colSpan={12} className="px-6 py-20 text-center">
                       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                         <Activity className="h-8 w-8 text-muted-foreground/20" />
                       </div>
