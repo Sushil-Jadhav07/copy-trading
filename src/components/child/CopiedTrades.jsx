@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, Info, Search, Activity, Zap, History } from 'lucide-react';
+import { CalendarDays, Clock, Info, Search, Activity, Zap, History } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GlassCard from '@/components/shared/GlassCard';
 import RefreshButton from '@/components/shared/RefreshButton';
@@ -105,6 +105,11 @@ const CopiedTrades = () => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     if (timeFilter === 'today') return dt >= startOfToday;
+    if (timeFilter === 'yesterday') {
+      const startOfYesterday = new Date(startOfToday);
+      startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+      return dt >= startOfYesterday && dt < startOfToday;
+    }
     if (timeFilter === 'weekly') return dt >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     if (timeFilter === 'monthly') return dt >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     return true;
@@ -145,26 +150,32 @@ const CopiedTrades = () => {
   };
 
   const filtered = useMemo(() => {
-    return (Array.isArray(trades) ? trades : []).filter((trade) => {
-      if (!matchesTimeFilter(trade)) return false;
+    return (Array.isArray(trades) ? trades : [])
+      .filter((trade) => {
+        if (!matchesTimeFilter(trade)) return false;
 
-      const status = String(trade.status || '').toUpperCase();
-      const matchesStatus =
-        filter === 'All' ||
-        (filter === 'EXECUTED' && ['EXECUTED', 'SUCCESS'].includes(status)) ||
-        (filter === 'FAILED' && status === 'FAILED') ||
-        (filter === 'SKIPPED' && status === 'SKIPPED') ||
-        (filter === 'PARTIAL' && ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(status));
+        const status = String(trade.status || '').toUpperCase();
+        const matchesStatus =
+          filter === 'All' ||
+          (filter === 'EXECUTED' && ['EXECUTED', 'SUCCESS'].includes(status)) ||
+          (filter === 'FAILED' && status === 'FAILED') ||
+          (filter === 'SKIPPED' && status === 'SKIPPED') ||
+          (filter === 'PARTIAL' && ['PARTIALLY_FILLED', 'PART_TRADED', 'PARTIAL'].includes(status));
 
-      if (!matchesStatus) return false;
+        if (!matchesStatus) return false;
 
-      const instrument = String(trade.instrument || '').toLowerCase();
-      const master = String(trade.master || trade.masterName || '').toLowerCase();
-      const ref = String(trade.reference || trade.copyGroupId || trade.id || '').toLowerCase();
-      const query = String(searchQuery || '').toLowerCase();
+        const instrument = String(trade.instrument || '').toLowerCase();
+        const master = String(trade.master || trade.masterName || '').toLowerCase();
+        const ref = String(trade.reference || trade.copyGroupId || trade.id || '').toLowerCase();
+        const query = String(searchQuery || '').toLowerCase();
 
-      return instrument.includes(query) || master.includes(query) || ref.includes(query);
-    });
+        return instrument.includes(query) || master.includes(query) || ref.includes(query);
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.time || a.raw?.createdAt || a.raw?.timestamp || a.createdAt || 0).getTime();
+        const bTime = new Date(b.time || b.raw?.createdAt || b.raw?.timestamp || b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
   }, [trades, filter, timeFilter, searchQuery]);
 
   const groupedFiltered = useMemo(() => {
@@ -261,8 +272,10 @@ const CopiedTrades = () => {
           <div className="flex items-center gap-1.5">
             {[
               { key: 'today', label: 'Today', icon: Zap },
+              { key: 'yesterday', label: 'Yesterday', icon: CalendarDays },
               { key: 'weekly', label: 'Week', icon: History },
-              { key: 'all', label: 'All Time', icon: Clock },
+              { key: 'monthly', label: 'Month', icon: Clock },
+              { key: 'all', label: 'All Time', icon: Activity },
             ].map((item) => (
               <button
                 key={item.key}

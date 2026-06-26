@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Info, Search } from 'lucide-react';
+import { Activity, CalendarDays, ChevronLeft, ChevronRight, Clock, History, Info, Search, Zap } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminService } from '@/lib/admin';
 import { buildExportFileName, downloadExcelSheet } from '@/lib/excel';
@@ -104,18 +104,52 @@ const exportexcel = (rows) => {
   });
 };
 
+const TIME_FILTERS = [
+  { key: 'today',     label: 'Today',     icon: Zap },
+  { key: 'yesterday', label: 'Yesterday', icon: CalendarDays },
+  { key: 'weekly',    label: 'Week',      icon: History },
+  { key: 'monthly',   label: 'Month',     icon: Clock },
+  { key: 'all',       label: 'All Time',  icon: Activity },
+];
+
+const getDateRange = (timeFilter) => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (timeFilter === 'today') {
+    return { from: startOfToday.toISOString(), to: now.toISOString() };
+  }
+  if (timeFilter === 'yesterday') {
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    return { from: startOfYesterday.toISOString(), to: startOfToday.toISOString() };
+  }
+  if (timeFilter === 'weekly') {
+    const from = new Date(startOfToday);
+    from.setDate(from.getDate() - 6);
+    return { from: from.toISOString(), to: now.toISOString() };
+  }
+  if (timeFilter === 'monthly') {
+    const from = new Date(startOfToday);
+    from.setDate(from.getDate() - 29);
+    return { from: from.toISOString(), to: now.toISOString() };
+  }
+  return {};
+};
+
 const TradeHistory = () => {
   const [trades, setTrades] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [timeFilter, setTimeFilter] = useState('today');
   const PAGE_SIZE = 25;
 
   useEffect(() => {
     setLoading(true);
+    const dateRange = getDateRange(timeFilter);
     adminService
-      .getTradeLogs({ page, limit: PAGE_SIZE })
+      .getTradeLogs({ page, limit: PAGE_SIZE, ...dateRange })
       .then((res) => {
         setTrades(res.logs || []);
         setTotalItems(res.meta?.total || 0);
@@ -124,7 +158,7 @@ const TradeHistory = () => {
         console.error('[TradeHistory] Failed to load trade logs:', err?.message || err);
       })
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, timeFilter]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -139,7 +173,7 @@ const TradeHistory = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, timeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
   const pagedRows = filteredRows;
@@ -180,15 +214,34 @@ const TradeHistory = () => {
         ))}
       </section>
 
-      <section className="relative max-w-[310px]">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-muted-foreground" />
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search symbol or master…"
-          className="w-full rounded-xl border border-slate-200/80 bg-white/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-brand-purple dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground dark:placeholder-muted-foreground"
-        />
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {TIME_FILTERS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTimeFilter(key)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                timeFilter === key
+                  ? 'border-brand-purple/30 bg-brand-purple/10 text-brand-purple'
+                  : 'border-slate-200/80 bg-white/80 text-slate-400 hover:text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-muted-foreground dark:hover:text-foreground'
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative max-w-[310px] w-full">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search symbol or master…"
+            className="w-full rounded-xl border border-slate-200/80 bg-white/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-brand-purple dark:border-white/10 dark:bg-white/[0.05] dark:text-foreground dark:placeholder-muted-foreground"
+          />
+        </div>
       </section>
 
       <section className={`${panelClass} p-0`}>

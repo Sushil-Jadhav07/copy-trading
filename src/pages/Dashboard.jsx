@@ -12,6 +12,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/components/shared/Toast';
 import { connectChannel } from '@/lib/websocket';
 import { adminService } from '@/lib/admin';
+import { engineService } from '@/lib/engine';
+import { riskService } from '@/lib/risk';
 
 const KillSwitchBanner = () => {
   const [halted, setHalted] = useState(false);
@@ -26,7 +28,27 @@ const KillSwitchBanner = () => {
           setHalted(Boolean(s?.kill_switch_active));
           setReason(s?.kill_switch_reason || s?.reason || '');
         })
-        .catch(() => {});
+        .catch(() => {
+          // Admin endpoint is restricted — try engine status, then risk status
+          const applyHalt = (s) => {
+            if (!active || !s) return;
+            const isHalted = Boolean(
+              s?.kill_switch_active || s?.killSwitchActive ||
+              s?.halted || s?.isHalted ||
+              s?.trading_halted || s?.tradingHalted
+            );
+            setHalted(isHalted);
+            setReason(s?.kill_switch_reason || s?.killSwitchReason || s?.halt_reason || s?.haltReason || s?.reason || '');
+          };
+
+          engineService.getStatus()
+            .then(applyHalt)
+            .catch(() => {
+              riskService.getStatus()
+                .then(applyHalt)
+                .catch(() => {});
+            });
+        });
     };
     check();
     const interval = setInterval(check, 30000);
