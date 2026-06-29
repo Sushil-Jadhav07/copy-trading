@@ -29,6 +29,21 @@ const fmtDateShort = (raw) => {
   return `${dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, ${time}`;
 };
 
+const getTradeTimestamp = (trade) => {
+  const raw =
+    trade?.childPlacedAt ||
+    trade?.placedAt ||
+    trade?.engineReceivedAt ||
+    trade?.masterTriggeredAt ||
+    trade?.time ||
+    trade?.raw?.createdAt ||
+    trade?.raw?.timestamp ||
+    trade?.createdAt ||
+    0;
+  const ts = new Date(raw).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
+};
+
 const CopiedTrades = () => {
   const navigate = useNavigate();
   const { trades: copiedTrades, loading, error, refetch } = useChildCopiedTrades();
@@ -172,9 +187,7 @@ const CopiedTrades = () => {
         return instrument.includes(query) || master.includes(query) || ref.includes(query);
       })
       .sort((a, b) => {
-        const aTime = new Date(a.time || a.raw?.createdAt || a.raw?.timestamp || a.createdAt || 0).getTime();
-        const bTime = new Date(b.time || b.raw?.createdAt || b.raw?.timestamp || b.createdAt || 0).getTime();
-        return bTime - aTime;
+        return getTradeTimestamp(b) - getTradeTimestamp(a);
       });
   }, [trades, filter, timeFilter, searchQuery]);
 
