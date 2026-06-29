@@ -120,25 +120,31 @@ const MyMasters = () => {
 
   useEffect(() => {
     setMasters(
-      subscriptions.map((s) => {
-        const status = normalizeStatus(s.status);
-        return {
-          ...s,
-          id: s.id || s.masterId,
-          name: s.masterName || s.name,
-          multiplier: clampMultiplier(s.multiplier || s.scalingFactor || 1.0),
-          tradingEnabled: status === 'ACTIVE',
-          totalPnL: s.pnl || s.totalPnL || 0,
-          tradesCopiedToday: s.tradestoday || s.tradesCopiedToday || 0,
-          allocation: s.allocationAmount ?? s.allocation ?? null,
-          status,
-          copyingStatus: status,
-          copySides: s.copySides || s.raw?.copySides || 'BUY_ONLY',
-          allowShortSelling: Boolean(s.allowShortSelling ?? s.raw?.allowShortSelling ?? false),
-          lastSkipReason: s.skipReason || s.raw?.skipReason || '',
-          brokerName: s.broker || s.brokerName || s.raw?.brokerName || '',
-        };
-      })
+      subscriptions
+        .map((s) => {
+          const status = normalizeStatus(s.status);
+          return {
+            ...s,
+            id: s.id || s.masterId,
+            name: s.masterName || s.name,
+            multiplier: clampMultiplier(s.multiplier || s.scalingFactor || 1.0),
+            tradingEnabled: status === 'ACTIVE',
+            totalPnL: s.pnl || s.totalPnL || 0,
+            tradesCopiedToday: s.tradestoday || s.tradesCopiedToday || 0,
+            allocation: s.allocationAmount ?? s.allocation ?? null,
+            status,
+            copyingStatus: status,
+            copySides: s.copySides || s.raw?.copySides || 'BUY_ONLY',
+            allowShortSelling: Boolean(s.allowShortSelling ?? s.raw?.allowShortSelling ?? false),
+            lastSkipReason: s.skipReason || s.raw?.skipReason || '',
+            brokerName: s.broker || s.brokerName || s.raw?.brokerName || '',
+          };
+        })
+        .sort((a, b) => {
+          const aTime = a.subscribedAt ? new Date(a.subscribedAt).getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.subscribedAt ? new Date(b.subscribedAt).getTime() : Number.POSITIVE_INFINITY;
+          return aTime - bTime;
+        })
     );
   }, [subscriptions]);
 

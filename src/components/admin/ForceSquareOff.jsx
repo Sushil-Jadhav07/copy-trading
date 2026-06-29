@@ -19,6 +19,14 @@ const CONFIRM_PHRASE = 'SQUARE OFF';
 const fmt = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
 
+const normalizeSquareOffResults = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.items)) return payload.items;
+  return [];
+};
+
 const ForceSquareOff = () => {
   const { addToast } = useToast();
 
@@ -170,26 +178,34 @@ const ForceSquareOff = () => {
               onClick={async () => {
                 try {
                   setSubmitting(true);
-                  const results = await adminService.forceSquareOff({
+                  const response = await adminService.forceSquareOff({
                     targetId,
                     scope,
                     confirmationText: CONFIRM_PHRASE,
                   });
-                  
-                  const successCount = results.filter(r => r.status === 'success').length;
-                  const failedCount = results.filter(r => r.status === 'failed').length;
-                  const ignoredCount = results.filter(r => r.status === 'ignored').length;
-                  
+
+                  const results = normalizeSquareOffResults(response);
+                  const successCount = results.filter((r) => String(r?.status || '').toLowerCase() === 'success').length;
+                  const failedCount = results.filter((r) => String(r?.status || '').toLowerCase() === 'failed').length;
+                  const ignoredCount = results.filter((r) => String(r?.status || '').toLowerCase() === 'ignored').length;
+
                   if (successCount > 0) {
-                    addToast(`Successfully closed ${successCount} position(s)` + (failedCount > 0 ? `, but ${failedCount} failed` : ''), 'success');
+                    const parts = [`Closed ${successCount} position(s)`];
+                    if (ignoredCount > 0) parts.push(`${ignoredCount} ignored`);
+                    if (failedCount > 0) parts.push(`${failedCount} failed`);
+                    addToast(parts.join(', '), failedCount > 0 ? 'warning' : 'success');
+                  } else if (failedCount > 0 && ignoredCount > 0) {
+                    addToast(`No positions were closed: ${failedCount} failed, ${ignoredCount} ignored`, 'warning');
                   } else if (failedCount > 0) {
                     addToast(`Failed to close ${failedCount} position(s)`, 'error');
                   } else if (ignoredCount > 0) {
-                    addToast(`${ignoredCount} position(s) were ignored (e.g. zero quantity)`, 'info');
+                    addToast(`${ignoredCount} position(s) were ignored`, 'info');
+                  } else if (results.length === 0) {
+                    addToast('Square-off returned no execution results', 'warning');
                   } else {
                     addToast('No positions were closed', 'info');
                   }
-                  
+
                   setConfirmText('');
                 } catch (error) {
                   addToast(error.message || 'Unable to force square-off', 'error');

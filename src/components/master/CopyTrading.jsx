@@ -89,6 +89,15 @@ const shortId = (value) => {
 const normalizeAccountId = (value) => String(value || '').trim();
 const normalizeAccountIds = (values) =>
   Array.from(new Set((Array.isArray(values) ? values : [values]).map(normalizeAccountId).filter(Boolean)));
+const getScalingValue = (scaling) => {
+  if (scaling == null) return null;
+  if (typeof scaling === 'number') return clampScalingFactor(scaling);
+  if (typeof scaling === 'object') {
+    const candidate = scaling.scalingFactor ?? scaling.multiplier ?? scaling.scale;
+    return candidate == null ? null : clampScalingFactor(candidate);
+  }
+  return null;
+};
 
 const getModeBadgeClass = (mode = '') => {
   const normalized = String(mode).toLowerCase();
@@ -196,6 +205,7 @@ const CopyTrading = () => {
   const [selectedRow, setSelectedRow] = useState(null);
   const [search, setSearch] = useState('');
   const [scalingMap, setScalingMap] = useState({});
+  const [pendingScalingMap, setPendingScalingMap] = useState({});
   const [selectedBulkChildren, setSelectedBulkChildren] = useState([]);
 
   const [pollingEnabled, setPollingEnabled] = useState(false);
@@ -215,6 +225,7 @@ const CopyTrading = () => {
   const [brokerDropdownOpen, setBrokerDropdownOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 240 });
   const brokerTriggerRef = useRef(null);
+  const scalingRequestRef = useRef({});
 
   const setAllActiveAccountIds = useCallback((ids) => {
     const safeIds = normalizeAccountIds(ids);
@@ -550,15 +561,18 @@ const CopyTrading = () => {
           (row.brokerAccountId ? accountMap.get(String(row.brokerAccountId)) : null) ||
           (row.userId ? accountByClientMap.get(String(row.userId)) : null) ||
           (row.nickname ? accountByNicknameMap.get(String(row.nickname).trim().toLowerCase()) : null);
+        const scalingOverride = getScalingValue(scalingMap[row.childId]);
+        const pendingScaling = getScalingValue(pendingScalingMap[row.childId]);
         return {
           ...row,
           broker: row.broker !== 'Broker' ? row.broker : (acc?.broker || acc?.brokerName || row.broker),
           userId: row.userId || acc?.clientId || acc?.userId || row.brokerAccountId || row.childId,
           brokerAccountId: row.brokerAccountId || acc?.accountId || acc?.id || '',
           accountId: row.accountId || acc?.accountId || acc?.id || '',
+          multiplier: pendingScaling ?? scalingOverride ?? clampScalingFactor(row.multiplier, 1),
         };
       }),
-    [mergedRows, accountMap, accountByClientMap, accountByNicknameMap],
+    [mergedRows, accountMap, accountByClientMap, accountByNicknameMap, scalingMap, pendingScalingMap],
   );
 
   const linkedRows = useMemo(
@@ -634,6 +648,18 @@ const CopyTrading = () => {
     let isMounted = true;
 
     connectedRows.forEach((child) => {
+      const liveScaling = getScalingValue(child.multiplier);
+      if (liveScaling != null) {
+        setScalingMap((prev) => {
+          if (pendingScalingMap[child.childId] != null) return prev;
+          const current = getScalingValue(prev[child.childId]);
+          return current === liveScaling ? prev : { ...prev, [child.childId]: { scalingFactor: liveScaling } };
+        });
+      }
+    });
+
+    connectedRows.forEach((child) => {
+      if (pendingScalingMap[child.childId] != null) return;
       masterService.getChildScaling(child.childId).then((data) => {
         if (isMounted) {
           setScalingMap((prev) => ({ ...prev, [child.childId]: data }));
@@ -644,7 +670,7 @@ const CopyTrading = () => {
     return () => {
       isMounted = false;
     };
-  }, [connectedRows]);
+  }, [connectedRows, pendingScalingMap]);
 
   const connectedAccountIds = useMemo(() => new Set(normalizeAccountIds(activeAccountIds)), [activeAccountIds]);
 
@@ -911,18 +937,56 @@ const CopyTrading = () => {
   };
 
   const handleMultiplierChange = async (id, rawValue) => {
-    const child = connectedRows.find((item) => item.id === id);
+    const child =
+      linkedRows.find((item) => item.id === id) ||
+      connectedRows.find((item) => item.id === id) ||
+      linkedRows.find((item) => String(item.childId) === String(id)) ||
+      connectedRows.find((item) => String(item.childId) === String(id));
     if (!child) return;
     const targetChildId = child.childId;
     const value = clampScalingFactor(rawValue, child.multiplier);
+    const requestId = (scalingRequestRef.current[targetChildId] || 0) + 1;
+    scalingRequestRef.current[targetChildId] = requestId;
+    setPendingScalingMap((prev) => ({ ...prev, [targetChildId]: { scalingFactor: value } }));
+    setScalingMap((prev) => ({ ...prev, [targetChildId]: { ...(prev[targetChildId] || {}), scalingFactor: value } }));
     setChildren((prev) =>
-      prev.map((item) => ((item.id || item.childId) === targetChildId ? { ...item, multiplier: value } : item)),
+      prev.map((item) => ((item.id || item.childId) === targetChildId ? { ...item, multiplier: value, scalingFactor: value } : item)),
+    );
+    setSubscriptions((prev) =>
+      prev.map((item) =>
+        ((item.id || item.childId) === targetChildId ? { ...item, multiplier: value, scalingFactor: value } : item),
+      ),
     );
     try {
       await masterService.updateChildScaling(child.childId, { ...(scalingMap[child.childId] || {}), scalingFactor: value });
+      const latestScaling = await masterService.getChildScaling(child.childId);
+      if (scalingRequestRef.current[targetChildId] !== requestId) return;
+      const confirmedValue = getScalingValue(latestScaling) ?? value;
+      setScalingMap((prev) => ({ ...prev, [targetChildId]: latestScaling }));
+      setPendingScalingMap((prev) => {
+        const next = { ...prev };
+        delete next[targetChildId];
+        return next;
+      });
+      setChildren((prev) =>
+        prev.map((item) => ((item.id || item.childId) === targetChildId ? { ...item, multiplier: confirmedValue, scalingFactor: confirmedValue } : item)),
+      );
+      setSubscriptions((prev) =>
+        prev.map((item) =>
+          ((item.id || item.childId) === targetChildId ? { ...item, multiplier: confirmedValue, scalingFactor: confirmedValue } : item),
+        ),
+      );
     } catch (error) {
+      if (scalingRequestRef.current[targetChildId] === requestId) {
+        setPendingScalingMap((prev) => {
+          const next = { ...prev };
+          delete next[targetChildId];
+          return next;
+        });
+      }
       addToast(error.message, 'error');
       refetch();
+      refetchSubscriptions();
     }
   };
 
