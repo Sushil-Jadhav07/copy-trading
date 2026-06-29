@@ -20,6 +20,8 @@ const normalizeLoginMethod = (value) => String(value || '').trim().toLowerCase()
 const isTotpBroker = (loginMethod, brokerKey) =>
   normalizeBrokerKey(loginMethod) === 'totp' ||
   ['angelone', 'angel one'].includes(normalizeBrokerKey(brokerKey));
+const DAILY_RELOGIN_BROKERS = new Set(['zerodha', 'groww', 'upstox', 'fyers', 'angelone', 'angel one']);
+const DAILY_SESSION_CUTOFF_HOUR_IST = 8;
 const IP_WHITELIST_BROKERS = ['dhan', 'groww', 'angelone', 'angel one', 'upstox'];
 const USER_CREDENTIAL_BROKERS = ['zerodha'];
 
@@ -72,17 +74,89 @@ const EMPTY_FORM = {
 };
 
 /* ── Status helpers ── */
-const getStatusInfo = (acc) => {
+const getTimeZoneParts = (date, timeZone = 'Asia/Calcutta') => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  return parts.reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+};
+
+const getDateKeyInIst = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = getTimeZoneParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
+
+const hasSessionExpiredBySchedule = (acc) => {
+  const brokerKey = normalizeBrokerKey(acc?.brokerId || acc?.broker || acc?.brokerName || '');
+  if (!DAILY_RELOGIN_BROKERS.has(brokerKey)) {
+    return Boolean(acc?.isTokenExpired);
+  }
+
+  const now = new Date();
+  const nowParts = getTimeZoneParts(now);
+  const currentHour = Number(nowParts.hour || 0);
+  if (currentHour < DAILY_SESSION_CUTOFF_HOUR_IST) {
+    return Boolean(acc?.isTokenExpired);
+  }
+
+  const todayKey = `${nowParts.year}-${nowParts.month}-${nowParts.day}`;
+  const lastLinkedKey = getDateKeyInIst(acc?.linkedAt || acc?.tokenExpiresAt || acc?.raw?.updatedAt || acc?.raw?.createdAt);
+  if (!lastLinkedKey) {
+    return Boolean(acc?.isTokenExpired || acc?.sessionActive);
+  }
+
+  return lastLinkedKey !== todayKey || Boolean(acc?.isTokenExpired);
+};
+
+const resolveAccountState = (acc, metrics = {}) => {
+  const s = String(acc?.status || '').toUpperCase();
+  const quality = String(metrics?.quality || '').toLowerCase();
+  const hasPositiveLiveSignal =
+    metrics?.sessionActive === true ||
+    (quality && !['unknown', 'disconnected', 'offline', 'failed', 'error', 'expired'].includes(quality));
+  const scheduledExpiry = hasPositiveLiveSignal ? false : hasSessionExpiredBySchedule(acc);
+  const signalInactive = quality && ['unknown', 'disconnected', 'offline', 'failed', 'error', 'expired'].includes(quality);
+  const sessionActive = Boolean(
+    !scheduledExpiry &&
+    ((metrics?.sessionActive ?? acc?.sessionActive ?? (s === 'ACTIVE'))) &&
+    !signalInactive
+  );
+
+  return {
+    sessionActive,
+    scheduledExpiry,
+    qualityLabel: scheduledExpiry ? 'TOKEN EXPIRED' : String(metrics?.quality || 'unknown').toUpperCase(),
+  };
+};
+
+const getStatusInfo = (acc, metrics = {}) => {
   const s = String(acc.status || '').toUpperCase();
-  const active = acc.sessionActive || s === 'ACTIVE';
-  if (active) return { key: 'connected', label: 'Connected & Verified', icon: CheckCircle2, color: '#10B981' };
+  const resolved = resolveAccountState(acc, metrics);
+  if (resolved.scheduledExpiry) {
+    return { key: 'failed', label: 'Session Expired', icon: XCircle, color: '#EF4444' };
+  }
+  if (resolved.sessionActive) return { key: 'connected', label: 'Connected & Verified', icon: CheckCircle2, color: '#10B981' };
   if (s === 'PENDING') return { key: 'pending', label: 'Pending', icon: Clock, color: '#F59E0B' };
   if (s === 'FAILED' || s === 'ERROR') return { key: 'failed', label: 'Failed', icon: XCircle, color: '#EF4444' };
   return { key: 'inactive', label: 'Inactive', icon: AlertCircle, color: '#9CA3AF' };
 };
 
-const StatusBadge = ({ acc }) => {
-  const { key, label, icon: Icon, color } = getStatusInfo(acc);
+const StatusBadge = ({ acc, metrics }) => {
+  const { key, label, icon: Icon, color } = getStatusInfo(acc, metrics);
   return (
     <span className={`broker-status-badge ${key}`}>
       <Icon style={{ width: 10, height: 10, color }} />
@@ -258,7 +332,7 @@ const UserManagement = ({
     if (accounts.length > 0) {
       accounts.forEach((acc) => {
         const id = acc.accountId || acc.id;
-        if (acc.sessionActive && !liveBalances[id]) {
+        if (!liveBalances[id] || !liveMetrics[id]) {
           loadLiveAccountSnapshot(acc)
             .then((snapshot) => {
               setLiveBalances((prev) => ({
@@ -281,7 +355,7 @@ const UserManagement = ({
         }
       });
     }
-  }, [accounts]);
+  }, [accounts, liveBalances, liveMetrics]);
 
   const usedBrokerKeys = useMemo(
     () => new Set(accounts.map((a) => normalizeBrokerKey(a.brokerId || a.broker || a.brokerName || ''))),
@@ -1254,12 +1328,12 @@ const UserManagement = ({
             <table className="w-full min-w-[800px] table-fixed">
               <thead>
                 <tr className="border-b border-border/50">
-                  <th className="w-[22%] px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>
+                  <th className="w-[15%] px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>
                   <th className="w-[13%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Routing</th>
                   <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance</th>
                   <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal</th>
-                  <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Copy</th>
-                  <th className="w-[11%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Copy</th>
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
                   <th className="w-[13%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Last Synced</th>
                   <th className="w-[7%] px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
                 </tr>
@@ -1267,11 +1341,12 @@ const UserManagement = ({
               <tbody>
                 {filtered.map((acc, idx) => {
                   const id = acc.accountId || acc.id;
-                  const active = acc.sessionActive || String(acc.status).toUpperCase() === 'ACTIVE';
                   const syncedAt = formatLinkedAt(acc.linkedAt);
                   const metrics = liveMetrics[id] || {};
                   const positions = Number(metrics.positions ?? acc.positions ?? 0);
-                  const quality = String(metrics.quality || 'unknown');
+                  const resolved = resolveAccountState(acc, metrics);
+                  const active = resolved.sessionActive;
+                  const quality = resolved.qualityLabel;
                   const latencyMs = metrics.latencyMs;
                   const proxyMeta = getProxyStatusMeta(acc);
                   const pnl = liveBalances[id]?.pnl ?? acc.pnl ?? 0;
@@ -1326,7 +1401,7 @@ const UserManagement = ({
                       </td>
                       {/* Status */}
                       <td className="px-3 py-3">
-                        <StatusBadge acc={acc} />
+                        <StatusBadge acc={acc} metrics={metrics} />
                       </td>
                       {/* Last Synced */}
                       <td className="px-3 py-3 text-xs text-muted-foreground">
