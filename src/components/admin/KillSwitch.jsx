@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Power, LoaderCircle } from 'lucide-react';
+import { AlertTriangle, LoaderCircle, Power } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import Modal from '@/components/shared/Modal';
 import { useToast } from '@/components/shared/Toast';
 import { adminService } from '@/lib/admin';
-
-// ADM-1: Global Kill Switch
-// DATA: @/lib/adminMock → getKillSwitch() / setKillSwitch().
-// Backend swap: replace those two functions' bodies with the documented
-//   GET/POST /api/v1/admin/kill-switch calls. Nothing here changes.
 
 const WHAT_IT_DOES = [
   'Instantly stops all new copy orders being placed on any child account',
@@ -19,11 +14,18 @@ const WHAT_IT_DOES = [
 ];
 
 const fmtTime = (iso) => {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 };
+
+const normalizeKillSwitchStatus = (payload = {}) => ({
+  enabled: Boolean(payload?.enabled ?? payload?.kill_switch_active ?? payload?.killSwitchActive ?? payload?.halted),
+  lastChangedBy: payload?.lastChangedBy || payload?.updatedBy || '-',
+  lastChangedAt: payload?.lastChangedAt || payload?.updatedAt || null,
+  reason: payload?.reason || payload?.kill_switch_reason || payload?.killSwitchReason || '',
+});
 
 const KillSwitch = () => {
   const { addToast } = useToast();
@@ -35,42 +37,34 @@ const KillSwitch = () => {
 
   const load = () => {
     setLoading(true);
-    adminService.getGlobalRiskSettings()
-      .then((settings) => setStatus({
-        enabled: Boolean(settings?.kill_switch_active),
-        lastChangedBy: settings?.lastChangedBy || settings?.updatedBy || '—',
-        lastChangedAt: settings?.lastChangedAt || settings?.updatedAt || null,
-        reason: settings?.kill_switch_reason || settings?.reason || '',
-      }))
-      .catch(() => addToast('Unable to load kill-switch status', 'error'))
+    adminService.getKillSwitch()
+      .then((settings) => setStatus(normalizeKillSwitchStatus(settings)))
+      .catch((error) => addToast(error.message || 'Unable to load kill-switch status', 'error'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const halted = status?.enabled === true;
 
   const apply = async () => {
     setSubmitting(true);
     try {
-      const current = await adminService.getGlobalRiskSettings().catch(() => ({}));
-      const nextSettings = {
-        ...current,
-        kill_switch_active: !halted,
-        kill_switch_reason: reason.trim(),
-      };
-      await adminService.saveGlobalRiskSettings(nextSettings);
+      const nextEnabled = !halted;
+      const result = await adminService.setKillSwitch(nextEnabled);
       setStatus({
-        enabled: Boolean(nextSettings.kill_switch_active),
-        lastChangedBy: current?.lastChangedBy || current?.updatedBy || '—',
-        lastChangedAt: current?.lastChangedAt || current?.updatedAt || new Date().toISOString(),
-        reason: nextSettings.kill_switch_reason,
+        ...normalizeKillSwitchStatus(result),
+        enabled: normalizeKillSwitchStatus(result).enabled ?? nextEnabled,
+        lastChangedAt: normalizeKillSwitchStatus(result).lastChangedAt || new Date().toISOString(),
+        reason: normalizeKillSwitchStatus(result).reason || reason.trim(),
       });
       setReason('');
       setConfirmOpen(false);
-      addToast(nextSettings.kill_switch_active ? 'Copy-trading halted platform-wide' : 'Copy-trading resumed', 'success');
-    } catch {
-      addToast('Action failed', 'error');
+      addToast(nextEnabled ? 'Copy-trading halted platform-wide' : 'Copy-trading resumed', 'success');
+    } catch (error) {
+      addToast(error.message || 'Action failed', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -89,25 +83,23 @@ const KillSwitch = () => {
         </p>
       </section>
 
-      {/* Live site-wide halted banner */}
       {halted && (
         <div className="flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-5 py-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-rose-500" />
           <div>
             <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">
-              Platform Halted — no new copies are being placed
+              Platform Halted - no new copies are being placed
             </p>
             <p className="mt-0.5 text-xs text-rose-600 dark:text-rose-500">
-              Halted by {status.lastChangedBy} · {fmtTime(status.lastChangedAt)} · Reason: {status.reason || '—'}
+              Halted by {status.lastChangedBy} · {fmtTime(status.lastChangedAt)} · Reason: {status.reason || '-'}
             </p>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Status + toggle card */}
         <GlassCard>
-          <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="mb-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
                 halted ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
@@ -136,10 +128,10 @@ const KillSwitch = () => {
 
           <div className="mb-6 divide-y divide-slate-100/70 dark:divide-white/[0.05]">
             {[
-              ['Current Status', loading ? '…' : halted ? 'Halted' : 'Active'],
-              ['Last Changed By', status?.lastChangedBy || '—'],
+              ['Current Status', loading ? '...' : halted ? 'Halted' : 'Active'],
+              ['Last Changed By', status?.lastChangedBy || '-'],
               ['Last Changed At', fmtTime(status?.lastChangedAt)],
-              ['Reason on Record', status?.reason || '—'],
+              ['Reason on Record', status?.reason || '-'],
             ].map(([label, value]) => (
               <div key={label} className="flex items-center justify-between gap-4 py-3 text-sm">
                 <span className="text-slate-500 dark:text-muted-foreground">{label}</span>
@@ -156,9 +148,9 @@ const KillSwitch = () => {
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. Broker outage detected — halting all copying"
+                placeholder="e.g. Broker outage detected - halting all copying"
                 rows={3}
-                className="w-full resize-none rounded-xl border border-border bg-black/5 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-brand-purple dark:bg-white/5"
+                className="w-full resize-none rounded-xl border border-border bg-black/5 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:border-brand-purple focus:outline-none dark:bg-white/5"
               />
             </div>
           )}
@@ -188,12 +180,11 @@ const KillSwitch = () => {
           )}
         </GlassCard>
 
-        {/* Behaviour explanation */}
         <GlassCard>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-foreground mb-1">
+          <h2 className="mb-1 text-base font-semibold text-slate-900 dark:text-foreground">
             What this does
           </h2>
-          <p className="text-sm text-slate-400 dark:text-muted-foreground mb-5">
+          <p className="mb-5 text-sm text-slate-400 dark:text-muted-foreground">
             When activated, the kill switch immediately stops all new copy orders from being placed on
             any child account. Use this during a broker outage, runaway master, or any other emergency
             that requires a complete halt.
@@ -219,7 +210,7 @@ const KillSwitch = () => {
           {!halted && (
             <div className="rounded-xl border border-border bg-black/5 px-3 py-2 text-sm dark:bg-white/5">
               <span className="text-xs text-muted-foreground">Reason</span>
-              <p className="mt-0.5 font-medium">{reason.trim() || '—'}</p>
+              <p className="mt-0.5 font-medium">{reason.trim() || '-'}</p>
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">

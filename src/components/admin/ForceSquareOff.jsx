@@ -38,6 +38,7 @@ const ForceSquareOff = () => {
   const [targetId, setTargetId] = useState('');
   const [positions, setPositions] = useState([]);
   const [loadingPositions, setLoadingPositions] = useState(false);
+  const [positionsError, setPositionsError] = useState('');
 
   const [confirmText, setConfirmText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -61,6 +62,7 @@ const ForceSquareOff = () => {
   useEffect(() => {
     setTargetId('');
     setPositions([]);
+    setPositionsError('');
     setConfirmText('');
   }, [scope]);
 
@@ -68,16 +70,26 @@ const ForceSquareOff = () => {
   useEffect(() => {
     if (!targetId) {
       setPositions([]);
+      setPositionsError('');
       return;
     }
     setLoadingPositions(true);
+    setPositionsError('');
     const params = { targetId: targetId, scope: scope };
     adminService
       .getPositions(params)
-      .then(setPositions)
-      .catch(() => setPositions([]))
+      .then((nextPositions) => {
+        setPositions(nextPositions);
+        setPositionsError('');
+      })
+      .catch((error) => {
+        const message = error?.message || 'Broker session expired for this user';
+        setPositions([]);
+        setPositionsError(message);
+        addToast(message, 'error');
+      })
       .finally(() => setLoadingPositions(false));
-  }, [targetId, scope]);
+  }, [targetId, scope, addToast]);
 
   const targetOptions = useMemo(() => {
     const list = scope === 'master-group' ? masters : allUsers;
@@ -270,6 +282,12 @@ const ForceSquareOff = () => {
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       Loading positions…
+                    </td>
+                  </tr>
+                ) : positionsError ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-rose-500">
+                      {positionsError}
                     </td>
                   </tr>
                 ) : positions.length === 0 ? (

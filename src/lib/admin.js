@@ -632,6 +632,24 @@ export const adminService = {
     }
   },
 
+  async getKillSwitch() {
+    try {
+      const response = await api.get('/api/v1/admin/kill-switch');
+      return response.data?.data || response.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to load kill-switch status'));
+    }
+  },
+
+  async setKillSwitch(enable) {
+    try {
+      const response = await api.post('/api/v1/admin/kill-switch', { enable: Boolean(enable) });
+      return response.data?.data || response.data || {};
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Unable to update kill-switch'));
+    }
+  },
+
   async getFailedCopies(params = {}) {
     try {
       const response = await api.get('/api/v1/admin/failed-copies', { params });

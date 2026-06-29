@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldAlert } from 'lucide-react';
 import Sidebar from '@/components/shared/Sidebar';
@@ -15,50 +15,51 @@ import { adminService } from '@/lib/admin';
 import { engineService } from '@/lib/engine';
 import { riskService } from '@/lib/risk';
 
-const KillSwitchBanner = () => {
+const KillSwitchBanner = ({ isAdmin }) => {
   const [halted, setHalted] = useState(false);
   const [reason, setReason] = useState('');
 
   useEffect(() => {
     let active = true;
-    const check = () => {
-      adminService.getGlobalRiskSettings()
-        .then((s) => {
-          if (!active) return;
-          setHalted(Boolean(s?.kill_switch_active));
-          setReason(s?.kill_switch_reason || s?.reason || '');
-        })
-        .catch(() => {
-          // Admin endpoint is restricted — try engine status, then risk status
-          const applyHalt = (s) => {
-            if (!active || !s) return;
-            const isHalted = Boolean(
-              s?.kill_switch_active || s?.killSwitchActive ||
-              s?.halted || s?.isHalted ||
-              s?.trading_halted || s?.tradingHalted
-            );
-            setHalted(isHalted);
-            setReason(s?.kill_switch_reason || s?.killSwitchReason || s?.halt_reason || s?.haltReason || s?.reason || '');
-          };
 
-          engineService.getStatus()
+    const applyHalt = (s) => {
+      if (!active || !s) return;
+      const isHalted = Boolean(
+        s?.enabled ??
+        s?.kill_switch_active ??
+        s?.killSwitchActive ??
+        s?.halted ??
+        s?.isHalted ??
+        s?.trading_halted ??
+        s?.tradingHalted
+      );
+      setHalted(isHalted);
+      setReason(s?.reason || s?.kill_switch_reason || s?.killSwitchReason || s?.halt_reason || s?.haltReason || '');
+    };
+
+    const check = () => {
+      const request = isAdmin ? adminService.getKillSwitch() : engineService.getStatus();
+      request
+        .then(applyHalt)
+        .catch(() => {
+          riskService.getStatus()
             .then(applyHalt)
-            .catch(() => {
-              riskService.getStatus()
-                .then(applyHalt)
-                .catch(() => {});
-            });
+            .catch(() => {});
         });
     };
+
     check();
     const interval = setInterval(check, 30000);
-    return () => { active = false; clearInterval(interval); };
-  }, []);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [isAdmin]);
 
   if (!halted) return null;
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-5 py-3.5 mb-6">
+    <div className="mb-6 flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-5 py-3.5">
       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-rose-500/15">
         <ShieldAlert className="h-5 w-5 text-rose-500" />
       </div>
@@ -67,14 +68,14 @@ const KillSwitchBanner = () => {
           Trading Halted by Admin
         </p>
         {reason && (
-          <p className="mt-0.5 text-xs text-rose-500/80 dark:text-rose-500 truncate">
+          <p className="mt-0.5 truncate text-xs text-rose-500/80 dark:text-rose-500">
             Reason: {reason}
           </p>
         )}
       </div>
       <div className="ml-auto flex-shrink-0">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-semibold text-rose-500 ring-1 ring-rose-500/20">
-          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
           All copy orders paused
         </span>
       </div>
@@ -145,8 +146,8 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-purple border-t-transparent" />
       </div>
     );
   }
@@ -184,23 +185,23 @@ const Dashboard = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <KillSwitchBanner />
+              <KillSwitchBanner isAdmin={normalizedRole === 'ADMIN'} />
               {showShellOverviewHeader && (
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
+                <div className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-foreground tracking-tight uppercase">
+                    <h1 className="text-3xl font-black uppercase tracking-tight text-slate-800 dark:text-foreground">
                       {normalizedRole === 'ADMIN' ? 'Admin Dashboard' : normalizedRole === 'MASTER' ? 'Master Hub' : 'Portfolio Overview'}
                     </h1>
-                    <p className="text-slate-400 dark:text-muted-foreground font-medium mt-1">
-                      Welcome back, <span className="text-brand-purple font-bold">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here&apos;s your performance summary.
+                    <p className="mt-1 font-medium text-slate-400 dark:text-muted-foreground">
+                      Welcome back, <span className="font-bold text-brand-purple">{user?.name?.split(' ')[0] || 'Trader'}</span>! Here&apos;s your performance summary.
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex flex-col text-right">
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest">Market Status</p>
-                      <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">Live</span>
+                    <div className="hidden flex-col text-right sm:flex">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-muted-foreground">Market Status</p>
+                      <div className="mt-0.5 flex items-center justify-end gap-1.5">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                        <span className="text-xs font-bold uppercase tracking-tight text-emerald-600 dark:text-emerald-400">Live</span>
                       </div>
                     </div>
                   </div>

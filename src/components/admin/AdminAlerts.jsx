@@ -4,14 +4,14 @@ import GlassCard from '@/components/shared/GlassCard';
 import ToggleSwitch from '@/components/shared/ToggleSwitch';
 
 // ADM-15: Admin Alerting
-// UI shell only — no backend yet. Endpoints needed:
-//   GET  /api/v1/admin/alerts                → { alerts: [{ id, event, severity, message, channel, sentAt, acknowledged }], total }
-//   GET  /api/v1/admin/alerts/config         → { channels: { email: {enabled, recipients[]}, telegram: {enabled, chatIds[]} }, events: { brokerDisconnect, copyFailureSpike, killSwitch, abnormalLoss } }
-//   PUT  /api/v1/admin/alerts/config         → body matches GET shape above, returns same
+// UI shell only - no backend yet. Endpoints needed:
+//   GET  /api/v1/admin/alerts                -> { alerts: [{ id, event, severity, message, channel, sentAt, acknowledged }], total }
+//   GET  /api/v1/admin/alerts/config         -> { channels: { email: {enabled, recipients[]}, telegram: {enabled, chatIds[]} }, events: { brokerDisconnect, copyFailureSpike, killSwitch, abnormalLoss } }
+//   PUT  /api/v1/admin/alerts/config         -> body matches GET shape above, returns same
 //   POST /api/v1/admin/alerts/{id}/acknowledge
 // Backend: critical events (broker disconnect, large-scale copy failures, kill-switch
-// activation, abnormal losses) should push into this within seconds — event-driven, not
-// a polling cron — and persist so admin can review alert history later.
+// activation, abnormal losses) should push into this within seconds - event-driven, not
+// a polling cron - and persist so admin can review alert history later.
 // Once endpoints exist: replace EVENT_TOGGLES local state with data from GET .../config,
 // wire handleSaveConfig to PUT .../config, and replace the empty alerts table with data
 // from GET .../alerts (same pagination pattern as AuditLog.jsx).
@@ -49,24 +49,7 @@ const AdminAlerts = () => {
         </p>
       </section>
 
-      <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-600 dark:text-amber-400">
-        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-        <span>
-          Alerting is not yet connected to the backend. This screen previews the intended
-          configuration and history layout — saving and live alerts require{' '}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-            GET/PUT /api/v1/admin/alerts/config
-          </code>{' '}
-          and{' '}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/5">
-            GET /api/v1/admin/alerts
-          </code>
-          .
-        </span>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* ── Channels ── */}
         <GlassCard>
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-purple/10 text-brand-purple">
@@ -129,7 +112,6 @@ const AdminAlerts = () => {
           </div>
         </GlassCard>
 
-        {/* ── Events ── */}
         <GlassCard>
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
@@ -155,7 +137,6 @@ const AdminAlerts = () => {
         </GlassCard>
       </div>
 
-      {/* ── Alert history ── */}
       <GlassCard noPadding>
         <div className="border-b border-border/40 px-4 py-3">
           <h2 className="text-base font-semibold">Alert History</h2>
@@ -177,8 +158,8 @@ const AdminAlerts = () => {
             </thead>
             <tbody>
               <tr>
-                <td colSpan={6} className="px-4 py-8 sm:py-12 text-center text-sm text-muted-foreground">
-                  No data yet — awaiting backend integration
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground sm:py-12">
+                  No data yet - awaiting backend integration
                 </td>
               </tr>
             </tbody>
