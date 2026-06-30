@@ -82,6 +82,16 @@ const IMPERSONATION_KEY = 'Ascentra Capital_impersonation';
 const ADMIN_TOKEN_KEY = 'Ascentra Capital_admin_token';
 const ADMIN_REFRESH_KEY = 'Ascentra Capital_admin_refresh';
 
+const removeImpersonationState = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  localStorage.removeItem(IMPERSONATION_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_REFRESH_KEY);
+};
+
 export const startImpersonation = (token, targetUser) => {
   const adminToken = getAccessToken();
   const adminRefresh = getRefreshToken();
@@ -98,17 +108,23 @@ export const startImpersonation = (token, targetUser) => {
   clearRefreshToken();
 };
 
+export const clearImpersonationState = () => {
+  removeImpersonationState();
+};
+
 export const endImpersonation = () => {
   const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
   const adminRefresh = localStorage.getItem(ADMIN_REFRESH_KEY);
-  localStorage.removeItem(IMPERSONATION_KEY);
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
-  localStorage.removeItem(ADMIN_REFRESH_KEY);
+  removeImpersonationState();
   if (adminToken) {
     setAccessToken(adminToken);
+  } else {
+    clearAccessToken();
   }
   if (adminRefresh) {
     setRefreshToken(adminRefresh);
+  } else {
+    clearRefreshToken();
   }
 };
 
@@ -135,6 +151,7 @@ const redirectToLogin = () => {
 const isAuthBootstrapRequest = (url = '') =>
   url.includes('/api/v1/auth/login') ||
   url.includes('/api/v1/auth/google') ||
+  url.includes('/api/v1/auth/logout') ||
   url.includes('/api/v1/auth/register') ||
   url.includes('/api/v1/auth/validate-password') ||
   url.includes('/api/v1/auth/forgot-password') ||
@@ -236,17 +253,20 @@ const refreshClient = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  if (isImpersonating()) {
-    const method = String(config.method || '').toUpperCase();
+  const nextConfig = { ...config };
+  nextConfig.headers = nextConfig.headers || {};
+  const url = String(nextConfig.url || '');
+  const isAuthRequest = isAuthBootstrapRequest(url);
+
+  if (isImpersonating() && !isAuthRequest) {
+    const method = String(nextConfig.method || '').toUpperCase();
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       return Promise.reject(new Error('Read-only session — this action is not allowed while viewing as another user.'));
     }
   }
-  const nextConfig = { ...config };
-  nextConfig.headers = nextConfig.headers || {};
-  const url = String(nextConfig.url || '');
+
   const token = getAccessToken();
-  const shouldHandleAuth = !isAuthBootstrapRequest(url) && !nextConfig.skipAuthRefresh;
+  const shouldHandleAuth = !isAuthRequest && !nextConfig.skipAuthRefresh;
 
   if (token && !isTokenExpired(token) && shouldHandleAuth) {
     nextConfig.headers.Authorization = `Bearer ${token}`;

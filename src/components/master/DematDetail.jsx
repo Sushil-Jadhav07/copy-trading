@@ -365,7 +365,7 @@ const DematDetail = ({ accountId, onBack, scope = 'master' }) => {
   const totalPnL = positions.reduce((sum, position) => sum + toNumber(position.pnl), 0);
   const statusValue = String(account?.status || (account?.sessionActive ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
   const statusMeta = (() => {
-    if (statusValue === 'ACTIVE') return { cls: 'connected', label: 'Connected & Verified' };
+    if (statusValue === 'ACTIVE') return { cls: 'connected', label: 'Connected' };
     if (statusValue === 'PENDING' || statusValue === 'PENDING_APPROVAL') return { cls: 'pending', label: 'Pending' };
     if (statusValue === 'FAILED' || statusValue === 'ERROR') return { cls: 'failed', label: 'Connection Failed' };
     return { cls: 'inactive', label: 'Inactive' };

@@ -149,7 +149,7 @@ const getStatusInfo = (acc, metrics = {}) => {
   if (resolved.scheduledExpiry) {
     return { key: 'failed', label: 'Session Expired', icon: XCircle, color: '#EF4444' };
   }
-  if (resolved.sessionActive) return { key: 'connected', label: 'Connected & Verified', icon: CheckCircle2, color: '#10B981' };
+  if (resolved.sessionActive) return { key: 'connected', label: 'Connected', icon: CheckCircle2, color: '#10B981' };
   if (s === 'PENDING') return { key: 'pending', label: 'Pending', icon: Clock, color: '#F59E0B' };
   if (s === 'FAILED' || s === 'ERROR') return { key: 'failed', label: 'Failed', icon: XCircle, color: '#EF4444' };
   return { key: 'inactive', label: 'Inactive', icon: AlertCircle, color: '#9CA3AF' };
@@ -262,7 +262,7 @@ const UserManagement = ({
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'BROKER_LOGIN_SUCCESS') {
         closeLoginModal();
-        addToast('Broker connected & verified successfully', 'success');
+        addToast('Broker Connected successfully', 'success');
         refetch();
       }
       // Popup got the auth code but could not find accountId — auto-fill the paste field
@@ -819,7 +819,7 @@ const UserManagement = ({
               String(latestAccount?.status || '').toUpperCase() === 'ACTIVE';
             if (alreadyConnected) {
               closeLoginModal();
-              addToast('Broker connected & verified successfully', 'success');
+              addToast('Broker Connected successfully', 'success');
               refetch();
               return;
             }
@@ -840,7 +840,7 @@ const UserManagement = ({
         await brokerService.loginAccount(loginTarget, loginPayload);
       }
       closeLoginModal();
-      addToast('Broker connected & verified successfully', 'success');
+      addToast('Broker Connected successfully', 'success');
       refetch();
     } catch (e) {
       const brokerKey = normalizeBrokerKey(
@@ -870,7 +870,7 @@ const UserManagement = ({
             String(latestAccount?.status || '').toUpperCase() === 'ACTIVE';
           if (alreadyConnected) {
             closeLoginModal();
-            addToast('Broker connected & verified successfully', 'success');
+            addToast('Broker Connected successfully', 'success');
             refetch();
             return;
           }

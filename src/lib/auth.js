@@ -1,5 +1,6 @@
 import api, {
   clearAccessToken,
+  clearImpersonationState,
   clearRefreshToken,
   getAccessToken,
   getRefreshToken,
@@ -28,6 +29,13 @@ const getPending2FAToken = () => {
 };
 
 const clearPending2FAToken = () => setPending2FAToken(null);
+const clearPreAuthState = () => {
+  clearAccessToken();
+  clearRefreshToken();
+  clearPending2FAToken();
+  clearImpersonationState();
+  authStorage.clearImpersonatedRole();
+};
 
 const isPending2FAToken = (token) => Boolean(parseJwtPayload(token)?.pending2fa);
 
@@ -179,9 +187,7 @@ export const authStorage = {
 export const authService = {
   async login({ email, password }) {
     try {
-      clearAccessToken();
-      clearRefreshToken();
-      authStorage.clearImpersonatedRole();
+      clearPreAuthState();
 
       const response = await api.post(
         '/api/v1/auth/login',
@@ -253,10 +259,7 @@ export const authService = {
 
   async googleLogin({ credential, role }) {
     try {
-      clearAccessToken();
-      clearRefreshToken();
-      clearPending2FAToken();
-      authStorage.clearImpersonatedRole();
+      clearPreAuthState();
 
       const response = await api.post(
         '/api/v1/auth/google',
@@ -363,6 +366,7 @@ export const authService = {
   },
 
   async sendOtp(phone) {
+    clearPreAuthState();
     return await api.post('/api/v1/auth/send-otp', { phone }, { skipAuthRefresh: true });
   },
 
@@ -392,6 +396,7 @@ export const authService = {
 
   async register({ name, email, password, role, phone }) {
     try {
+      clearPreAuthState();
       await api.post(
         '/api/v1/auth/register',
         {
@@ -469,6 +474,7 @@ export const authService = {
 
   async forgotPassword(email) {
     try {
+      clearPreAuthState();
       const response = await api.post('/api/v1/auth/forgot-password', { email }, { skipAuthRefresh: true });
       return response.data || {};
     } catch (error) {
@@ -478,6 +484,7 @@ export const authService = {
 
   async resetPassword(token, newPassword) {
     try {
+      clearPreAuthState();
       await api.post('/api/v1/auth/reset-password', { token, newPassword }, { skipAuthRefresh: true });
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Unable to reset password'));
@@ -486,6 +493,7 @@ export const authService = {
 
   async resetPasswordWithOtp(email, otp, newPassword) {
     try {
+      clearPreAuthState();
       await api.post(
         '/api/v1/auth/reset-password',
         { email, otp, newPassword },
@@ -564,10 +572,7 @@ export const authService = {
   },
 
   clearSession: function() {
-    clearAccessToken();
-    clearRefreshToken();
-    clearPending2FAToken();
-    authStorage.clearImpersonatedRole();
+    clearPreAuthState();
   },
 
   changePassword: async function({ currentPassword, newPassword }) {
