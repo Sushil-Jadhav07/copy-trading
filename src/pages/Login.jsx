@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Lock, Mail, ArrowRight, ShieldCheck, Phone, ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import GoogleSignInCard from '@/components/shared/GoogleSignInCard';
 import PhoneInput from '@/components/shared/PhoneInput';
+import StockMarketLoader from '@/components/shared/StockMarketLoader';
 import loginImg from '/asset/login4.png';
 import logomain from '/asset/whitelogo.png';
 
@@ -39,15 +40,21 @@ const Login = () => {
   const [otpExpiresIn, setOtpExpiresIn] = useState(0);
   const [twoFactorChannel, setTwoFactorChannel] = useState('EMAIL');
   const [googleRole, setGoogleRole] = useState('CHILD');
+  const [loaderUser, setLoaderUser] = useState(null);
 
   /* ---------- redirect helper ---------- */
   const redirectAfterLogin = (user) => {
-    const normalizedRole = String(user?.role || '').toUpperCase();
+    setLoaderUser(user);
+  };
+
+  const handleLoaderDone = useCallback(() => {
+    if (!loaderUser) return;
+    const normalizedRole = String(loaderUser.role || '').toUpperCase();
     const path =
       normalizedRole === 'MASTER' ? '/master/overview' :
       normalizedRole === 'ADMIN'  ? '/admin/overview'  : '/child/overview';
     navigate(path, { replace: true });
-  };
+  }, [loaderUser, navigate]);
 
   /* ---------- cooldown timer ---------- */
   useEffect(() => {
@@ -238,6 +245,10 @@ const Login = () => {
       {loading ? <Spinner /> : children}
     </motion.button>
   );
+
+  if (loaderUser) {
+    return <StockMarketLoader user={loaderUser} onDone={handleLoaderDone} />;
+  }
 
   return (
     <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-slate-950">

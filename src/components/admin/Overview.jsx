@@ -110,21 +110,57 @@ const SummaryCard = ({ card }) => {
   );
 };
 
+const RANGE_DAYS = { '1D': 1, '1W': 7, '1M': 30, '3M': 90 };
+
+const parseEquityLabel = (label) => {
+  const iso = new Date(label);
+  if (!isNaN(iso.getTime())) return iso;
+  const m = String(label).match(/^(\d{1,2})\s([A-Za-z]{3})(?:\s(\d{4}))?$/);
+  if (m) return new Date(`${m[2]} ${m[1]} ${m[3] || new Date().getFullYear()}`);
+  return null;
+};
+
 const Overview = () => {
   const [selectedRange, setSelectedRange] = useState('1M');
   const [analytics, setAnalytics] = useState(null);
   const [killSwitchActive, setKillSwitchActive] = useState(false);
-  const [equityCurveData, setEquityCurveData] = useState(FALLBACK_EQUITY_CURVE);
+  const [allEquityCurveData, setAllEquityCurveData] = useState(FALLBACK_EQUITY_CURVE);
   const [childPerfData, setChildPerfData] = useState(FALLBACK_CHILD_PERF);
   const [tradeBreakdownData, setTradeBreakdownData] = useState(FALLBACK_TRADE_BREAKDOWN);
   const [assetMixData, setAssetMixData] = useState(DEFAULT_ASSET_MIX);
+
+  const equityCurveData = useMemo(() => {
+    if (selectedRange === 'ALL' || !allEquityCurveData.length) return allEquityCurveData;
+    const days = RANGE_DAYS[selectedRange];
+    if (!days) return allEquityCurveData;
+
+    const MIN_POINTS = 2;
+    const now = new Date();
+    // Use `days` (not `days - 1`) so "1D" includes yesterday + today
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+
+    const withDates = allEquityCurveData.map((pt) => ({ pt, d: parseEquityLabel(pt.label) }));
+    const hasDates = withDates.some(({ d }) => d !== null);
+
+    let result;
+    if (hasDates) {
+      const filtered = withDates.filter(({ d }) => d && d >= cutoff).map(({ pt }) => pt);
+      result = filtered.length >= MIN_POINTS ? filtered : null;
+    }
+
+    if (!result) {
+      result = allEquityCurveData.slice(-Math.max(days, MIN_POINTS));
+    }
+
+    return result;
+  }, [allEquityCurveData, selectedRange]);
 
   useEffect(() => {
     adminService.getAnalytics().then((data) => {
       setAnalytics(data);
 
       if (Array.isArray(data.equityCurve) && data.equityCurve.length > 0) {
-        setEquityCurveData(data.equityCurve);
+        setAllEquityCurveData(data.equityCurve);
       }
 
       const totalKids =
@@ -278,14 +314,12 @@ const Overview = () => {
                   minTickGap={24}
                 />
                 <YAxis
-                  yAxisId="left"
                   tickFormatter={formatCompactCurrency}
                   tickLine={false}
                   axisLine={false}
                   tick={{ fill: 'currentColor', fontSize: 11 }}
                   width={62}
                 />
-                <YAxis yAxisId="right" hide orientation="right" />
                 <Tooltip
                   contentStyle={{
                     background: 'rgba(7, 18, 12, 0.96)',
@@ -294,28 +328,15 @@ const Overview = () => {
                     color: '#fff',
                     backdropFilter: 'blur(12px)',
                   }}
-                  formatter={(value, name) => [
-                    formatCurrency(value),
-                    name === 'equity' ? 'Equity' : 'Follower P&L',
-                  ]}
+                  formatter={(value) => [formatCurrency(value), 'Equity']}
                   labelStyle={{ color: '#9aa1b5' }}
                 />
                 <Area
-                  yAxisId="left"
                   type="monotone"
                   dataKey="equity"
                   stroke="#10d2a3"
                   strokeWidth={2.25}
                   fill="url(#equityFill)"
-                />
-                <Area
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="followers"
-                  stroke="#0c6b56"
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                  fillOpacity={0}
                 />
               </AreaChart>
             </ResponsiveContainer>
