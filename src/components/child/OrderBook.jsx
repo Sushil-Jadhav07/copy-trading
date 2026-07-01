@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { RefreshCw, Wifi, WifiOff, Info, BookOpen, Search } from 'lucide-react';
+import { Wifi, WifiOff, Info, BookOpen, Search } from 'lucide-react';
 import GlassCard from '@/components/shared/GlassCard';
 import SkeletonLoader from '@/components/shared/SkeletonLoader';
 import DivSelect from '@/components/shared/DivSelect';
@@ -90,18 +90,27 @@ const ChildOrderBook = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  const ACCOUNT_KEY = 'child_orderbook_account_id';
+
   useEffect(() => {
     const loadAccounts = async () => {
       try {
         const allAccounts = await brokerService.getAccounts();
         setAccounts(allAccounts);
-        setSelectedAccountId(allAccounts[0]?.accountId || allAccounts[0]?.id || '');
+        const saved = sessionStorage.getItem(ACCOUNT_KEY);
+        const savedValid = saved && allAccounts.some((a) => (a.accountId || a.id) === saved);
+        setSelectedAccountId(savedValid ? saved : (allAccounts[0]?.accountId || allAccounts[0]?.id || ''));
       } catch (error) {
         addToast(error.message || 'Failed to load broker accounts', 'error');
       }
     };
     loadAccounts();
   }, [addToast]);
+
+  const handleSelectAccount = (id) => {
+    sessionStorage.setItem(ACCOUNT_KEY, id);
+    setSelectedAccountId(id);
+  };
 
   const loadOrders = async (accountId, silent = false) => {
     if (!accountId) return;
@@ -165,7 +174,6 @@ const ChildOrderBook = () => {
     statusFilter,
   );
 
-  const pendingOrders  = filteredOrders.filter((o) => PENDING_STATUSES.includes(String(o.status).toUpperCase()));
   const executedOrders = filteredOrders.filter((o) => EXECUTED_STATUSES.includes(String(o.status).toUpperCase()));
 
   const handleDownload = () => {
@@ -211,7 +219,7 @@ const ChildOrderBook = () => {
           {accounts.length > 1 && (
             <DivSelect
               value={selectedAccountId}
-              onChange={setSelectedAccountId}
+              onChange={handleSelectAccount}
               includeEmptyOption={false}
               options={accounts.map((account) => ({
                 value: account.accountId || account.id,
@@ -246,10 +254,9 @@ const ChildOrderBook = () => {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {[
           { label: 'Total Orders', value: filteredOrders.length, icon: BookOpen, tone: 'text-brand-purple' },
-          { label: 'Pending',      value: pendingOrders.length,  icon: RefreshCw, tone: 'text-amber-500' },
           { label: 'Executed',     value: executedOrders.length, icon: Wifi,      tone: 'text-emerald-500' },
         ].map((item) => (
           <GlassCard key={item.label}>

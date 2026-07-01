@@ -1332,7 +1332,7 @@ const UserManagement = ({
                   <th className="w-[13%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Routing</th>
                   <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance</th>
                   <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal</th>
-                  <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Copy</th>
+                  {!isChildScope && <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Copy</th>}
                   <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
                   <th className="w-[13%] px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Last Synced</th>
                   <th className="w-[7%] px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
@@ -1381,24 +1381,26 @@ const UserManagement = ({
                         <p className="text-[11px] text-muted-foreground">{latencyMs != null ? `${latencyMs}ms` : '—'}</p>
                       </td>
                       {/* Copy */}
-                      <td className="px-3 py-3">
-                        {isMasterScope ? (
-                          <div className="flex items-center gap-1.5">
-                            <ToggleSwitch
-                              checked={Boolean(acc.isCopyEnable)}
-                              disabled={Boolean(togglingCopyEnable[id])}
-                              onChange={() => handleToggleCopyEnable(acc)}
-                              className="scale-75 origin-left"
-                              activeClassName="bg-emerald-500"
-                            />
-                            <span className={`text-[11px] font-semibold ${acc.isCopyEnable ? 'text-emerald-500' : 'text-amber-500'}`}>
-                              {acc.isCopyEnable ? 'Enabled' : 'Paused'}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
+                      {!isChildScope && (
+                        <td className="px-3 py-3">
+                          {isMasterScope ? (
+                            <div className="flex items-center gap-1.5">
+                              <ToggleSwitch
+                                checked={Boolean(acc.isCopyEnable)}
+                                disabled={Boolean(togglingCopyEnable[id])}
+                                onChange={() => handleToggleCopyEnable(acc)}
+                                className="scale-75 origin-left"
+                                activeClassName="bg-emerald-500"
+                              />
+                              <span className={`text-[11px] font-semibold ${acc.isCopyEnable ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                {acc.isCopyEnable ? 'Enabled' : 'Paused'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      )}
                       {/* Status */}
                       <td className="px-3 py-3">
                         <StatusBadge acc={acc} metrics={metrics} />

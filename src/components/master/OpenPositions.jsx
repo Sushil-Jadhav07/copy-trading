@@ -39,6 +39,8 @@ const OpenPositions = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  const ACCOUNT_KEY = 'master_positions_account_id';
+
   useEffect(() => {
     const loadAccounts = async () => {
       try {
@@ -48,9 +50,11 @@ const OpenPositions = () => {
         ]);
 
         setAccounts(allAccounts);
+        const saved = sessionStorage.getItem(ACCOUNT_KEY);
+        const savedValid = saved && allAccounts.some((a) => (a.accountId || a.id) === saved);
         const activeId = activeAcc?.brokerAccountId || activeAcc?.accountId;
         const fallbackId = allAccounts.length > 0 ? (allAccounts[0]?.accountId || allAccounts[0]?.id) : '';
-        setSelectedAccountId(activeId || fallbackId);
+        setSelectedAccountId(savedValid ? saved : (activeId || fallbackId));
       } catch (e) {
         addToast(e.message, 'error');
       }
@@ -58,6 +62,11 @@ const OpenPositions = () => {
 
     loadAccounts();
   }, [addToast]);
+
+  const handleSelectAccount = (id) => {
+    sessionStorage.setItem(ACCOUNT_KEY, id);
+    setSelectedAccountId(id);
+  };
 
   const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!_accountId) {
@@ -271,7 +280,7 @@ const OpenPositions = () => {
           {accounts.length > 1 && (
             <DivSelect
               value={selectedAccountId}
-              onChange={setSelectedAccountId}
+              onChange={handleSelectAccount}
               includeEmptyOption={false}
               options={accounts.map((a) => ({
                 value: a.accountId || a.id,

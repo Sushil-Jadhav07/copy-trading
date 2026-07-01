@@ -26,13 +26,17 @@ const ChildOpenPositions = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  const ACCOUNT_KEY = 'child_positions_account_id';
+
   useEffect(() => {
     const loadAccounts = async () => {
       try {
         const allAccounts = await brokerService.getAccounts();
         setAccounts(allAccounts);
         if (allAccounts.length > 0) {
-          setSelectedAccountId(allAccounts[0]?.accountId || allAccounts[0]?.id);
+          const saved = sessionStorage.getItem(ACCOUNT_KEY);
+          const savedValid = saved && allAccounts.some((a) => (a.accountId || a.id) === saved);
+          setSelectedAccountId(savedValid ? saved : (allAccounts[0]?.accountId || allAccounts[0]?.id));
         }
       } catch (e) {
         addToast(e.message, 'error');
@@ -41,6 +45,11 @@ const ChildOpenPositions = () => {
 
     loadAccounts();
   }, [addToast]);
+
+  const handleSelectAccount = (id) => {
+    sessionStorage.setItem(ACCOUNT_KEY, id);
+    setSelectedAccountId(id);
+  };
 
   const loadPositions = useCallback(async (_accountId, silent = false) => {
     if (!silent) setLoading(true);
@@ -184,7 +193,7 @@ const ChildOpenPositions = () => {
           {accounts.length > 1 && (
             <DivSelect
               value={selectedAccountId}
-              onChange={setSelectedAccountId}
+              onChange={handleSelectAccount}
               includeEmptyOption={false}
               className="w-full sm:w-auto"
               options={accounts.map((a) => ({
